@@ -36,6 +36,10 @@ import General_physician from './General_physician.svg'
 import Gynecologist from './Gynecologist.svg'
 import Neurologist from './Neurologist.svg'
 import Pediatricians from './Pediatricians.svg'
+import google from './google.svg'
+import facebook from './facebook.svg'
+import microsoft from './microsoft.svg'
+import twitter from './twitter.svg'
 
 
 export const assets = {
@@ -295,5 +299,24 @@ export const doctors = [
             line1: '37th Cross, Richmond',
             line2: 'Circle, Ring Road, London'
         }
+    },
+]
+
+export const socialsIcons = [
+    {
+        name: 'Google',
+        icon: google
+    },
+    {
+        name: 'Facebook',
+        icon: facebook
+    },
+    {
+        name: 'Microsoft',
+        icon: microsoft
+    },
+    {
+        name: 'Twitter',
+        icon: twitter
     },
 ]
