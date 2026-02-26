@@ -14,7 +14,7 @@ export class Doctor {
     @Prop({ required: true })
     password: string;
 
-    @Prop({ required: true })
+    @Prop({ required: true, default: '' })
     image: string;
 
     @Prop({ required: true })
@@ -29,7 +29,7 @@ export class Doctor {
     @Prop({ required: true })
     about: string;
 
-    @Prop({ required: true })
+    @Prop({ default: true })
     available: boolean;
 
     @Prop({ required: true })
@@ -41,7 +41,7 @@ export class Doctor {
         line2: string;
     };
 
-    @Prop({ required: true })
+    @Prop({ required: true, default: Date.now })
     date: number;
 
     @Prop({ type: Object, default: {} })
