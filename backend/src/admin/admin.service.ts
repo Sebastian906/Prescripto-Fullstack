@@ -1,16 +1,21 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isEmail } from 'class-validator';
 import { Model } from 'mongoose';
 import { Doctor, DoctorDocument } from 'src/doctors/schemas/doctor.schema';
 import { CloudinaryService } from 'src/shared/cloudinary/cloudinary.service';
 import * as bcrypt from 'bcrypt';
+import { LoginAdminDto } from './dto/login-admin.dto';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AdminService {
     constructor(
         @InjectModel(Doctor.name) private readonly doctorModel: Model<DoctorDocument>,
         private readonly cloudinaryService: CloudinaryService,
+        private readonly jwtService: JwtService,
+        private readonly configService: ConfigService,
     ) { }
     
     async addDoctor(body: any, imageFile: Express.Multer.File) {
@@ -56,5 +61,26 @@ export class AdminService {
         await newDoctor.save();
 
         return { success: true, message: 'Doctor added successfully' };
+    }
+
+    async loginAdmin(body: LoginAdminDto) {
+        if (!body) {
+            throw new BadRequestException('Request body is missing');
+        }
+
+        const { email, password } = body;
+
+        const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+        const adminPassword = this.configService.get<string>('ADMIN_PASSWORD');
+
+        if (email !== adminEmail || password !== adminPassword) {
+            throw new UnauthorizedException('Invalid credentials');
+        }
+
+        const token = this.jwtService.sign(email + password, {
+            secret: this.configService.get<string>('JWT_SECRET'),
+        });
+
+        return { success: true, token };
     }
 }
