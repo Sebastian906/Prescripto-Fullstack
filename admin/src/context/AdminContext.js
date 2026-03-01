@@ -1,5 +1,4 @@
-import { reactive, provide, inject, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { provide, inject, ref } from 'vue'
 
 const ADMIN_CONTEXT_KEY = Symbol('AdminContext')
 
@@ -8,27 +7,17 @@ export function provideAdminContext() {
         localStorage.getItem('aToken') || ''
     )
     const backendUrl = import.meta.env.VITE_BACKEND_URL
-    const router = useRouter()
 
-    const state = reactive({
-        aToken,
-        backendUrl,
-        setAToken: (token) => {
-            aToken.value = token
+    const setAToken = (token) => {
+        aToken.value = token
+        if (token) {
+            localStorage.setItem('aToken', token)
+        } else {
+            localStorage.removeItem('aToken')
         }
-    })
+    }
 
-    watch(
-        () => aToken.value,
-        (newToken) => {
-            if (!newToken) {
-                router.push('/login')
-            }
-        },
-        { immediate: true }
-    )
-
-    provide(ADMIN_CONTEXT_KEY, state)
+    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken })
 }
 
 export function useAdminContext() {
