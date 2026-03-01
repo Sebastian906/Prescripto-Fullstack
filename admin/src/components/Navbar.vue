@@ -1,19 +1,22 @@
 <script setup>
 import { useAdminContext } from '../context/AdminContext';
 import { assets } from '../assets/assets';
+import { useRouter } from 'vue-router';
 
 const { aToken, setAToken } = useAdminContext()
+const router = useRouter()
 
 const logout = () => {
     if (aToken.value) {
         setAToken('')
         localStorage.removeItem('aToken')
+        router.push('/')
     }
 }
 </script>
 
 <template>
-    <div class="flex justify-between items-center px-4 sm:px-10 py-3 border-b bg-indigo-100">
+    <div class="flex justify-between items-center px-4 sm:px-10 py-3 border-b border-neutral-400 bg-indigo-100">
         <div class="flex items-center gap-2 text-xs">
             <img 
                 class="w-36 sm:w-40 cursor-pointer"
