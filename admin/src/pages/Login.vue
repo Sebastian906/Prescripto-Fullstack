@@ -1,13 +1,17 @@
 <script setup>
 import { ref } from 'vue'
 import { useAdminContext } from '../context/AdminContext'
+import { useToast } from 'vue-toastification'
 import axios from 'axios'
+import { useRouter } from 'vue-router'
 
 const state = ref('Admin')
 const email = ref('')
 const password = ref('')
 
-const {setAToken, backendUrl} = useAdminContext()
+const { setAToken, backendUrl } = useAdminContext()
+const toast = useToast()
+const router = useRouter()
 
 const onSubmitHandler = async (event) => {
     event.preventDefault()
@@ -20,9 +24,16 @@ const onSubmitHandler = async (event) => {
             if (data.success) {
                 localStorage.setItem('aToken', data.token)
                 setAToken(data.token)
+                toast.success('Login successful')
+                router.push('/')
+            } else {
+                toast.error('Invalid Credentials')
             }
+        } else {
+            
         }
     } catch (error) {
+        toast.error('An error occurred. Please try again.')
         console.error(error)
     }
 }
