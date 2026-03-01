@@ -1,12 +1,30 @@
 <script setup>
 import { ref } from 'vue'
+import { useAdminContext } from '../context/AdminContext'
+import axios from 'axios'
 
 const state = ref('Admin')
 const email = ref('')
 const password = ref('')
 
-const onSubmitHandler = (event) => {
+const {setAToken, backendUrl} = useAdminContext()
+
+const onSubmitHandler = async (event) => {
     event.preventDefault()
+    try {
+        if (state.value === 'Admin') {
+            const { data } = await axios.post(
+                backendUrl + '/api/admin/login',
+                { email: email.value, password: password.value }
+            )
+            if (data.success) {
+                localStorage.setItem('aToken', data.token)
+                setAToken(data.token)
+            }
+        }
+    } catch (error) {
+        console.error(error)
+    }
 }
 </script>
 
@@ -40,8 +58,6 @@ const onSubmitHandler = (event) => {
             <button class="bg-indigo-500 text-slate-50 w-full py-2 rounded-md text-base">
                 Login
             </button>
-
-            <!-- Equivalente al operador ternario de React -->
             <p v-if="state === 'Admin'">
                 Doctor Login?
                 <span
