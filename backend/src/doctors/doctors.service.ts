@@ -28,4 +28,19 @@ export class DoctorsService {
 
         return { success: true, message: 'Availability changed' };
     }
+
+    async doctorList() {
+
+        try {
+
+            const doctors = await this.doctorModel.find({}).select(['-password', '-email'])
+            return { success: true, doctors };
+
+        } catch (error) {
+
+            console.log(error);
+            return { success: false, message: error.message };
+        
+        }
+    }
 }
