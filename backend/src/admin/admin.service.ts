@@ -8,11 +8,13 @@ import * as bcrypt from 'bcrypt';
 import { LoginAdminDto } from './dto/login-admin.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { DoctorsService } from 'src/doctors/doctors.service';
 
 @Injectable()
 export class AdminService {
     constructor(
         @InjectModel(Doctor.name) private readonly doctorModel: Model<DoctorDocument>,
+        private readonly doctorService: DoctorsService,
         private readonly cloudinaryService: CloudinaryService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
@@ -21,30 +23,24 @@ export class AdminService {
     async addDoctor(body: any, imageFile: Express.Multer.File) {
         const { name, email, password, speciality, degree, experience, about, fees, address } = body;
 
-        // Verificar que llegaron todos los campos (equivalente al if de Express)
         if (!name || !email || !password || !speciality || !degree || !experience || !about || !fees || !address) {
             throw new BadRequestException('Missing details');
         }
 
-        // Validar formato de email
         if (!isEmail(email)) {
             throw new BadRequestException('Please enter a valid email');
         }
 
-        // Validar contraseña fuerte
         if (password.length < 8) {
             throw new BadRequestException('Please enter a stronger password (min 8 characters)');
         }
 
-        // Hashear contraseña
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Subir imagen a Cloudinary
         const imageUpload = await this.cloudinaryService.uploadImage(imageFile);
         const imageUrl = imageUpload.secure_url;
 
-        // Crear y guardar el doctor
         const newDoctor = new this.doctorModel({
             name,
             email,
@@ -61,6 +57,10 @@ export class AdminService {
         await newDoctor.save();
 
         return { success: true, message: 'Doctor added successfully' };
+    }
+
+    async getAllDoctors() {
+        return this.doctorService.getAllDoctors();
     }
 
     async loginAdmin(body: LoginAdminDto) {
