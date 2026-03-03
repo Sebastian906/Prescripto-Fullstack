@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiConsumes, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -26,6 +26,18 @@ export class AdminController {
         @UploadedFile() imageFile: Express.Multer.File,
     ) {
         return this.adminService.addDoctor(body, imageFile);
+    }
+
+    @Get('all-doctors')
+    @ApiOperation({ summary: 'Get all doctors (admin panel)' })
+    @ApiHeader({
+        name: 'atoken',
+        description: 'Admin authentication token',
+        required: true,
+    })
+    @UseGuards(AuthAdminGuard)
+    async getAllDoctors() {
+        return this.adminService.getAllDoctors();
     }
 
     @Post('login')
