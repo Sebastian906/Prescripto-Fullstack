@@ -1,4 +1,4 @@
-import { Controller, Param, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DoctorsService } from './doctors.service';
 import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
@@ -18,5 +18,11 @@ export class DoctorsController {
     @UseGuards(AuthAdminGuard)
     async changeAvailability(@Param('id') id: string) {
         return this.doctorsService.changeAvailability(id)
+    }
+
+    @Get('list')
+    @ApiOperation({ summary: 'Get list of doctors' })
+    async getDoctorsList() {
+        return this.doctorsService.doctorList();
     }
 }
