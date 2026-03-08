@@ -41,27 +41,27 @@ export class AuthController {
         this.redirectWithToken(res, req.user);
     }
 
-    @Get('microsoft')
-    @ApiOperation({ summary: 'Initiate Microsoft OAuth login' })
-    @UseGuards(AuthGuard('microsoft'))
-    microsoftLogin(): void { }
+    // @Get('microsoft')
+    // @ApiOperation({ summary: 'Initiate Microsoft OAuth login' })
+    // @UseGuards(AuthGuard('microsoft'))
+    // microsoftLogin(): void { }
 
-    @Get('microsoft/callback')
-    @ApiOperation({ summary: 'Microsoft OAuth callback' })
-    @UseGuards(AuthGuard('microsoft'))
-    microsoftCallback(@Req() req: Request, @Res() res: Response): void {
-        this.redirectWithToken(res, req.user);
-    }
+    // @Get('microsoft/callback')
+    // @ApiOperation({ summary: 'Microsoft OAuth callback' })
+    // @UseGuards(AuthGuard('microsoft'))
+    // microsoftCallback(@Req() req: Request, @Res() res: Response): void {
+    //     this.redirectWithToken(res, req.user);
+    // }
 
-    @Get('twitter')
-    @ApiOperation({ summary: 'Initiate Twitter OAuth login' })
-    @UseGuards(AuthGuard('twitter'))
-    twitterLogin(): void { }
+    // @Get('twitter')
+    // @ApiOperation({ summary: 'Initiate Twitter OAuth login' })
+    // @UseGuards(AuthGuard('twitter'))
+    // twitterLogin(): void { }
 
-    @Get('twitter/callback')
-    @ApiOperation({ summary: 'Twitter OAuth callback' })
-    @UseGuards(AuthGuard('twitter'))
-    twitterCallback(@Req() req: Request, @Res() res: Response): void {
-        this.redirectWithToken(res, req.user);
-    }
+    // @Get('twitter/callback')
+    // @ApiOperation({ summary: 'Twitter OAuth callback' })
+    // @UseGuards(AuthGuard('twitter'))
+    // twitterCallback(@Req() req: Request, @Res() res: Response): void {
+    //     this.redirectWithToken(res, req.user);
+    // }
 }
