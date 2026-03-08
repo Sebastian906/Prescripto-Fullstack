@@ -7,6 +7,7 @@ import { CloudinaryModule } from './shared/cloudinary/cloudinary.module';
 import { DoctorsModule } from './doctors/doctors.module';
 import { UsersModule } from './users/users.module';
 import { AdminModule } from './admin/admin.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AdminModule } from './admin/admin.module';
     DoctorsModule,
     UsersModule,
     AdminModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
