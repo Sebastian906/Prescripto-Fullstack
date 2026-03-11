@@ -1,15 +1,16 @@
 import { useContext, useEffect, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { AppContext } from "../context/AppContext"
 import { assets } from "../assets/assets"
 import RelatedDoctors from "../components/RelatedDoctors"
+import { toast } from "react-toastify"
 
 const Appointment = () => {
 
     const { docId } = useParams()
-    const { doctors, currencySymbol } = useContext(AppContext)
+    const { doctors, currencySymbol, token } = useContext(AppContext)
     const daysOfWeek = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
-
+    const navigate = useNavigate()
     const [docInfo, setDocInfo] = useState(null)
     const [docSlots, setDocSlots] = useState([])
     const [slotIndex, setSlotIndex] = useState(0)
@@ -25,7 +26,7 @@ const Appointment = () => {
 
         // getting current date
         let today = new Date()
-        for (let i = 0; i < 7; i++) { 
+        for (let i = 0; i < 7; i++) {
             let currentDate = new Date(today)
             currentDate.setDate(today.getDate() + i)
 
@@ -147,7 +148,17 @@ const Appointment = () => {
                         ))
                     }
                 </div>
-                <button className="bg-indigo-500 text-white text-sm font-light px-14 py-3 rounded-full my-6">
+                <button
+                    onClick={() => {
+                        if (!token) {
+                            toast.info('Please login to book an appointment')
+                            navigate('/login')
+                            window.scrollTo(0, 0)
+                            return
+                        }
+                    }}
+                    className="bg-indigo-500 text-white text-sm font-light px-14 py-3 rounded-full my-6"
+                >
                     Book an appointment
                 </button>
             </div>

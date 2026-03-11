@@ -1,18 +1,36 @@
-import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import { LoginUserDto } from 'src/users/dto/login-user.dto';
+import { RegisterUserDto } from 'src/users/dto/register-user.dto';
+import { UsersService } from 'src/users/users.service';
 
 @ApiTags('Authentication -- OAuth 2.0')
 @Controller('api/auth')
 export class AuthController {
-    constructor(private readonly configService: ConfigService) {}
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly usersService: UsersService
+    ) { }
 
     private redirectWithToken(res: Response, user: any): void {
         const frontendUrl = this.configService.get<string>('VITE_FRONTEND_URL');
         const token = (user as { token: string }).token;
         res.redirect(`${frontendUrl}/oauth-callback?token=${token}`);
+    }
+
+    @Post('register')
+    @ApiOperation({ summary: 'Register a new user' })
+    async register(@Body() dto: RegisterUserDto) {
+        return this.usersService.register(dto);
+    }
+
+    @Post('login')
+    @ApiOperation({ summary: 'Login with email and password' })
+    async login(@Body() dto: LoginUserDto) {
+        return this.usersService.login(dto);
     }
 
     @Get('google')

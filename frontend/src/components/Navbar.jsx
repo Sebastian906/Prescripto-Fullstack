@@ -17,7 +17,7 @@ const Navbar = () => {
     return (
         <div className='flex items-center justify-between text-sm py-4 mb-5 border-b border-b-slate-500'>
             <img
-                onClick={()=>navigate('/')}
+                onClick={() => navigate('/')}
                 className='w-44 cursor-pointer' src={assets.logo} alt=""
             />
             <ul className='hidden md:flex items-start gap-5 font-medium'>
@@ -121,6 +121,19 @@ const Navbar = () => {
                             <p className='px-4 py-2 rounded inline-block'>CONTACT</p>
                         </NavLink>
                     </ul>
+                    {/* Mobile create account shortcut for logged-out users */}
+                    {
+                        !token && (
+                            <div className='px-5 mt-6 items-center justify-center flex'>
+                                <button
+                                    onClick={() => { setShowMenu(false); navigate('/login'); window.scrollTo(0, 0); }}
+                                    className='w-3/7 bg-indigo-600 text-white px-6 py-3 rounded-full font-medium'
+                                >
+                                    Create Account
+                                </button>
+                            </div>
+                        )
+                    }
                 </div>
             </div>
         </div>
