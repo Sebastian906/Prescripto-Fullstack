@@ -1,8 +1,14 @@
-import { useState } from "react"
+import { useContext, useEffect, useState } from "react"
 import { socialsIcons } from "../assets/assets"
+import { AppContext } from "../context/AppContext"
+import axios from "axios"
+import { toast } from "react-toastify"
+import { useNavigate } from "react-router-dom"
 
 const Login = () => {
 
+    const { backendUrl, token, setToken } = useContext(AppContext)
+    const navigate = useNavigate()
     const [state, setState] = useState('Login')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -11,6 +17,27 @@ const Login = () => {
 
     const onSubmitHandler = async (event) => {
         event.preventDefault()
+        try {
+            if (state === 'Login') {
+                const { data } = await axios.post(backendUrl + '/api/users/login', { password, email })
+                if (data.success) {
+                    localStorage.setItem('token', data.token)
+                    setToken(data.token)
+                } else {
+                    toast.error(data.message)
+                }
+            } else {
+                const { data } = await axios.post(backendUrl + '/api/users/register', { name, password, email })
+                if (data.success) {
+                    localStorage.setItem('token', data.token)
+                    setToken(data.token)
+                } else {
+                    toast.error(data.message)
+                }
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
     }
 
     const handleRegisterClick = () => {
@@ -22,6 +49,12 @@ const Login = () => {
         setIsActive(false)
         setState('Login')
     }
+
+    useEffect(() => {
+        if (token) {
+            navigate('/')
+        }
+    }, [token])
 
     return (
         <>
@@ -252,6 +285,7 @@ const Login = () => {
                             <h1 className="text-2xl font-semibold mb-1">Welcome Back!</h1>
                             <p className="text-sm mb-3 text-indigo-100">Already have an account?</p>
                             <button
+                                type = 'submit'
                                 onClick={() => setIsActive(false)}
                                 className="w-36 h-9 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-sm cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300"
                             >
