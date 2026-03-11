@@ -19,20 +19,20 @@ const Login = () => {
         event.preventDefault()
         try {
             if (state === 'Login') {
-                const { data } = await axios.post(backendUrl + '/api/users/login', { password, email })
+                const { data } = await axios.post(backendUrl + '/api/auth/login', { password, email })
                 if (data.success) {
                     localStorage.setItem('token', data.token)
                     setToken(data.token)
                 } else {
-                    toast.error(data.message)
+                    toast.error('Invalid credentials, please try again')
                 }
             } else {
-                const { data } = await axios.post(backendUrl + '/api/users/register', { name, password, email })
+                const { data } = await axios.post(backendUrl + '/api/auth/register', { name, password, email })
                 if (data.success) {
                     localStorage.setItem('token', data.token)
                     setToken(data.token)
                 } else {
-                    toast.error(data.message)
+                    toast.error('Error at registration')
                 }
             }
         } catch (error) {
@@ -145,7 +145,11 @@ const Login = () => {
                         >
                             <h1 className="text-4xl font-semibold mb-2">Hello, Welcome!</h1>
                             <p className="text-sm mb-5">Create a new account?</p>
-                            <button onClick={() => setIsActive(true)} className="w-40 h-11 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-base cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300">
+                            <button
+                                onClick={handleRegisterClick}
+                                type="submit"
+                                className="w-40 h-11 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-base cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300"
+                            >
                                 Create account
                             </button>
                         </div>
@@ -155,7 +159,11 @@ const Login = () => {
                         >
                             <h1 className="text-4xl font-semibold mb-2">Welcome Back!</h1>
                             <p className="text-sm mb-5">Already have an account?</p>
-                            <button onClick={() => setIsActive(false)} className="w-40 h-11 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-base cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300">
+                            <button
+                                onClick={handleLoginClick}
+                                type="submit"
+                                className="w-40 h-11 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-base cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300"
+                            >
                                 Login
                             </button>
                         </div>
@@ -267,7 +275,8 @@ const Login = () => {
                             <h1 className="text-2xl font-semibold mb-1">Hello, Welcome!</h1>
                             <p className="text-sm mb-3 text-indigo-100">Don't have an account?</p>
                             <button
-                                onClick={() => setIsActive(true)}
+                                onClick={handleRegisterClick}
+                                type="submit"
                                 className="w-36 h-9 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-sm cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300"
                             >
                                 Create account
@@ -285,8 +294,8 @@ const Login = () => {
                             <h1 className="text-2xl font-semibold mb-1">Welcome Back!</h1>
                             <p className="text-sm mb-3 text-indigo-100">Already have an account?</p>
                             <button
-                                type = 'submit'
-                                onClick={() => setIsActive(false)}
+                                type="submit"
+                                onClick={handleLoginClick}
                                 className="w-36 h-9 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-sm cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300"
                             >
                                 Login
