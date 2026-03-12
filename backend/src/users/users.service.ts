@@ -109,4 +109,14 @@ export class UsersService {
 
         return { success: true, token: this.signToken(user._id.toString()) };
     }
+
+    async getProfile(userId: string): Promise<{ success: boolean; userData: UserDocument }> {
+        const userData = await this.userModel.findById(userId).select('-password');
+
+        if (!userData) {
+            throw new UnauthorizedException('User not found');
+        }
+
+        return { success: true, userData };
+    }
 }
