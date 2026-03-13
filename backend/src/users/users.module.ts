@@ -6,6 +6,7 @@ import { User, UserSchema } from './schemas/user.schema';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthUserModule } from 'src/shared/guards/auth-user.module';
+import { CloudinaryModule } from 'src/shared/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AuthUserModule } from 'src/shared/guards/auth-user.module';
       inject: [ConfigService],
     }),
     AuthUserModule,
+    CloudinaryModule,
   ],
   providers: [UsersService],
   controllers: [UsersController],

@@ -8,6 +8,8 @@ import { RegisterUserDto } from './dto/register-user.dto';
 import * as bcrypt from 'bcrypt';
 import { isEmail } from 'class-validator';
 import { LoginUserDto } from './dto/login-user.dto';
+import { UpdateProfileUserDto } from './dto/update-profile.dto';
+import { CloudinaryService } from 'src/shared/cloudinary/cloudinary.service';
 
 @Injectable()
 export class UsersService {
@@ -15,6 +17,7 @@ export class UsersService {
         @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
+        private readonly cloudinaryService: CloudinaryService,
     ) { }
 
     // Private helpers
@@ -118,5 +121,32 @@ export class UsersService {
         }
 
         return { success: true, userData };
+    }
+
+    async updateProfile(
+        userId: string,
+        dto: UpdateProfileUserDto,
+        imageFile?: Express.Multer.File,
+    ): Promise<{ success: boolean; message: string }> {
+        const { name, phone, address, dob, gender } = dto;
+
+        if (!name || !phone || !dob || !gender) {
+            throw new BadRequestException('Data Missing');
+        }
+
+        await this.userModel.findByIdAndUpdate(userId, {
+            name,
+            phone,
+            address: JSON.parse(address),
+            dob,
+            gender,
+        });
+
+        if (imageFile) {
+            const imageUpload = await this.cloudinaryService.uploadImage(imageFile);
+            await this.userModel.findByIdAndUpdate(userId, { image: imageUpload.secure_url });
+        }
+
+        return { success: true, message: 'Profile updated successfully' };
     }
 }
