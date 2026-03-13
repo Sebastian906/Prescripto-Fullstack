@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Put, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiConsumes, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { AuthUserGuard } from 'src/shared/guards/auth-user.guard';
@@ -23,7 +23,7 @@ export class UsersController {
         return this.usersService.getProfile(userId);
     }
 
-    @Post('update-profile')
+    @Put('update-profile')
     @ApiOperation({ summary: 'Update authenticated user profile' })
     @ApiConsumes('multipart/form-data')
     @ApiHeader({
