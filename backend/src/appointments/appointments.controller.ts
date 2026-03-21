@@ -1,15 +1,16 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
 import { AuthUserGuard } from 'src/shared/guards/auth-user.guard';
 import { BookAppointmentDto } from './dto/book-appointment.dto';
+import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 
 @ApiTags('Appointments')
 @Controller('api/appointments')
 export class AppointmentsController {
     constructor(private readonly appointmentService: AppointmentsService) { }
 
-    @Post('book')
+    @Post('book-appointment')
     @ApiOperation({ summary: 'Book a medical appointment' })
     @ApiHeader({
         name: 'token',
@@ -36,5 +37,21 @@ export class AppointmentsController {
     async getUserAppointments(@Req() req: Request) {
         const userId = (req as any).userId as string;
         return this.appointmentService.getUserAppointments(userId);
+    }
+
+    @Patch('cancel-appointment')
+    @ApiOperation({ summary: 'Cancel an appointment' })
+    @ApiHeader({
+        name: 'token',
+        description: 'User JWT authentication token',
+        required: true,
+    })
+    @UseGuards(AuthUserGuard)
+    async cancelAppointment(
+        @Req() req: Request,
+        @Body() dto: CancelAppointmentDto,
+    ) {
+        const userId = (req as any).userId as string;
+        return this.appointmentService.cancelAppointment(userId, dto);
     }
 }
