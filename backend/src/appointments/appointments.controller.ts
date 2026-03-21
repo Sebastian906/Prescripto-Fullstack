@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
 import { AuthUserGuard } from 'src/shared/guards/auth-user.guard';
@@ -23,5 +23,18 @@ export class AppointmentsController {
     ) {
         const userId = (req as any).userId as string;
         return this.appointmentService.bookAppointment(userId, dto);
+    }
+
+    @Get('user-appointments')
+    @ApiOperation({ summary: 'Get all appointments for the authenticated user' })
+    @ApiHeader({
+        name: 'token',
+        description: 'User JWT authentication token',
+        required: true,
+    })
+    @UseGuards(AuthUserGuard)
+    async getUserAppointments(@Req() req: Request) {
+        const userId = (req as any).userId as string;
+        return this.appointmentService.getUserAppointments(userId);
     }
 }

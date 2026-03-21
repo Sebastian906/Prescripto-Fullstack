@@ -74,4 +74,9 @@ export class AppointmentsService {
 
         return { success: true, message: 'Appointment booked successfully' };
     }
+
+    async getUserAppointments(userId: string): Promise<{ success: boolean; appointments: AppointmentDocument[] }> {
+        const appointments = await this.appointmentModel.find({ userId });
+        return { success: true, appointments };
+    }
 }
