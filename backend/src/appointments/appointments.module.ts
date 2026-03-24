@@ -6,6 +6,7 @@ import { Appointment, AppointmentSchema } from './schemas/appointment.schema';
 import { Doctor, DoctorSchema } from 'src/doctors/schemas/doctor.schema';
 import { User, UserSchema } from 'src/users/schemas/user.schema';
 import { AuthUserModule } from 'src/shared/guards/auth-user.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -14,7 +15,8 @@ import { AuthUserModule } from 'src/shared/guards/auth-user.module';
     { name: Doctor.name, schema: DoctorSchema },
     { name: User.name, schema: UserSchema },
   ]),
-  AuthUserModule,
+    AuthUserModule,
+    ConfigModule,
 ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],

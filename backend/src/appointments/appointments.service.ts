@@ -6,6 +6,10 @@ import { Doctor, DoctorDocument } from 'src/doctors/schemas/doctor.schema';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
 import { BookAppointmentDto } from './dto/book-appointment.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
+import { ConfigService } from '@nestjs/config';
+import { PaymentCODDto } from './dto/payment-cod.dto';
+import { PaymentStripeDto } from './dto/payment-stripe.dto';
+import Stripe from 'stripe';
 
 @Injectable()
 export class AppointmentsService {
@@ -13,6 +17,7 @@ export class AppointmentsService {
         @InjectModel(Appointment.name) private readonly appointmentModel: Model<AppointmentDocument>,
         @InjectModel(Doctor.name) private readonly doctorModel: Model<DoctorDocument>,
         @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+        private readonly configService: ConfigService,
     ) {}
 
     async bookAppointment(
@@ -124,5 +129,121 @@ export class AppointmentsService {
         }
 
         return { success: true, message: 'Appointment cancelled successfully' };
+    }
+
+    async payWithCOD(
+        userId: string,
+        dto: PaymentCODDto,
+    ): Promise<{ success: boolean; message: string }> {
+        const { appointmentId } = dto;
+
+        const appointment = await this.appointmentModel.findById(appointmentId);
+
+        if (!appointment) {
+            throw new NotFoundException('Appointment not found');
+        }
+
+        if (appointment.cancelled) {
+            throw new BadRequestException('Appointment is cancelled');
+        }
+
+        if (appointment.userId !== userId) {
+            throw new UnauthorizedException('Unauthorized action');
+        }
+
+        if (appointment.payment) {
+            throw new BadRequestException('Appointment is already paid');
+        }
+
+        await this.appointmentModel.findByIdAndUpdate(appointmentId, {
+            payment: true,
+        });
+
+        return { success: true, message: 'Payment confirmed (Cash on Delivery)' };
+    }
+
+    async payWithStripe(
+        userId: string,
+        dto: PaymentStripeDto,
+    ): Promise<{ success: boolean; sessionId: string; url: string }> {
+        const { appointmentId } = dto;
+
+        const appointment = await this.appointmentModel.findById(appointmentId);
+
+        if (!appointment) {
+            throw new NotFoundException('Appointment not found');
+        }
+
+        if (appointment.cancelled) {
+            throw new BadRequestException('Appointment is cancelled');
+        }
+
+        if (appointment.userId !== userId) {
+            throw new UnauthorizedException('Unauthorized action');
+        }
+
+        if (appointment.payment) {
+            throw new BadRequestException('Appointment is already paid');
+        }
+
+        const stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY')!);
+
+        const currency = this.configService.get<string>('CURRENCY') ?? 'usd';
+        const frontendUrl = this.configService.get<string>('VITE_FRONTEND_URL');
+
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [
+                {
+                    price_data: {
+                        currency,
+                        product_data: {
+                            name: `Appointment with ${appointment.docData['name']}`,
+                            description: `${appointment.slotDate} at ${appointment.slotTime}`,
+                        },
+                        unit_amount: appointment.amount * 100, // Stripe usa centavos
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: 'payment',
+            success_url: `${frontendUrl}/my-appointments?payment=success&appointmentId=${appointmentId}`,
+            cancel_url: `${frontendUrl}/my-appointments?payment=cancelled`,
+            metadata: {
+                appointmentId,
+                userId,
+            },
+        });
+
+        return { success: true, sessionId: session.id, url: session.url! };
+    }
+
+    async verifyStripePayment(
+        payload: Buffer,
+        signature: string,
+    ): Promise<{ received: boolean }> {
+        const stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY')!);
+        const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET')!;
+
+        let event: Stripe.Event;
+
+        try {
+            event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+        } catch {
+            throw new BadRequestException('Invalid Stripe webhook signature');
+        }
+
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object as Stripe.Checkout.Session;
+            const appointmentId = session.metadata?.appointmentId;
+
+            if (appointmentId) {
+                await this.appointmentModel.findByIdAndUpdate(appointmentId, {
+                    payment: true,
+                });
+            }
+        }
+
+        return { received: true };
     }
 }
