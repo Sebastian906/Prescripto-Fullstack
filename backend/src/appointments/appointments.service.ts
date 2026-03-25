@@ -246,4 +246,27 @@ export class AppointmentsService {
 
         return { received: true };
     }
+
+    async verifyPayment(
+        userId: string,
+        appointmentId: string,
+    ): Promise<{ success: boolean; message: string }> {
+        const appointment = await this.appointmentModel.findById(appointmentId);
+
+        if (!appointment) {
+            throw new NotFoundException('Appointment not found');
+        }
+
+        if (appointment.userId !== userId) {
+            throw new UnauthorizedException('Unauthorized action');
+        }
+
+        if (appointment.cancelled) {
+            throw new BadRequestException('Appointment is cancelled');
+        }
+
+        return appointment.payment
+            ? { success: true, message: 'Payment verified successfully' }
+            : { success: false, message: 'Payment not completed' };
+    }
 }

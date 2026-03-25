@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Patch, Post, RawBodyRequest, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
 import { AuthUserGuard } from 'src/shared/guards/auth-user.guard';
@@ -88,5 +88,17 @@ export class AppointmentsController {
         @Headers('stripe-signature') signature: string,
     ) {
         return this.appointmentService.verifyStripePayment(req.rawBody, signature);
+    }
+
+    @Get('verify-payment/:appointmentId')
+    @ApiOperation({ summary: 'Verify payment status of an appointment' })
+    @ApiHeader({ name: 'token', description: 'User JWT authentication token', required: true })
+    @UseGuards(AuthUserGuard)
+    async verifyPayment(
+        @Req() req: Request,
+        @Param('appointmentId') appointmentId: string,
+    ) {
+        const userId = (req as any).userId as string;
+        return this.appointmentService.verifyPayment(userId, appointmentId);
     }
 }
