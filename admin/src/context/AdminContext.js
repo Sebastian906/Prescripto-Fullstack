@@ -7,11 +7,10 @@ const ADMIN_CONTEXT_KEY = Symbol('AdminContext')
 export function provideAdminContext() {
     const toast = useToast()
 
-    const aToken = ref(
-        localStorage.getItem('aToken') || ''
-    )
+    const aToken = ref(localStorage.getItem('aToken') || '')
     const backendUrl = import.meta.env.VITE_BACKEND_URL
     const doctors = ref([])
+    const appointments = ref([])
 
     const setAToken = (token) => {
         aToken.value = token
@@ -24,10 +23,7 @@ export function provideAdminContext() {
 
     const getAllDoctors = async () => {
         try {
-            const { data } = await axios.get(
-                backendUrl + '/api/admin/all-doctors',
-                { headers: { atoken: aToken.value } },
-            )
+            const { data } = await axios.get(backendUrl + '/api/admin/all-doctors', { headers: { atoken: aToken.value } })
             if (data.success) {
                 doctors.value = data.doctors
             } else {
@@ -40,11 +36,7 @@ export function provideAdminContext() {
 
     const changeAvailability = async (docId) => {
         try {
-            const { data } = await axios.patch(
-                `${backendUrl}/api/doctors/change-availability/${docId}`,
-                {},
-                { headers: { atoken: aToken.value } },
-            )
+            const { data } = await axios.patch(`${backendUrl}/api/doctors/change-availability/${docId}`, {}, { headers: { atoken: aToken.value } })
             if (data.success) {
                 toast.success(data.message)
                 await getAllDoctors()
@@ -56,7 +48,34 @@ export function provideAdminContext() {
         }
     }
 
-    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability })
+    const getAllAppointments = async () => {
+        try {
+            const { data } = await axios.get(backendUrl + '/api/admin/appointments', { headers: { atoken: aToken.value } })
+            if (data.success) {
+                appointments.value = data.appointments
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    const cancelAppointment = async (appointmentId) => {
+        try {
+            const { data } = await axios.patch(backendUrl + '/api/admin/cancel-appointment', { appointmentId }, { headers: { atoken: aToken.value } })
+            if (data.success) {
+                toast.success(data.message)
+                await getAllAppointments()
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment })
 }
 
 export function useAdminContext() {
