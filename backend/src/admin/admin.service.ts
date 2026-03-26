@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { isEmail } from 'class-validator';
 import { Model } from 'mongoose';
@@ -9,11 +9,13 @@ import { LoginAdminDto } from './dto/login-admin.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { DoctorsService } from 'src/doctors/doctors.service';
+import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
 
 @Injectable()
 export class AdminService {
     constructor(
         @InjectModel(Doctor.name) private readonly doctorModel: Model<DoctorDocument>,
+        @InjectModel(Appointment.name) private readonly appointmentModel: Model<AppointmentDocument>,
         private readonly doctorService: DoctorsService,
         private readonly cloudinaryService: CloudinaryService,
         private readonly jwtService: JwtService,
@@ -82,5 +84,41 @@ export class AdminService {
         });
 
         return { success: true, token };
+    }
+
+    async getAllAppointments(): Promise<{ success: boolean; appointments: AppointmentDocument[] }> {
+        const appointments = await this.appointmentModel.find({});
+        return { success: true, appointments };
+    }
+
+    async cancelAppointment(appointmentId: string): Promise<{ success: boolean; message: string }> {
+        const appointment = await this.appointmentModel.findById(appointmentId);
+
+        if (!appointment) {
+            throw new NotFoundException('Appointment not found');
+        }
+
+        if (appointment.cancelled) {
+            throw new BadRequestException('Appointment is already cancelled');
+        }
+
+        await this.appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true });
+
+        const { docId, slotDate, slotTime } = appointment;
+        const doctor = await this.doctorModel.findById(docId);
+
+        if (doctor) {
+            const slotsBooked = doctor.slots_booked ?? {};
+
+            if (slotsBooked[slotDate]) {
+                slotsBooked[slotDate] = slotsBooked[slotDate].filter(
+                    (slot) => slot !== slotTime,
+                );
+            }
+
+            await this.doctorModel.findByIdAndUpdate(docId, { slots_booked: slotsBooked });
+        }
+
+        return { success: true, message: 'Appointment Cancelled' };
     }
 }
