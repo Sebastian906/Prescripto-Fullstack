@@ -3,22 +3,21 @@ import { ref } from 'vue'
 import { useAdminContext } from '../context/AdminContext'
 import { useToast } from 'vue-toastification'
 import axios from 'axios'
+import { useDoctorContext } from '../context/DoctorContext'
 
 const state = ref('Admin')
 const email = ref('')
 const password = ref('')
 
 const { setAToken, backendUrl } = useAdminContext()
+const { setDToken } = useDoctorContext()
 const toast = useToast()
 
 const onSubmitHandler = async (event) => {
     event.preventDefault()
     try {
         if (state.value === 'Admin') {
-            const { data } = await axios.post(
-                backendUrl + '/api/admin/login',
-                { email: email.value, password: password.value }
-            )
+            const { data } = await axios.post(backendUrl + '/api/admin/login', { email: email.value, password: password.value })
             if (data.success) {
                 setAToken(data.token)
                 toast.success('Login successful')
@@ -26,7 +25,13 @@ const onSubmitHandler = async (event) => {
                 toast.error('Invalid Credentials')
             }
         } else {
-
+            const { data } = await axios.post(backendUrl + '/api/doctors/login', { email: email.value, password: password.value })
+            if (data.success) {
+                setDToken(data.token)
+                toast.success('Login successful')
+            } else {
+                toast.error('Invalid Credentials')
+            }
         }
     } catch (error) {
         toast.error('An error occurred. Please try again.')

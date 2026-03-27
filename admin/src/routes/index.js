@@ -3,12 +3,16 @@ import Dashboard from '../pages/Admin/Dashboard.vue'
 import AllAppointments from '../pages/Admin/AllAppointments.vue'
 import AddDoctor from '../pages/Admin/AddDoctor.vue'
 import DoctorsList from '../pages/Admin/DoctorsList.vue'
+import DoctorDashboard from '../pages/Doctor/DoctorDashboard.vue'
+import DoctorAppointments from '../pages/Doctor/DoctorAppointments.vue'
+import DoctorProfile from '../pages/Doctor/DoctorProfile.vue'
 
 const routes = [
     {
         path: '/',
         redirect: '/admin-dashboard'
     },
+    // Admin routes
     {
         path: '/admin-dashboard',
         name: 'Dashboard',
@@ -28,6 +32,22 @@ const routes = [
         path: '/doctor-list',
         name: 'DoctorsList',
         component: DoctorsList
+    },
+    // Doctor routes
+    {
+        path: '/doctor-dashboard',
+        name: 'DoctorDashboard',
+        component: DoctorDashboard
+    },
+    {
+        path: '/doctor-appointments',
+        name: 'DoctorAppointments',
+        component: DoctorAppointments
+    },
+    {
+        path: '/doctor-profile',
+        name: 'DoctorProfile',
+        component: DoctorProfile
     },
     {
         path: '/:pathMatch(.*)*',
