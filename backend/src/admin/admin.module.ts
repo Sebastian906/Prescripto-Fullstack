@@ -8,12 +8,14 @@ import { AdminController } from './admin.controller';
 import { DoctorsModule } from 'src/doctors/doctors.module';
 import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
 import { Appointment, AppointmentSchema } from 'src/appointments/schemas/appointment.schema';
+import { User, UserSchema } from 'src/users/schemas/user.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Doctor.name, schema: DoctorSchema },
       { name: Appointment.name, schema: AppointmentSchema },
+      { name: User.name, schema: UserSchema },
     ]),
     CloudinaryModule,
     ConfigModule,

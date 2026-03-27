@@ -70,4 +70,12 @@ export class AdminController {
     async cancelAppointment(@Body() body: CancelAppointmentAdminDto) {
         return this.adminService.cancelAppointment(body.appointmentId);
     }
+
+    @Get('dashboard')
+    @ApiOperation({ summary: 'Get summary stats and latest appointments for the admin dashboard' })
+    @ApiHeader({ name: 'atoken', description: 'Admin authentication token', required: true })
+    @UseGuards(AuthAdminGuard)
+    async getDashboard() {
+        return this.adminService.getDashboard();
+    }
 }

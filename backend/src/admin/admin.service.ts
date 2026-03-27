@@ -10,12 +10,14 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { DoctorsService } from 'src/doctors/doctors.service';
 import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
+import { User, UserDocument } from 'src/users/schemas/user.schema';
 
 @Injectable()
 export class AdminService {
     constructor(
         @InjectModel(Doctor.name) private readonly doctorModel: Model<DoctorDocument>,
         @InjectModel(Appointment.name) private readonly appointmentModel: Model<AppointmentDocument>,
+        @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
         private readonly doctorService: DoctorsService,
         private readonly cloudinaryService: CloudinaryService,
         private readonly jwtService: JwtService,
@@ -120,5 +122,31 @@ export class AdminService {
         }
 
         return { success: true, message: 'Appointment Cancelled' };
+    }
+
+    async getDashboard(): Promise<{
+        success: boolean;
+        dashData: {
+            doctors: number;
+            appointments: number;
+            patients: number;
+            latestAppointments: AppointmentDocument[];
+        }
+    }> {
+
+        const [doctorCount, userCount, appointments] = await Promise.all([
+            this.doctorModel.countDocuments(),
+            this.userModel.countDocuments(),
+            this.appointmentModel.find({}).sort({ date: -1 }).limit(5).lean(),
+        ])
+
+        const dashData = {
+            doctors: doctorCount,
+            appointments: await this.appointmentModel.countDocuments(),
+            patients: userCount,
+            latestAppointments: appointments,
+        }
+
+        return { success: true, dashData };
     }
 }
