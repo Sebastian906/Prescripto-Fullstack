@@ -2,14 +2,20 @@
 import { useAdminContext } from '../context/AdminContext';
 import { assets } from '../assets/assets';
 import { useRouter } from 'vue-router';
+import { useDoctorContext } from '../context/DoctorContext';
 
 const { aToken, setAToken } = useAdminContext()
+const { dToken, setDToken } = useDoctorContext()
 const router = useRouter()
 
 const logout = () => {
     if (aToken.value) {
         setAToken('')
         localStorage.removeItem('aToken')
+        router.push('/')
+    } else if (dToken.value) {
+        setDToken('')
+        localStorage.removeItem('dToken')
         router.push('/')
     }
 }
