@@ -11,6 +11,7 @@ export function provideAdminContext() {
     const backendUrl = import.meta.env.VITE_BACKEND_URL
     const doctors = ref([])
     const appointments = ref([])
+    const dashData = ref([])
 
     const setAToken = (token) => {
         aToken.value = token
@@ -75,7 +76,20 @@ export function provideAdminContext() {
         }
     }
 
-    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment })
+    const getDashData = async () => {
+        try {
+            const { data } = await axios.get(backendUrl + '/api/admin/dashboard', { headers: { atoken: aToken.value } })
+            if (data.success) {
+                dashData.value = data.dashData
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment, dashData, getDashData })
 }
 
 export function useAdminContext() {
