@@ -1,7 +1,8 @@
-import { Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DoctorsService } from './doctors.service';
 import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
+import { LoginDoctorDto } from './dto/login-doctor.dto';
 
 @ApiTags('Doctors')
 @Controller('api/doctors')
@@ -24,5 +25,11 @@ export class DoctorsController {
     @ApiOperation({ summary: 'Get list of doctors' })
     async getDoctorsList() {
         return this.doctorsService.doctorList();
+    }
+
+    @Post('login')
+    @ApiOperation({ summary: 'Doctor login' })
+    async loginDoctor(@Body() body: LoginDoctorDto) {
+        return this.doctorsService.loginDoctor(body);
     }
 }
