@@ -6,12 +6,15 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { LoginDoctorDto } from './dto/login-doctor.dto';
 import * as bcrypt from 'bcrypt';
+import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
 
 @Injectable()
 export class DoctorsService {
     constructor(
         @InjectModel(Doctor.name)
         private readonly doctorModel: Model<DoctorDocument>,
+        @InjectModel(Appointment.name)
+        private readonly appointmentModel: Model<AppointmentDocument>,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
     ) { }
@@ -71,5 +74,12 @@ export class DoctorsService {
         );
 
         return { success: true, token };
+    }
+
+    async getDoctorAppointments(
+        docId: string,
+    ): Promise<{ success: boolean; appointments: AppointmentDocument[] }> {
+        const appointments = await this.appointmentModel.find({ docId });
+        return { success: true, appointments };
     }
 }
