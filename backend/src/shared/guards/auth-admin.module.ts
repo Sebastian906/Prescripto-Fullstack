@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthAdminGuard } from './auth-admin.guard';
-import { AuthDoctorModule } from './auth-doctor/auth-doctor.module';
+import { AuthDoctorModule } from './auth-doctor.module';
 
 @Module({
     imports: [
