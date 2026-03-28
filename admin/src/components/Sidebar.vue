@@ -41,7 +41,7 @@ const doctorNavItems = [
                     ]"
                 >
                     <img :src="item.icon" alt="" />
-                    <p>{{ item.label }}</p>
+                    <p class="hidden sm:block">{{ item.label }}</p>
                 </li>
             </RouterLink>
         </ul>
@@ -63,7 +63,7 @@ const doctorNavItems = [
                     ]"
                 >
                     <img :src="item.icon" alt="" />
-                    <p>{{ item.label }}</p>
+                    <p class="hidden sm:block">{{ item.label }}</p>
                 </li>
             </RouterLink>
         </ul>
