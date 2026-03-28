@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { AuthAdminGuard } from './auth-admin.guard';
-import { AuthDoctorModule } from './auth-doctor/auth-doctor.module';
+import { AuthDoctorGuard } from './auth-doctor.guard';
 
 @Module({
     imports: [
@@ -14,9 +13,8 @@ import { AuthDoctorModule } from './auth-doctor/auth-doctor.module';
             }),
             inject: [ConfigService],
         }),
-        AuthDoctorModule,
     ],
-    providers: [AuthAdminGuard],
-    exports: [AuthAdminGuard, JwtModule],
+    providers: [AuthDoctorGuard],
+    exports: [AuthDoctorGuard, JwtModule],
 })
-export class AuthAdminModule { }
+export class AuthDoctorModule {}

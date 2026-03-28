@@ -5,11 +5,13 @@ import { DoctorsController } from './doctors.controller';
 import { DoctorsService } from './doctors.service';
 import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
 import { ConfigModule } from '@nestjs/config';
+import { AuthDoctorModule } from 'src/shared/guards/auth-doctor.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Doctor.name, schema: DoctorSchema }]),
     AuthAdminModule,
+    AuthDoctorModule,
     ConfigModule,
   ],
   controllers: [DoctorsController],
