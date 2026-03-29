@@ -4,7 +4,7 @@ import { useAppContext } from '../../context/AppContext'
 import { onMounted } from 'vue'
 import { assets } from '../../assets/assets'
 
-const { dToken, appointments, getAppointments } = useDoctorContext()
+const { dToken, appointments, getAppointments, completeAppointment, cancelAppointment } = useDoctorContext()
 const { calculateAge, slotDateFormat, currency } = useAppContext()
 
 onMounted(() => {
@@ -46,18 +46,34 @@ onMounted(() => {
                 <p>{{ slotDateFormat(item.slotDate) }}, {{ item.slotTime }}</p>
                 <p>{{ currency }}{{ item.amount }}</p>
                 <div class="flex items-center gap-1">
-                    <img
-                        class="w-10 cursor-pointer"
-                        :src="assets.cancel_icon"
-                        alt="Cancel"
-                        title="Cancel appointment"
-                    />
-                    <img
-                        class="w-10 cursor-pointer"
-                        :src="assets.tick_icon"
-                        alt="Complete"
-                        title="Mark as completed"
-                    />
+                    <p
+                        v-if="item.cancelled"
+                        class="text-red-500 text-xs font-medium"
+                    >
+                        Cancelled
+                    </p>
+                    <p
+                        v-else-if="item.isCompleted"
+                        class="text-green-500 text-xs font-medium"
+                    >
+                        Completed
+                    </p>
+                    <template v-else>
+                        <img
+                            @click="cancelAppointment(item._id)"
+                            class="w-10 cursor-pointer"
+                            :src="assets.cancel_icon"
+                            alt="Cancel"
+                            title="Cancel appointment"
+                        />
+                        <img
+                            @click="completeAppointment(item._id)"
+                            class="w-10 cursor-pointer"
+                            :src="assets.tick_icon"
+                            alt="Complete"
+                            title="Mark as completed"
+                        />
+                    </template>
                 </div>
             </div>
             <p
