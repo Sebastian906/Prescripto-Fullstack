@@ -4,6 +4,8 @@ import { DoctorsService } from './doctors.service';
 import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
 import { LoginDoctorDto } from './dto/login-doctor.dto';
 import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
+import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
+import { CompleteAppointmentDto } from './dto/complete-appointment.dto';
 
 @ApiTags('Doctors')
 @Controller('api/doctors')
@@ -45,5 +47,37 @@ export class DoctorsController {
     async getDoctorAppointments(@Req() req: Request) {
         const docId = (req as any).docId as string;
         return this.doctorsService.getDoctorAppointments(docId);
+    }
+
+    @Patch('complete-appointment')
+    @ApiOperation({ summary: 'Mark an appointment as completed (doctor panel)' })
+    @ApiHeader({
+        name: 'dtoken',
+        description: 'Doctor authentication token',
+        required: true,
+    })
+    @UseGuards(AuthDoctorGuard)
+    async completeAppointment(
+        @Req() req: Request,
+        @Body() dto: CompleteAppointmentDto,
+    ) {
+        const docId = (req as any).docId as string;
+        return this.doctorsService.completeAppointment(docId, dto.appointmentId);
+    }
+
+    @Patch('cancel-appointment')
+    @ApiOperation({ summary: 'Cancel an appointment (doctor panel)' })
+    @ApiHeader({
+        name: 'dtoken',
+        description: 'Doctor authentication token',
+        required: true,
+    })
+    @UseGuards(AuthDoctorGuard)
+    async cancelAppointmentDoctor(
+        @Req() req: Request,
+        @Body() dto: CancelAppointmentDto,
+    ) {
+        const docId = (req as any).docId as string;
+        return this.doctorsService.cancelAppointmentDoctor(docId, dto.appointmentId);
     }
 }

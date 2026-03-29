@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Doctor, DoctorDocument } from './schemas/doctor.schema';
@@ -18,7 +18,7 @@ export class DoctorsService {
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
     ) { }
-    
+
     async getAllDoctors() {
         const doctors = await this.doctorModel.find({}).select('-password');
         return { success: true, doctors };
@@ -49,7 +49,7 @@ export class DoctorsService {
 
             console.log(error);
             return { success: false, message: error.message };
-        
+
         }
     }
 
@@ -81,5 +81,57 @@ export class DoctorsService {
     ): Promise<{ success: boolean; appointments: AppointmentDocument[] }> {
         const appointments = await this.appointmentModel.find({ docId });
         return { success: true, appointments };
+    }
+
+    async completeAppointment(
+        docId: string,
+        appointmentId: string,
+    ): Promise<{ success: boolean; message: string }> {
+        const appointment = await this.appointmentModel.findById(appointmentId);
+
+        if (!appointment || appointment.docId !== docId) {
+            throw new UnauthorizedException('Mark failed');
+        }
+
+        if (appointment.isCompleted) {
+            throw new BadRequestException('Appointment is already completed');
+        }
+
+        await this.appointmentModel.findByIdAndUpdate(appointmentId, { isCompleted: true });
+
+        return { success: true, message: 'Appointment Completed' };
+    }
+
+    async cancelAppointmentDoctor(
+        docId: string,
+        appointmentId: string,
+    ): Promise<{ success: boolean; message: string }> {
+        const appointment = await this.appointmentModel.findById(appointmentId);
+
+        if (!appointment || appointment.docId !== docId) {
+            throw new UnauthorizedException('Cancellation failed');
+        }
+
+        if (appointment.cancelled) {
+            throw new BadRequestException('Appointment is already cancelled');
+        }
+
+        await this.appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true });
+
+        const doctor = await this.doctorModel.findById(docId);
+        if (doctor) {
+            const slotsBooked = doctor.slots_booked ?? {};
+            const { slotDate, slotTime } = appointment;
+
+            if (slotsBooked[slotDate]) {
+                slotsBooked[slotDate] = slotsBooked[slotDate].filter(
+                    (slot) => slot !== slotTime,
+                );
+            }
+
+            await this.doctorModel.findByIdAndUpdate(docId, { slots_booked: slotsBooked });
+        }
+
+        return { success: true, message: 'Appointment Cancelled' };
     }
 }
