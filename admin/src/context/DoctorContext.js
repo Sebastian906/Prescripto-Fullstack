@@ -32,7 +32,35 @@ export function provideDoctorContext() {
         }
     }
 
-    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments })
+    const completeAppointment = async (appointmentId) => {
+        try {
+            const { data } = await axios.patch(backendUrl + '/api/doctors/complete-appointment', { appointmentId }, { headers: { dtoken: dToken.value } })
+            if (data.success) {
+                toast.success(data.message)
+                await getAppointments()
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    const cancelAppointment = async (appointmentId) => {
+        try {
+            const { data } = await axios.patch(backendUrl + '/api/doctors/cancel-appointment', { appointmentId }, { headers: { dtoken: dToken.value } })
+            if (data.success) {
+                toast.success(data.message)
+                await getAppointments()
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment })
 }
 
 export function useDoctorContext() {
