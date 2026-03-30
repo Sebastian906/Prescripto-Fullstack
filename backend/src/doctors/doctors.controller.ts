@@ -80,4 +80,17 @@ export class DoctorsController {
         const docId = (req as any).docId as string;
         return this.doctorsService.cancelAppointmentDoctor(docId, dto.appointmentId);
     }
+
+    @Get('dashboard')
+    @ApiOperation({ summary: 'Get dashboard data for the authenticated doctor' })
+    @ApiHeader({
+        name: 'dtoken',
+        description: 'Doctor authentication token',
+        required: true,
+    })
+    @UseGuards(AuthDoctorGuard)
+    async getDoctorDashboard(@Req() req: Request) {
+        const docId = (req as any).docId as string;
+        return this.doctorsService.getDoctorDashboard(docId);
+    }
 }
