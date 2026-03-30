@@ -9,6 +9,7 @@ export function provideDoctorContext() {
     const dToken = ref(localStorage.getItem('dToken') || '')
     const backendUrl = import.meta.env.VITE_BACKEND_URL
     const appointments = ref([])
+    const dashData = ref([])
 
     const setDToken = (token) => {
         dToken.value = token
@@ -60,7 +61,20 @@ export function provideDoctorContext() {
         }
     }
 
-    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment })
+    const getDashData = async () => {
+    try {
+        const { data } = await axios.get(backendUrl + '/api/doctors/dashboard', { headers: { dtoken: dToken.value } })
+        if (data.success) {
+            dashData.value = data.dashData
+        } else {
+            toast.error(data.message)
+        }
+    } catch (error) {
+        toast.error(error.message)
+    }
+}
+
+    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment, dashData, getDashData })
 }
 
 export function useDoctorContext() {
