@@ -134,4 +134,33 @@ export class DoctorsService {
 
         return { success: true, message: 'Appointment Cancelled' };
     }
+
+    async getDoctorDashboard(docId: string): Promise<{
+        success: boolean;
+        dashData: {
+            earnings: number;
+            appointments: number;
+            patients: number;
+            latestAppointments: AppointmentDocument[];
+        };
+    }> {
+        const appointments = await this.appointmentModel.find({ docId });
+
+        const earnings = appointments.reduce((sum, item) => {
+            return item.isCompleted || item.payment ? sum + item.amount : sum;
+        }, 0);
+
+        const patients = [...new Set(appointments.map((item) => item.userId))].length;
+
+        const latestAppointments = [...appointments].reverse().slice(0, 5);
+
+        const dashData = {
+            earnings,
+            appointments: appointments.length,
+            patients,
+            latestAppointments,
+        };
+
+        return { success: true, dashData };
+    }
 }
