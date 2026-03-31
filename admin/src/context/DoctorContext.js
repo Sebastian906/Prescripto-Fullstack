@@ -10,6 +10,7 @@ export function provideDoctorContext() {
     const backendUrl = import.meta.env.VITE_BACKEND_URL
     const appointments = ref([])
     const dashData = ref([])
+    const profileData = ref([])
 
     const setDToken = (token) => {
         dToken.value = token
@@ -62,19 +63,46 @@ export function provideDoctorContext() {
     }
 
     const getDashData = async () => {
-    try {
-        const { data } = await axios.get(backendUrl + '/api/doctors/dashboard', { headers: { dtoken: dToken.value } })
-        if (data.success) {
-            dashData.value = data.dashData
-        } else {
-            toast.error(data.message)
+        try {
+            const { data } = await axios.get(backendUrl + '/api/doctors/dashboard', { headers: { dtoken: dToken.value } })
+            if (data.success) {
+                dashData.value = data.dashData
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
         }
-    } catch (error) {
-        toast.error(error.message)
     }
-}
 
-    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment, dashData, getDashData })
+    const getProfileData = async () => {
+        try {
+            const { data } = await axios.get(backendUrl + '/api/doctors/profile', { headers: { dtoken: dToken.value } })
+            if (data.success) {
+                profileData.value = data.profileData
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    const updateProfileData = async (updateData) => {
+        try {
+            const { data } = await axios.patch(backendUrl + '/api/doctors/update-profile', updateData, { headers: { dtoken: dToken.value } })
+            if (data.success) {
+                toast.success(data.message)
+                await getProfileData()
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment, dashData, getDashData, profileData, getProfileData, updateProfileData })
 }
 
 export function useDoctorContext() {
