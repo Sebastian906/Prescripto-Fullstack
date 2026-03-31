@@ -61,6 +61,12 @@ onMounted(() => {
                     >
                         Cancelled
                     </p>
+                    <p
+                        v-else-if="item.isCompleted"
+                        class="text-green-500 text-xs font-medium"
+                    >
+                        Completed
+                    </p>
                     <img
                         v-else
                         @click="cancelAppointment(item._id)"
