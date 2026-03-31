@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { LoginDoctorDto } from './dto/login-doctor.dto';
 import * as bcrypt from 'bcrypt';
 import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
+import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
 
 @Injectable()
 export class DoctorsService {
@@ -162,5 +163,34 @@ export class DoctorsService {
         };
 
         return { success: true, dashData };
+    }
+
+    async getDoctorProfile(
+        docId: string,
+    ): Promise<{ success: boolean; profileData: DoctorDocument }> {
+        const profileData = await this.doctorModel
+            .findById(docId)
+            .select('-password');
+
+        if (!profileData) {
+            throw new NotFoundException('Doctor not found');
+        }
+
+        return { success: true, profileData };
+    }
+
+    async updateDoctorProfile(
+        docId: string,
+        dto: UpdateDoctorProfileDto,
+    ): Promise<{ success: boolean; message: string }> {
+        const { fees, address, available } = dto;
+
+        await this.doctorModel.findByIdAndUpdate(docId, {
+            fees: Number(fees),
+            address: typeof address === 'string' ? JSON.parse(address) : address,
+            available,
+        });
+
+        return { success: true, message: 'Profile Updated' };
     }
 }

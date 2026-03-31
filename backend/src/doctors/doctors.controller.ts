@@ -6,6 +6,7 @@ import { LoginDoctorDto } from './dto/login-doctor.dto';
 import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { CompleteAppointmentDto } from './dto/complete-appointment.dto';
+import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
 
 @ApiTags('Doctors')
 @Controller('api/doctors')
@@ -92,5 +93,34 @@ export class DoctorsController {
     async getDoctorDashboard(@Req() req: Request) {
         const docId = (req as any).docId as string;
         return this.doctorsService.getDoctorDashboard(docId);
+    }
+
+    @Get('profile')
+    @ApiOperation({ summary: 'Get profile data for the authenticated doctor' })
+    @ApiHeader({
+        name: 'dtoken',
+        description: 'Doctor authentication token',
+        required: true,
+    })
+    @UseGuards(AuthDoctorGuard)
+    async getDoctorProfile(@Req() req: Request) {
+        const docId = (req as any).docId as string;
+        return this.doctorsService.getDoctorProfile(docId);
+    }
+
+    @Patch('update-profile')
+    @ApiOperation({ summary: 'Update profile data for the authenticated doctor' })
+    @ApiHeader({
+        name: 'dtoken',
+        description: 'Doctor authentication token',
+        required: true,
+    })
+    @UseGuards(AuthDoctorGuard)
+    async updateDoctorProfile(
+        @Req() req: Request,
+        @Body() dto: UpdateDoctorProfileDto,
+    ) {
+        const docId = (req as any).docId as string;
+        return this.doctorsService.updateDoctorProfile(docId, dto);
     }
 }
