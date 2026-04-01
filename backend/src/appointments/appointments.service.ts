@@ -1,7 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Appointment, AppointmentDocument } from './schemas/appointment.schema';
-import { Model } from 'mongoose';
+import { Connection, Model } from 'mongoose';
 import { Doctor, DoctorDocument } from 'src/doctors/schemas/doctor.schema';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
 import { BookAppointmentDto } from './dto/book-appointment.dto';
@@ -10,6 +10,8 @@ import { ConfigService } from '@nestjs/config';
 import { PaymentCODDto } from './dto/payment-cod.dto';
 import { PaymentStripeDto } from './dto/payment-stripe.dto';
 import Stripe from 'stripe';
+import { binarySearch, getAvailableSlots } from 'src/shared/utils/binary-search.util';
+import { generateDaySlots, dateToSlotKey } from 'src/shared/utils/slot-generator.util';
 
 @Injectable()
 export class AppointmentsService {
@@ -17,68 +19,92 @@ export class AppointmentsService {
         @InjectModel(Appointment.name) private readonly appointmentModel: Model<AppointmentDocument>,
         @InjectModel(Doctor.name) private readonly doctorModel: Model<DoctorDocument>,
         @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+        @InjectConnection() private readonly connection: Connection,
         private readonly configService: ConfigService,
     ) {}
 
     async bookAppointment(
         userId: string,
         dto: BookAppointmentDto,
-    ): Promise<{ success: boolean; message: string; }> {
+    ): Promise<{ success: boolean; message: string }> {
         const { docId, slotDate, slotTime } = dto;
 
-        const doctor = await this.doctorModel
-            .findById(docId)
-            .select('-password')
-            .lean();
-        
-        if (!doctor) {
-            throw new NotFoundException('Doctor not found');
+        const session = await this.connection.startSession();
+
+        try {
+            let result: { success: boolean; message: string };
+
+            await session.withTransaction(async () => {
+                const doctor = await this.doctorModel
+                    .findById(docId)
+                    .select('-password')
+                    .session(session)
+                    .lean();
+
+                if (!doctor) throw new NotFoundException('Doctor not found');
+                if (!doctor.available) {
+                    throw new BadRequestException('Doctor is not available');
+                }
+
+                const bookedForDay: string[] = doctor.slots_booked?.[slotDate] ?? [];
+
+                const sortedBooked = [...bookedForDay].sort((a, b) =>
+                    a.localeCompare(b),
+                );
+
+                const alreadyBooked = binarySearch(sortedBooked, slotTime);
+                if (alreadyBooked !== -1) {
+                    throw new BadRequestException('Slot not available');
+                }
+
+                const user = await this.userModel
+                    .findById(userId)
+                    .select('-password')
+                    .session(session)
+                    .lean();
+
+                if (!user) throw new NotFoundException('User not found');
+
+                const slotKey = `slots_booked.${slotDate}`;
+                const updateResult = await this.doctorModel
+                    .findOneAndUpdate(
+                        {
+                            _id: docId,
+                            [`slots_booked.${slotDate}`]: { $not: { $elemMatch: { $eq: slotTime } } },
+                        },
+                        { $push: { [slotKey]: slotTime } }, { session, new: true },
+                    )
+                    .lean();
+
+                if (!updateResult) {
+                    throw new BadRequestException('Slot was just taken. Please select another time.');
+                }
+
+                const { slots_booked: _, ...docDataSnapshot } = doctor;
+
+                await this.appointmentModel.create(
+                    [
+                        {
+                            userId,
+                            docId,
+                            slotDate,
+                            slotTime,
+                            userData: user,
+                            docData: docDataSnapshot,
+                            amount: doctor.fees,
+                            date: Date.now(),
+                        },
+                    ], { session }, 
+                );
+                result = { success: true, message: 'Appointment booked successfully' };
+            });
+            return result!;
+        } catch (error) {
+            if (error instanceof BadRequestException || error instanceof NotFoundException) { throw error }
+            throw new InternalServerErrorException('Booking failed due to a conflict. Please try again.');
+        } finally {
+            await session.endSession();
         }
-
-        if (!doctor.available) {
-            throw new NotFoundException('Doctor is not available');
-        }
-
-        const slotsBooked: Record<string, string[]> = doctor.slots_booked ?? {};
-
-        if (slotsBooked[slotDate]?.includes(slotTime)) {
-            throw new BadRequestException('Slot not available');
-        }
-
-        if (slotsBooked[slotDate]) {
-            slotsBooked[slotDate].push(slotTime);
-        } else {
-            slotsBooked[slotDate] = [slotTime];
-        }
-
-        const user = await this.userModel
-            .findById(userId)
-            .select('-password')
-            .lean();
-
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
-
-        const { slots_booked: _, ...docDataSnapshot } = doctor;
-
-        const newAppointment = new this.appointmentModel({
-            userId,
-            docId,
-            slotDate,
-            slotTime,
-            userData: user,
-            docData: docDataSnapshot,
-            amount: doctor.fees,
-            date: Date.now(),
-        });
-
-        await newAppointment.save();
-        await this.doctorModel.findByIdAndUpdate(docId, {
-            slots_booked: slotsBooked,
-        });
-
-        return { success: true, message: 'Appointment booked successfully' };
     }
 
     async getUserAppointments(userId: string): Promise<{ success: boolean; appointments: AppointmentDocument[] }> {
@@ -91,44 +117,79 @@ export class AppointmentsService {
         dto: CancelAppointmentDto,
     ): Promise<{ success: boolean; message: string }> {
         const { appointmentId } = dto;
+        const session = await this.connection.startSession();
 
-        const appointment = await this.appointmentModel.findById(appointmentId);
+        try {
+            let result: { success: boolean; message: string };
 
-        if (!appointment) {
-            throw new NotFoundException('Appointment not found');
-        }
+            await session.withTransaction(async () => {
+                const appointment = await this.appointmentModel
+                    .findById(appointmentId)
+                    .session(session);
 
-        if (appointment.userId !== userId) {
-            throw new UnauthorizedException('Unauthorized action');
-        }
+                if (!appointment) throw new NotFoundException('Appointment not found');
+                if (appointment.userId !== userId) {
+                    throw new UnauthorizedException('Unauthorized action');
+                }
+                if (appointment.cancelled) {
+                    throw new BadRequestException('Already cancelled');
+                }
 
-        if (appointment.cancelled) {
-            throw new BadRequestException('Appointment is already cancelled');
-        }
+                await Promise.all([
+                    this.appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true }, { session }),
+                    this.doctorModel.findByIdAndUpdate(
+                        appointment.docId,
+                        {
+                            $pull: {
+                                [`slots_booked.${appointment.slotDate}`]: appointment.slotTime,
+                            },
+                        },
+                        { session },
+                    ),
+                ]);
 
-        await this.appointmentModel.findByIdAndUpdate(appointmentId, {
-            cancelled: true,
-        });
-
-        const { docId, slotDate, slotTime } = appointment;
-
-        const doctor = await this.doctorModel.findById(docId);
-
-        if (doctor) {
-            const slotsBooked = doctor.slots_booked ?? {};
-
-            if (slotsBooked[slotDate]) {
-                slotsBooked[slotDate] = slotsBooked[slotDate].filter(
-                    (slot) => slot !== slotTime,
-                );
-            }
-
-            await this.doctorModel.findByIdAndUpdate(docId, {
-                slots_booked: slotsBooked,
+                result = {
+                    success: true,
+                    message: 'Appointment cancelled successfully',
+                };
             });
+
+            return result!;
+        } catch (error) {
+            if (error instanceof BadRequestException || error instanceof NotFoundException || error instanceof UnauthorizedException) {
+                throw error;
+            }
+            throw new InternalServerErrorException('Cancellation failed. Try again.');
+        } finally {
+            await session.endSession();
+        }
+    }
+
+    async getAvailableSlots(
+        docId: string,
+        dateStr: string,
+    ): Promise<{ success: boolean; slots: string[] }> {
+        const doctor = await this.doctorModel
+            .findById(docId)
+            .select('slots_booked available')
+            .lean();
+
+        if (!doctor) throw new NotFoundException('Doctor not found');
+        if (!doctor.available) {
+            return { success: true, slots: [] };
         }
 
-        return { success: true, message: 'Appointment cancelled successfully' };
+        const [day, month, year] = dateStr.split('/').map(Number);
+        const date = new Date(year, month - 1, day);
+
+        const allSlots = generateDaySlots(date);
+
+        const bookedRaw: string[] = doctor.slots_booked?.[dateStr] ?? [];
+        const bookedSorted = [...bookedRaw].sort((a, b) => a.localeCompare(b));
+
+        const availableSlots = getAvailableSlots(allSlots, bookedSorted);
+
+        return { success: true, slots: availableSlots };
     }
 
     async payWithCOD(

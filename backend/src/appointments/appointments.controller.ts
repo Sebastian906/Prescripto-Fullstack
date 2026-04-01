@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
 import { AuthUserGuard } from 'src/shared/guards/auth-user.guard';
 import { BookAppointmentDto } from './dto/book-appointment.dto';
@@ -55,6 +55,17 @@ export class AppointmentsController {
     ) {
         const userId = (req as any).userId as string;
         return this.appointmentService.cancelAppointment(userId, dto);
+    }
+
+    @Get('available-slots')
+    @ApiOperation({ summary: 'Get available slots for a doctor on a specific date' })
+    @ApiQuery({ name: 'docId', required: true })
+    @ApiQuery({ name: 'date', required: true, description: 'Format: DD/MM/YYYY' })
+    async getAvailableSlots(
+        @Query('docId') docId: string,
+        @Query('date') date: string,
+    ) {
+        return this.appointmentService.getAvailableSlots(docId, date);
     }
 
     @Patch('payment-cod')

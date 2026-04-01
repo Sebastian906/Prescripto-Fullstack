@@ -24,7 +24,7 @@ const Doctors = () => {
 
     return (
         <div>
-            <p className="text-slate-600">Browse through the doctors specialist.</p>
+            <p className="text-slate-600">Browse through the doctors speciality.</p>
             <div className="flex flex-col sm:flex-row items-start gap-5 mt-5">
                 <button
                     className={`py-1 px-3 border rounded text-sm transition-all sm:hidden ${showFilters ? 'bg-indigo-500 text-white' : ''}`}

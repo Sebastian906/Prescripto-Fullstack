@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react"
+import { useCallback, useContext, useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { AppContext } from "../context/AppContext"
 import { assets } from "../assets/assets"
@@ -6,21 +6,62 @@ import RelatedDoctors from "../components/RelatedDoctors"
 import { toast } from "react-toastify"
 import axios from "axios"
 
+function generateDateRange(daysAhead = 7) {
+    const today = new Date()
+    return Array.from({ length: daysAhead }, (_, i) => {
+        const d = new Date(today)
+        d.setDate(today.getDate() + i)
+        return d
+    })
+}
+
+function dateToSlotKey(date) {
+    return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`
+}
+
+const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+
 const Appointment = () => {
 
     const { docId } = useParams()
     const { doctors, currencySymbol, backendUrl, token, getDoctorsData } = useContext(AppContext)
-    const daysOfWeek = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
     const navigate = useNavigate()
     const [docInfo, setDocInfo] = useState(null)
     const [docSlots, setDocSlots] = useState([])
     const [slotIndex, setSlotIndex] = useState(0)
     const [slotTime, setSlotTime] = useState('')
+    const [loadingSlots, setLoadingSlots] = useState(false)
+    const [availableSlots, setAvailableSlots] = useState([])
+    const dateRange = generateDateRange(7)
 
-    const fetchDocInfo = async () => {
-        const docInfo = doctors.find(doc => doc._id === docId)
-        setDocInfo(docInfo)
-    }
+    useEffect(() => {
+        const found = doctors.find((d) => d._id === docId)
+        setDocInfo(found ?? null)
+    }, [doctors, docId])
+
+    const fetchSlots = useCallback(
+        async (date) => {
+            if (!docInfo) return
+            setLoadingSlots(true)
+            setSlotTime('')
+            try {
+                const dateKey = dateToSlotKey(date)
+                const { data } = await axios.get(`${backendUrl}/api/appointments/available-slots`, { params: { docId, date: dateKey } })
+                if (data.success) {
+                    setAvailableSlots(data.slots)
+                }
+            } catch {
+                toast.error('Could not load available slots')
+                setAvailableSlots([])
+            } finally {
+                setLoadingSlots(false)
+            }
+        }, [docInfo, docId, backendUrl],
+    )
+
+    useEffect(() => {
+        if (docInfo) fetchSlots(dateRange[slotIndex])
+    }, [docInfo, slotIndex])
 
     const getAvailableSlots = async () => {
         setDocSlots([])
@@ -80,31 +121,30 @@ const Appointment = () => {
         if (!token) {
             toast.warn('Please login to book an appointment')
             return navigate('/login')
-        } try {
-            const date = docSlots[slotIndex][0].datetime
-            let day = date.getDate()
-            let month = date.getMonth() + 1
-            let year = date.getFullYear()
+        }
 
-            const slotDate = day + "/" + month + "/" + year
+        if (!slotTime) {
+            toast.warn('Please select a time slot')
+            return
+        }
 
-            const { data } = await axios.post(backendUrl + '/api/appointments/book-appointment', { docId, slotDate, slotTime }, { headers: { token } })
+        try {
+            const slotDate = dateToSlotKey(dateRange[slotIndex])
+            const { data } = await axios.post(`${backendUrl}/api/appointments/book-appointment`, { docId, slotDate, slotTime }, { headers: { token } })
             if (data.success) {
                 toast.success(data.message)
                 getDoctorsData()
                 navigate('/my-appointments')
             } else {
                 toast.error('Slot not available, please select another slot')
+                fetchSlots(dateRange[slotIndex])
             }
         } catch (error) {
-            console.log(error);
-            toast.error('Slot not available, please select another slot')
+            const msg = error?.response?.data?.message ?? 'Slot not available'
+            toast.error(msg)
+            fetchSlots(dateRange[slotIndex])
         }
     }
-
-    useEffect(() => {
-        fetchDocInfo()
-    }, [doctors, docId])
 
     useEffect(() => {
         getAvailableSlots()
@@ -114,6 +154,9 @@ const Appointment = () => {
         console.log(docSlots);
     }, [docSlots])
 
+    if (!docInfo) return null
+    
+
     return docInfo && (
         <div>
             {/* DETALLES DEL DOCTOR */}
@@ -122,7 +165,7 @@ const Appointment = () => {
                     <img
                         className="bg-indigo-500 w-full sm:max-w-72 rounded-lg"
                         src={docInfo.image}
-                        alt=""
+                        alt={docInfo.name}
                     />
                 </div>
                 <div className="flex-1 border border-slate-400 rounded-lg p-8 py-7 bg-indigo-100 mx-2 sm:mx-0 -mt-20 sm:mt-0">
@@ -160,35 +203,48 @@ const Appointment = () => {
             <div className="sm:ml-72 sm:pl-4 mt-4 font-medium text-slate-700">
                 <p>Booking slots</p>
                 <div className="flex gap-3 items-center w-full overflow-x-scroll mt-4">
-                    {
-                        docSlots.length && docSlots.map((item, index) => (
-                            <div
-                                onClick={() => setSlotIndex(index)}
-                                className={`text-center py-6 min-w-16 rounded-full cursor-pointer ${slotIndex === index ? 'bg-indigo-500 text-white' : 'border border-slate-300'}`}
-                                key={index}
-                            >
-                                <p>{item[0] && daysOfWeek[item[0].datetime.getDay()]}</p>
-                                <p>{item[0] && item[0].datetime.getDate()}</p>
-                            </div>
-                        ))
-                    }
+                    {dateRange.map((date, index) => (
+                        <div
+                            key={index}
+                            onClick={() => setSlotIndex(index)}
+                            className={`text-center py-6 min-w-16 rounded-full cursor-pointer ${slotIndex === index
+                                    ? 'bg-indigo-500 text-white'
+                                    : 'border border-slate-300'
+                                }`}
+                        >
+                            <p>{DAYS[date.getDay()]}</p>
+                            <p>{date.getDate()}</p>
+                        </div>
+                    ))}
                 </div>
-                <div className="flex items-center gap-3 w-full overflow-x-scroll mt-4">
-                    {
-                        docSlots.length && docSlots[slotIndex].map((item, index) => (
+                <div className="flex items-center gap-3 w-full overflow-x-scroll mt-4 min-h-12">
+                    {loadingSlots ? (
+                        <p className="text-sm text-slate-400 animate-pulse">
+                            Loading slots…
+                        </p>
+                    ) : availableSlots.length === 0 ? (
+                        <p className="text-sm text-slate-400">
+                            No slots available for this day
+                        </p>
+                    ) : (
+                        availableSlots.map((time, index) => (
                             <p
-                                onClick={() => setSlotTime(item.time)}
-                                className={`text-sm font-light shrink-0 px-5 py-2 rounded-full cursor-pointer ${slotTime === item.time ? 'bg-indigo-500 text-white' : 'text-slate-500 border border-slate-300'}`}
                                 key={index}
+                                onClick={() => setSlotTime(time)}
+                                className={`text-sm font-light shrink-0 px-5 py-2 rounded-full cursor-pointer ${slotTime === time
+                                        ? 'bg-indigo-500 text-white'
+                                        : 'text-slate-500 border border-slate-300'
+                                    }`}
                             >
-                                {item.time.toLowerCase()}
+                                {time.toLowerCase()}
                             </p>
                         ))
-                    }
+                    )}
                 </div>
                 <button
                     onClick={bookAppointment}
-                    className="bg-indigo-500 text-white text-sm font-light px-14 py-3 rounded-full my-6 cursor-pointer"
+                    disabled={!slotTime || loadingSlots}
+                    className="bg-indigo-500 text-white text-sm font-light px-14 py-3 rounded-full my-6 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     Book an appointment
                 </button>
