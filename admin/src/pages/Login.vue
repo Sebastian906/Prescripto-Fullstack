@@ -4,6 +4,8 @@ import { useAdminContext } from '../context/AdminContext'
 import { useToast } from 'vue-toastification'
 import axios from 'axios'
 import { useDoctorContext } from '../context/DoctorContext'
+import ForgotPasswordModal from '../components/ForgotPasswordModal.vue'
+import { useForgotPassword } from '../composables/useForgotPassword'
 
 const state = ref('Admin')
 const email = ref('')
@@ -11,6 +13,7 @@ const password = ref('')
 
 const { setAToken, backendUrl } = useAdminContext()
 const { setDToken } = useDoctorContext()
+const forgot = useForgotPassword(backendUrl)
 const toast = useToast()
 
 const onSubmitHandler = async (event) => {
@@ -67,7 +70,16 @@ const onSubmitHandler = async (event) => {
                     required
                 />
             </div>
-            <button class="bg-indigo-500 text-slate-50 w-full py-2 rounded-md text-base">
+            <div class="text-left">
+                <button
+                    type="button"
+                    @click="forgot.open(state === 'Admin' ? 'admin' : 'doctor')"
+                    class="text-sm text-slate-500 hover:text-indigo-500 transition-colors cursor-pointer bg-transparent border-none p-0"
+                >
+                    Forgot Password?
+                </button>
+            </div>
+            <button class="bg-indigo-500 text-slate-50 w-full py-2 rounded-md text-base cursor-pointer">
                 Login
             </button>
             <p v-if="state === 'Admin'">
@@ -89,5 +101,6 @@ const onSubmitHandler = async (event) => {
                 </span>
             </p>
         </div>
+        <ForgotPasswordModal :model-value="forgot" />
     </form>
 </template>
