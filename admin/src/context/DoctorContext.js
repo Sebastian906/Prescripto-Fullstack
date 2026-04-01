@@ -58,7 +58,8 @@ export function provideDoctorContext() {
                 toast.error(data.message)
             }
         } catch (error) {
-            toast.error(error.message)
+            const msg = error?.response?.data?.message ?? error.message
+            toast.error(msg)
         }
     }
 
