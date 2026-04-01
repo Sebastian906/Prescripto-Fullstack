@@ -4,6 +4,7 @@ import { AppContext } from "../context/AppContext"
 import axios from "axios"
 import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
+import ForgotPasswordModal from "../components/ForgotPasswordModal"
 
 const Login = () => {
 
@@ -14,6 +15,7 @@ const Login = () => {
     const [password, setPassword] = useState('')
     const [name, setName] = useState('')
     const [isActive, setIsActive] = useState(false)
+    const [showForgot, setShowForgot] = useState(false)
 
     const onSubmitHandler = async (event) => {
         event.preventDefault()
@@ -95,7 +97,13 @@ const Login = () => {
                                 </span>
                             </div>
                             <div className="text-left -mt-4 mb-3">
-                                <a href="#" className="text-sm text-slate-600 hover:text-indigo-500 transition-colors">Forgot Password?</a>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowForgot(true)}
+                                    className="text-sm text-slate-600 hover:text-indigo-500 transition-colors cursor-pointer bg-transparent border-none p-0"
+                                >
+                                    Forgot Password?
+                                </button>
                             </div>
                             <button type="submit" className="w-full h-12 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-semibold text-base cursor-pointer transition-colors shadow-md duration-300">Login</button>
                             <p className="text-sm text-slate-500 my-4">or login with your socials</p>
@@ -339,6 +347,12 @@ const Login = () => {
                     </div>
                 </div>
             </div>
+            {showForgot && (
+                <ForgotPasswordModal
+                    onClose={() => setShowForgot(false)}
+                    backendUrl={backendUrl}
+                />
+            )}
         </>
     )
 }
