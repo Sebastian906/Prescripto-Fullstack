@@ -6,6 +6,7 @@ import DoctorsList from '../pages/Admin/DoctorsList.vue'
 import DoctorDashboard from '../pages/Doctor/DoctorDashboard.vue'
 import DoctorAppointments from '../pages/Doctor/DoctorAppointments.vue'
 import DoctorProfile from '../pages/Doctor/DoctorProfile.vue'
+import ResetPassword from '../pages/ResetPassword.vue'
 
 const routes = [
     {
@@ -48,6 +49,11 @@ const routes = [
         path: '/doctor-profile',
         name: 'DoctorProfile',
         component: DoctorProfile
+    },
+    {
+        path: '/reset-password',
+        name: 'ResetPassword',
+        component: ResetPassword,
     },
     {
         path: '/:pathMatch(.*)*',

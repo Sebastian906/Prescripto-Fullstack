@@ -9,8 +9,9 @@ import MyAppointments from './pages/MyAppointments'
 import Appointment from './pages/Appointment'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
-import { ToastContainer, toast } from 'react-toastify';
+import { ToastContainer } from 'react-toastify';
 import OAuthCallback from './pages/OAuthCallback'
+import ResetPassword from './pages/ResetPassword'
 
 const App = () => {
   return (
@@ -29,6 +30,7 @@ const App = () => {
           <Route path='/my-appointments' element={<MyAppointments />} />
           <Route path='/appointment/:docId' element={<Appointment />} />
           <Route path='/oauth-callback' element={<OAuthCallback />} />
+          <Route path='/reset-password' element={<ResetPassword />} />
         </Routes>
         <Footer />
       </div>

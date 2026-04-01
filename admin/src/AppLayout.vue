@@ -19,6 +19,7 @@ const { dToken } = useDoctorContext()
         </div>
     </div>
     <div v-else>
-        <Login />
+        <RouterView v-if="$route.path === '/reset-password'" />
+        <Login v-else />
     </div>
 </template>
