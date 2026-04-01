@@ -6,13 +6,18 @@ import type { Request, Response } from 'express';
 import { LoginUserDto } from 'src/users/dto/login-user.dto';
 import { RegisterUserDto } from 'src/users/dto/register-user.dto';
 import { UsersService } from 'src/users/users.service';
+import { PasswordResetService } from './password-reset.service';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { DirectResetPasswordDto } from './dto/direct-reset-password.dto';
 
 @ApiTags('Authentication -- OAuth 2.0')
 @Controller('api/auth')
 export class AuthController {
     constructor(
         private readonly configService: ConfigService,
-        private readonly usersService: UsersService
+        private readonly usersService: UsersService,
+        private readonly passwordResetService: PasswordResetService
     ) { }
 
     private redirectWithToken(res: Response, user: any): void {
@@ -36,9 +41,7 @@ export class AuthController {
     @Get('google')
     @ApiOperation({ summary: 'Initiate Google OAuth login' })
     @UseGuards(AuthGuard('google'))
-    googleLogin(): void {
-        // Passport redirects automatically — no body needed
-    }
+    googleLogin(): void { }
 
     @Get('google/callback')
     @ApiOperation({ summary: 'Google OAuth callback' })
@@ -82,4 +85,22 @@ export class AuthController {
     // twitterCallback(@Req() req: Request, @Res() res: Response): void {
     //     this.redirectWithToken(res, req.user);
     // }
+
+    @Post('request-password-reset')
+    @ApiOperation({ summary: 'Request a password reset email' })
+    async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+        return this.passwordResetService.requestReset(dto);
+    }
+
+    @Post('reset-password')
+    @ApiOperation({ summary: 'Confirm password reset using token from email' })
+    async resetPassword(@Body() dto: ResetPasswordDto) {
+        return this.passwordResetService.resetPassword(dto);
+    }
+
+    @Post('direct-reset-password')
+    @ApiOperation({ summary: 'Reset password directly without email token (doctor/admin panel)' })
+    async directResetPassword(@Body() dto: DirectResetPasswordDto) {
+        return this.passwordResetService.directReset(dto);
+    }
 }
