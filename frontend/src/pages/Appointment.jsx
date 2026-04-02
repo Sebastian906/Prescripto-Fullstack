@@ -5,6 +5,7 @@ import { assets } from "../assets/assets"
 import RelatedDoctors from "../components/RelatedDoctors"
 import { toast } from "react-toastify"
 import axios from "axios"
+import { useSlotSuggestions } from "../hooks/useSlotSuggestions"
 
 function generateDateRange(daysAhead = 7) {
     const today = new Date()
@@ -33,6 +34,8 @@ const Appointment = () => {
     const [loadingSlots, setLoadingSlots] = useState(false)
     const [availableSlots, setAvailableSlots] = useState([])
     const dateRange = generateDateRange(7)
+    const { suggestions, isIdeal, reason, loading: loadingSuggestions, fetchSuggestions } = useSlotSuggestions(backendUrl, token)
+    const [priorityLevel, setPriorityLevel] = useState('normal')
 
     useEffect(() => {
         const found = doctors.find((d) => d._id === docId)
@@ -60,8 +63,15 @@ const Appointment = () => {
     )
 
     useEffect(() => {
-        if (docInfo) fetchSlots(dateRange[slotIndex])
+        if (docInfo) {
+            fetchSlots(dateRange[slotIndex])
+            fetchSuggestions(docId, dateRange, priorityLevel)
+        }
     }, [docInfo, slotIndex])
+
+    useEffect(() => {
+        if (docInfo) fetchSuggestions(docId, dateRange, priorityLevel)
+    }, [priorityLevel])
 
     const getAvailableSlots = async () => {
         setDocSlots([])
@@ -155,7 +165,6 @@ const Appointment = () => {
     }, [docSlots])
 
     if (!docInfo) return null
-    
 
     return docInfo && (
         <div>
@@ -199,6 +208,64 @@ const Appointment = () => {
                 </div>
             </div>
 
+            <div className="sm:ml-72 sm:pl-4 mt-4">
+                <div className="flex items-center justify-between mb-2">
+                    <p className="font-medium text-slate-700">Smart Suggestions</p>
+                    <select
+                        value={priorityLevel}
+                        onChange={(e) => setPriorityLevel(e.target.value)}
+                        className="text-xs border border-slate-500 rounded px-2 py-1 text-slate-600 bg-indigo-50"
+                    >
+                        <option value="urgent" className="text-red-500">Urgent</option>
+                        <option value="normal" className="text-amber-500">Normal</option>
+                        <option value="flexible" className="text-emerald-500">Flexible</option>
+                    </select>
+                </div>
+
+                {loadingSuggestions ? (
+                    <p className="text-xs text-slate-400 animate-pulse mb-3">Finding best slots…</p>
+                ) : suggestions.length > 0 ? (
+                    <div className="flex flex-col gap-2 mb-4">
+                        {isIdeal && (
+                            <p className="text-xs text-indigo-500 font-medium">{reason}</p>
+                        )}
+                        <div className="flex gap-2 flex-wrap">
+                            {suggestions.map((s, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => {
+                                        // Sincronizar con el selector manual existente
+                                        const targetDate = `${s.slotDate}`
+                                        const idx = dateRange.findIndex(d =>
+                                            `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}` === targetDate
+                                        )
+                                        if (idx !== -1) setSlotIndex(idx)
+                                        setSlotTime(s.slotTime)
+                                    }}
+                                    className={`flex flex-col items-start px-3 py-2 rounded-lg border text-xs cursor-pointer transition-all
+                            ${slotTime === s.slotTime
+                                            ? 'bg-indigo-500 text-white border-indigo-500'
+                                            : 'bg-indigo-100 text-slate-600 border-slate-300 hover:border-indigo-400'
+                                        }`}
+                                >
+                                    <span className="flex items-center gap-1 font-medium">
+                                        {i === 0 && <span>Time</span>}
+                                        {s.slotDate} · {s.slotTime.toLowerCase()}
+                                    </span>
+                                    <span className={`mt-0.5 ${slotTime === s.slotTime ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                        Load: {s.doctorLoad} appts · Gap: {s.gapMinutes}min
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    !loadingSuggestions && (
+                        <p className="text-xs text-slate-400 mb-3">No suggestions available for the selected dates.</p>
+                    )
+                )}
+            </div>
+
             {/* HORARIOS DISPONIBLES */}
             <div className="sm:ml-72 sm:pl-4 mt-4 font-medium text-slate-700">
                 <p>Booking slots</p>
@@ -208,8 +275,8 @@ const Appointment = () => {
                             key={index}
                             onClick={() => setSlotIndex(index)}
                             className={`text-center py-6 min-w-16 rounded-full cursor-pointer ${slotIndex === index
-                                    ? 'bg-indigo-500 text-white'
-                                    : 'border border-slate-300'
+                                ? 'bg-indigo-500 text-white'
+                                : 'border border-slate-300'
                                 }`}
                         >
                             <p>{DAYS[date.getDay()]}</p>
@@ -232,8 +299,8 @@ const Appointment = () => {
                                 key={index}
                                 onClick={() => setSlotTime(time)}
                                 className={`text-sm font-light shrink-0 px-5 py-2 rounded-full cursor-pointer ${slotTime === time
-                                        ? 'bg-indigo-500 text-white'
-                                        : 'text-slate-500 border border-slate-300'
+                                    ? 'bg-indigo-500 text-white'
+                                    : 'text-slate-500 border border-slate-300'
                                     }`}
                             >
                                 {time.toLowerCase()}
