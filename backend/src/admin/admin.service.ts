@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { DoctorsService } from 'src/doctors/doctors.service';
 import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
+import { Speciality, SpecialityDocument } from 'src/specialities/schemas/speciality.schema';
 
 @Injectable()
 export class AdminService {
@@ -18,6 +19,7 @@ export class AdminService {
         @InjectModel(Doctor.name) private readonly doctorModel: Model<DoctorDocument>,
         @InjectModel(Appointment.name) private readonly appointmentModel: Model<AppointmentDocument>,
         @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+        @InjectModel(Speciality.name) private readonly specialityModel: Model<SpecialityDocument>,
         private readonly doctorService: DoctorsService,
         private readonly cloudinaryService: CloudinaryService,
         private readonly jwtService: JwtService,
@@ -29,6 +31,18 @@ export class AdminService {
 
         if (!name || !email || !password || !speciality || !degree || !experience || !about || !fees || !address) {
             throw new BadRequestException('Missing details');
+        }
+
+        const specialityDoc = await this.specialityModel.findOne({
+            name: speciality,
+            active: true,
+        });
+
+        if (!specialityDoc) {
+            throw new BadRequestException(
+                `Speciality "${speciality}" does not exist. ` +
+                `Please create it first in the Specialities panel.`
+            );
         }
 
         if (!isEmail(email)) {

@@ -7,6 +7,7 @@ import DoctorDashboard from '../pages/Doctor/DoctorDashboard.vue'
 import DoctorAppointments from '../pages/Doctor/DoctorAppointments.vue'
 import DoctorProfile from '../pages/Doctor/DoctorProfile.vue'
 import ResetPassword from '../pages/ResetPassword.vue'
+import SpecialitiesManager from '../pages/Admin/SpecialitiesManager.vue'
 
 const routes = [
     {
@@ -33,6 +34,11 @@ const routes = [
         path: '/doctor-list',
         name: 'DoctorsList',
         component: DoctorsList
+    },
+    {
+        path: '/specialities',
+        name: 'SpecialitiesManager',
+        component: SpecialitiesManager,
     },
     // Doctor routes
     {
