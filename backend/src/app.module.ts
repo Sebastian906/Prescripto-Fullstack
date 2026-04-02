@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { SpecialitiesModule } from './specialities/specialities.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
     AdminModule,
     AuthModule,
     AppointmentsModule,
+    SpecialitiesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

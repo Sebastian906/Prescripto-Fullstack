@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAdminContext } from '../../context/AdminContext'
 import { useToast } from 'vue-toastification'
 import { assets } from '../../assets/assets'
@@ -20,6 +20,7 @@ const experience = ref('1 Year')
 const fees = ref('')
 const about = ref('')
 const speciality = ref('General Physician')
+const specialities = ref([])
 const degree = ref('')
 const address1 = ref('')
 const address2 = ref('')
@@ -74,6 +75,23 @@ const onSubmitHandler = async (event) => {
         console.log(error)
     }
 }
+
+const loadSpecialities = async () => {
+    try {
+        const { data } = await axios.get(`${backendUrl}/api/specialities/names`)
+        if (data.success) {
+            specialities.value = data.specialities
+            if (specialities.value.length > 0) {
+                speciality.value = specialities.value[0].name
+            }
+        }
+    } catch (error) {
+        toast.error('Could not load specialities')
+        console.log(error);
+    }
+}
+
+onMounted(loadSpecialities)
 </script>
 
 <template>
@@ -161,13 +179,17 @@ const onSubmitHandler = async (event) => {
                     <div class="flex flex-col gap-1">
                         <p>Speciality</p>
                         <select v-model="speciality" class="border rounded px-3 py-2">
-                            <option value="General Physician">General Physician</option>
-                            <option value="Gynecologist">Gynecologist</option>
-                            <option value="Dermatologist">Dermatologist</option>
-                            <option value="Pediatrician">Pediatrician</option>
-                            <option value="Neurologist">Neurologist</option>
-                            <option value="Gastroenterologist">Gastroenterologist</option>
+                            <option
+                                v-for="s in specialities"
+                                :key="s.slug"
+                                :value="s.name"
+                            >
+                                {{ s.name }}
+                            </option>
                         </select>
+                        <p v-if="specialities.length === 0" class="text-xs text-red-400">
+                            No specialities found. Add them first in the Specialities panel.
+                        </p>
                     </div>
                     <div class="flex flex-col gap-1">
                         <p>Education</p>

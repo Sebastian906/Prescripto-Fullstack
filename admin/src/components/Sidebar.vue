@@ -12,6 +12,7 @@ const adminNavItems = [
     { to: '/all-appointments', icon: assets.appointment_icon, label: 'Appointments' },
     { to: '/add-doctor', icon: assets.add_icon, label: 'Add Doctor' },
     { to: '/doctor-list', icon: assets.people_icon, label: 'Doctors List' },
+    { to: '/specialities', icon: assets.list_icon, label: 'Specialities' },
 ]
 
 const doctorNavItems = [

@@ -9,6 +9,7 @@ import { DoctorsModule } from 'src/doctors/doctors.module';
 import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
 import { Appointment, AppointmentSchema } from 'src/appointments/schemas/appointment.schema';
 import { User, UserSchema } from 'src/users/schemas/user.schema';
+import { Speciality, SpecialitySchema } from 'src/specialities/schemas/speciality.schema';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { User, UserSchema } from 'src/users/schemas/user.schema';
       { name: Doctor.name, schema: DoctorSchema },
       { name: Appointment.name, schema: AppointmentSchema },
       { name: User.name, schema: UserSchema },
+      { name: Speciality.name, schema: SpecialitySchema },
     ]),
     CloudinaryModule,
     ConfigModule,
