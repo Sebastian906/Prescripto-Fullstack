@@ -11,6 +11,7 @@ export function provideDoctorContext() {
     const appointments = ref([])
     const dashData = ref([])
     const profileData = ref([])
+    const schedulingSuggestions = ref(null)
 
     const setDToken = (token) => {
         dToken.value = token
@@ -103,7 +104,23 @@ export function provideDoctorContext() {
         }
     }
 
-    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment, dashData, getDashData, profileData, getProfileData, updateProfileData })
+    const getSchedulingSuggestions = async (preferredDates, priorityLevel = 'normal') => {
+        try {
+            if (!profileData.value?._id) await getProfileData()
+            const docId = profileData.value._id
+
+            const { data } = await axios.post(backendUrl + '/api/scheduling/suggest-slot', { docId, preferredDates, priorityLevel }, { headers: { token: dToken.value } })
+            if (data.suggestions) {
+                schedulingSuggestions.value = data
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment, dashData, getDashData, profileData, getProfileData, updateProfileData, schedulingSuggestions, getSchedulingSuggestions })
 }
 
 export function useDoctorContext() {
