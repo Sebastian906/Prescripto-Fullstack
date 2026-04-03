@@ -12,6 +12,9 @@ export function provideAdminContext() {
     const doctors = ref([])
     const appointments = ref([])
     const dashData = ref([])
+    const annualReport = ref(null)
+    const monthlyTrend = ref([])
+    const reportYear = ref(new Date().getFullYear())
 
     const setAToken = (token) => {
         aToken.value = token
@@ -89,7 +92,37 @@ export function provideAdminContext() {
         }
     }
 
-    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment, dashData, getDashData })
+    const getAnnualReport = async (year = reportYear.value, docId = null) => {
+        try {
+            const params = { year }
+            if (docId) params.docId = docId
+            const { data } = await axios.get(backendUrl + '/api/reports/annual', { headers: { atoken: aToken.value }, params })
+            if (data.success) {
+                annualReport.value = data
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    const getMonthlyTrend = async (months = 12, docId = null) => {
+        try {
+            const params = { months }
+            if (docId) params.docId = docId
+            const { data } = await axios.get(backendUrl + '/api/reports/trend', { headers: { atoken: aToken.value }, params })
+            if (data.success) {
+                monthlyTrend.value = data.trend
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment, dashData, getDashData, annualReport, monthlyTrend, reportYear, getAnnualReport, getMonthlyTrend })
 }
 
 export function useAdminContext() {

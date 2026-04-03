@@ -11,7 +11,8 @@ import { PaymentCODDto } from './dto/payment-cod.dto';
 import { PaymentStripeDto } from './dto/payment-stripe.dto';
 import Stripe from 'stripe';
 import { binarySearch, getAvailableSlots } from 'src/shared/utils/binary-search.util';
-import { generateDaySlots, dateToSlotKey } from 'src/shared/utils/slot-generator.util';
+import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
+import { ReportsService } from 'src/reports/reports.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -21,7 +22,8 @@ export class AppointmentsService {
         @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
         @InjectConnection() private readonly connection: Connection,
         private readonly configService: ConfigService,
-    ) {}
+        private readonly reportsService: ReportsService,
+    ) { }
 
     async bookAppointment(
         userId: string,
@@ -30,6 +32,8 @@ export class AppointmentsService {
         const { docId, slotDate, slotTime } = dto;
 
         const session = await this.connection.startSession();
+
+        let bookedFees = 0;
 
         try {
             let result: { success: boolean; message: string };
@@ -47,10 +51,7 @@ export class AppointmentsService {
                 }
 
                 const bookedForDay: string[] = doctor.slots_booked?.[slotDate] ?? [];
-
-                const sortedBooked = [...bookedForDay].sort((a, b) =>
-                    a.localeCompare(b),
-                );
+                const sortedBooked = [...bookedForDay].sort((a, b) => a.localeCompare(b));
 
                 const alreadyBooked = binarySearch(sortedBooked, slotTime);
                 if (alreadyBooked !== -1) {
@@ -72,7 +73,8 @@ export class AppointmentsService {
                             _id: docId,
                             [`slots_booked.${slotDate}`]: { $not: { $elemMatch: { $eq: slotTime } } },
                         },
-                        { $push: { [slotKey]: slotTime } }, { session, new: true },
+                        { $push: { [slotKey]: slotTime } },
+                        { session, new: true },
                     )
                     .lean();
 
@@ -94,13 +96,27 @@ export class AppointmentsService {
                             amount: doctor.fees,
                             date: Date.now(),
                         },
-                    ], { session }, 
+                    ],
+                    { session },
                 );
+
+                bookedFees = doctor.fees;
                 result = { success: true, message: 'Appointment booked successfully' };
             });
+
+            await this.reportsService.onAppointmentBooked(
+                docId,
+                userId,
+                bookedFees,
+                new Date(),
+            );
+
             return result!;
         } catch (error) {
-            if (error instanceof BadRequestException || error instanceof NotFoundException) { throw error }
+            console.error('bookAppointment ERROR:', error);
+            if (error instanceof BadRequestException || error instanceof NotFoundException) {
+                throw error;
+            }
             throw new InternalServerErrorException('Booking failed due to a conflict. Please try again.');
         } finally {
             await session.endSession();
@@ -118,6 +134,9 @@ export class AppointmentsService {
     ): Promise<{ success: boolean; message: string }> {
         const { appointmentId } = dto;
         const session = await this.connection.startSession();
+
+        let cancelledDocId = '';
+        let cancelledDate = new Date();
 
         try {
             let result: { success: boolean; message: string };
@@ -137,25 +156,19 @@ export class AppointmentsService {
 
                 await Promise.all([
                     this.appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true }, { session }),
-                    this.doctorModel.findByIdAndUpdate(
-                        appointment.docId,
-                        {
-                            $pull: {
-                                [`slots_booked.${appointment.slotDate}`]: appointment.slotTime,
-                            },
-                        },
-                        { session },
-                    ),
+                    this.doctorModel.findByIdAndUpdate(appointment.docId, {$pull: {[`slots_booked.${appointment.slotDate}`]: appointment.slotTime }}, { session })
                 ]);
 
-                result = {
-                    success: true,
-                    message: 'Appointment cancelled successfully',
-                };
+                cancelledDocId = appointment.docId;
+                cancelledDate = new Date(appointment.date);
+                result = { success: true, message: 'Appointment cancelled successfully' };
             });
+
+            await this.reportsService.onAppointmentCancelled(cancelledDocId, cancelledDate);
 
             return result!;
         } catch (error) {
+            console.error('cancelAppointment ERROR:', error);
             if (error instanceof BadRequestException || error instanceof NotFoundException || error instanceof UnauthorizedException) {
                 throw error;
             }

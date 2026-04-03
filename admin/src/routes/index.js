@@ -8,6 +8,8 @@ import DoctorAppointments from '../pages/Doctor/DoctorAppointments.vue'
 import DoctorProfile from '../pages/Doctor/DoctorProfile.vue'
 import ResetPassword from '../pages/ResetPassword.vue'
 import SpecialitiesManager from '../pages/Admin/SpecialitiesManager.vue'
+import AdminReports from '../pages/Admin/AdminReports.vue'
+import DoctorReports from '../pages/Doctor/DoctorReports.vue'
 
 const routes = [
     {
@@ -40,6 +42,11 @@ const routes = [
         name: 'SpecialitiesManager',
         component: SpecialitiesManager,
     },
+    {
+        path: '/admin-reports',
+        name: 'AdminReports',
+        component: AdminReports,
+    },
     // Doctor routes
     {
         path: '/doctor-dashboard',
@@ -55,6 +62,11 @@ const routes = [
         path: '/doctor-profile',
         name: 'DoctorProfile',
         component: DoctorProfile
+    },
+    {
+        path: '/doctor-reports',
+        name: 'DoctorReports',
+        component: DoctorReports
     },
     {
         path: '/reset-password',

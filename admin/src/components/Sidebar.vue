@@ -13,12 +13,14 @@ const adminNavItems = [
     { to: '/add-doctor', icon: assets.add_icon, label: 'Add Doctor' },
     { to: '/doctor-list', icon: assets.people_icon, label: 'Doctors List' },
     { to: '/specialities', icon: assets.list_icon, label: 'Specialities' },
+    { to: '/admin-reports', icon: assets.list_icon, label: 'Reports' },
 ]
 
 const doctorNavItems = [
     { to: '/doctor-dashboard', icon: assets.home_icon, label: 'Dashboard' },
     { to: '/doctor-appointments', icon: assets.appointment_icon, label: 'Appointments' },
     { to: '/doctor-profile', icon: assets.people_icon, label: 'Profile' },
+    { to: '/doctor-reports', icon: assets.list_icon, label: 'Reports' },
 ]
 </script>
 

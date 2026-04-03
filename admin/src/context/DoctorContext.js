@@ -12,6 +12,8 @@ export function provideDoctorContext() {
     const dashData = ref([])
     const profileData = ref([])
     const schedulingSuggestions = ref(null)
+    const doctorReport = ref(null)
+    const doctorTrend = ref([])
 
     const setDToken = (token) => {
         dToken.value = token
@@ -120,7 +122,33 @@ export function provideDoctorContext() {
         }
     }
 
-    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment, dashData, getDashData, profileData, getProfileData, updateProfileData, schedulingSuggestions, getSchedulingSuggestions })
+    const getDoctorAnnualReport = async (year = new Date().getFullYear()) => {
+        try {
+            const { data } = await axios.get(backendUrl + '/api/reports/doctor/annual', { headers: { dtoken: dToken.value }, params: { year }})
+            if (data.success) {
+                doctorReport.value = data
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    const getDoctorTrend = async (months = 12) => {
+        try {
+            const { data } = await axios.get(backendUrl + '/api/reports/doctor/trend', { headers: { dtoken: dToken.value }, params: { months }})
+            if (data.success) {
+                doctorTrend.value = data.trend
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment, dashData, getDashData, profileData, getProfileData, updateProfileData, schedulingSuggestions, getSchedulingSuggestions, doctorReport, doctorTrend, getDoctorAnnualReport, getDoctorTrend })
 }
 
 export function useDoctorContext() {
