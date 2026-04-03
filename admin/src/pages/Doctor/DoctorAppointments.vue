@@ -1,11 +1,29 @@
 <script setup>
 import { useDoctorContext } from '../../context/DoctorContext'
 import { useAppContext } from '../../context/AppContext'
-import { onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { assets } from '../../assets/assets'
 
 const { dToken, appointments, getAppointments, completeAppointment, cancelAppointment } = useDoctorContext()
 const { calculateAge, slotDateFormat, currency } = useAppContext()
+
+const PAGE_SIZE = 8
+const currentPage = ref(1)
+
+const totalPages = computed(() => Math.ceil(appointments.value.length / PAGE_SIZE))
+
+const paginatedAppointments = computed(() => {
+    const start = (currentPage.value - 1) * PAGE_SIZE
+    return appointments.value.slice(start, start + PAGE_SIZE)
+})
+
+const pageNumbers = computed(() => {
+    return Array.from({ length: totalPages.value }, (_, i) => i + 1)
+})
+
+const goToPage = (page) => {
+    if (page >= 1 && page <= totalPages.value) currentPage.value = page
+}
 
 onMounted(() => {
     if (dToken.value) {
@@ -17,8 +35,10 @@ onMounted(() => {
 <template>
     <div class="w-full max-w-6xl m-5">
         <p class="mb-3 text-lg font-medium">All Appointments</p>
-        <div class="bg-slate-100 border rounded text-sm max-h-[80vh] min-h-[50vh] overflow-y-scroll">
-            <div class="hidden sm:grid grid-cols-[0.5fr_2fr_1fr_1fr_3fr_1fr_1fr] gap-1 py-3 px-6 border-b font-medium text-gray-600">
+
+        <div class="bg-slate-100 border rounded text-sm">
+            <div
+                class="hidden sm:grid grid-cols-[0.5fr_2fr_1fr_1fr_3fr_1fr_1fr] gap-1 py-3 px-6 border-b font-medium text-gray-600">
                 <p>#</p>
                 <p>Patient</p>
                 <p>Payment</p>
@@ -27,18 +47,13 @@ onMounted(() => {
                 <p>Fees</p>
                 <p>Action</p>
             </div>
-            <div
-                v-for="(item, index) in appointments"
-                :key="item._id"
-                class="flex flex-wrap justify-between max-sm:gap-5 max-sm:text-base sm:grid grid-cols-[0.5fr_2fr_1fr_1fr_3fr_1fr_1fr] gap-1 items-center text-gray-500 py-3 px-6 border-b hover:bg-gray-200"
-            >
-                <p class="max-sm:hidden">{{ index + 1 }}</p>
+
+            <div v-for="(item, index) in paginatedAppointments" :key="item._id"
+                class="flex flex-wrap justify-between max-sm:gap-5 max-sm:text-base sm:grid grid-cols-[0.5fr_2fr_1fr_1fr_3fr_1fr_1fr] gap-1 items-center text-gray-500 py-3 px-6 border-b hover:bg-gray-200">
+                <p class="max-sm:hidden">{{ (currentPage - 1) * PAGE_SIZE + index + 1 }}</p>
                 <div class="flex items-center gap-2">
-                    <img
-                        class="w-8 h-8 rounded-full object-cover"
-                        :src="item.userData.image"
-                        :alt="item.userData.name"
-                    />
+                    <img class="w-8 h-8 rounded-full object-cover" :src="item.userData.image"
+                        :alt="item.userData.name" />
                     <p>{{ item.userData.name }}</p>
                 </div>
                 <p>{{ item.payment ? 'Online' : 'CASH' }}</p>
@@ -46,42 +61,46 @@ onMounted(() => {
                 <p>{{ slotDateFormat(item.slotDate) }}, {{ item.slotTime }}</p>
                 <p>{{ currency }}{{ item.amount }}</p>
                 <div class="flex items-center gap-1">
-                    <p
-                        v-if="item.cancelled"
-                        class="text-red-500 text-xs font-medium"
-                    >
-                        Cancelled
-                    </p>
-                    <p
-                        v-else-if="item.isCompleted"
-                        class="text-green-500 text-xs font-medium"
-                    >
-                        Completed
-                    </p>
+                    <p v-if="item.cancelled" class="text-red-500 text-xs font-medium">Cancelled</p>
+                    <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">Completed</p>
                     <template v-else>
-                        <img
-                            @click="cancelAppointment(item._id)"
-                            class="w-10 cursor-pointer"
-                            :src="assets.cancel_icon"
-                            alt="Cancel"
-                            title="Cancel appointment"
-                        />
-                        <img
-                            @click="completeAppointment(item._id)"
-                            class="w-10 cursor-pointer"
-                            :src="assets.tick_icon"
-                            alt="Complete"
-                            title="Mark as completed"
-                        />
+                        <img @click="cancelAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.cancel_icon"
+                            alt="Cancel" title="Cancel appointment" />
+                        <img @click="completeAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.tick_icon"
+                            alt="Complete" title="Mark as completed" />
                     </template>
                 </div>
             </div>
-            <p
-                v-if="appointments.length === 0"
-                class="text-center text-slate-400 py-16"
-            >
+
+            <p v-if="appointments.length === 0" class="text-center text-slate-400 py-16">
                 No appointments found.
             </p>
         </div>
+
+        <div v-if="totalPages > 1" class="flex items-center justify-center gap-1 mt-4">
+            <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
+                class="px-3 py-1.5 rounded border text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer">
+                Previous
+            </button>
+
+            <button v-for="page in pageNumbers" :key="page" @click="goToPage(page)" :class="[
+                'px-3 py-1.5 rounded border text-sm transition-colors cursor-pointer',
+                page === currentPage
+                    ? 'bg-indigo-500 text-white border-indigo-500'
+                    : 'text-slate-600 hover:bg-slate-100'
+            ]">
+                {{ page }}
+            </button>
+
+            <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages"
+                class="px-3 py-1.5 rounded border text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer">
+                Next
+            </button>
+        </div>
+
+        <p v-if="appointments.length > 0" class="text-center text-xs text-slate-400 mt-2">
+            Showing {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, appointments.length) }}
+            of {{ appointments.length }} appointments
+        </p>
     </div>
 </template>
