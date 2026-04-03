@@ -8,6 +8,7 @@ import { LoginDoctorDto } from './dto/login-doctor.dto';
 import * as bcrypt from 'bcrypt';
 import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
 import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
+import { ReportsService } from 'src/reports/reports.service';
 
 @Injectable()
 export class DoctorsService {
@@ -18,6 +19,7 @@ export class DoctorsService {
         private readonly appointmentModel: Model<AppointmentDocument>,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
+        private readonly reportsService: ReportsService,
     ) { }
 
     async getAllDoctors() {
@@ -100,6 +102,18 @@ export class DoctorsService {
 
         await this.appointmentModel.findByIdAndUpdate(appointmentId, { isCompleted: true });
 
+        const appt = await this.appointmentModel.findById(appointmentId).lean();
+        if (!appt) {
+            throw new NotFoundException('Appointment not found');
+        }
+
+        await this.reportsService.onAppointmentCompleted(
+            docId,
+            appt.userId,
+            appt.amount,
+            new Date(appt.date),
+        );
+
         return { success: true, message: 'Appointment Completed' };
     }
 
@@ -132,6 +146,11 @@ export class DoctorsService {
 
             await this.doctorModel.findByIdAndUpdate(docId, { slots_booked: slotsBooked });
         }
+
+        await this.reportsService.onAppointmentCancelled(
+            appointment.docId,
+            new Date(appointment.date),
+        );
 
         return { success: true, message: 'Appointment Cancelled' };
     }

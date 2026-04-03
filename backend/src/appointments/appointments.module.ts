@@ -7,6 +7,7 @@ import { Doctor, DoctorSchema } from 'src/doctors/schemas/doctor.schema';
 import { User, UserSchema } from 'src/users/schemas/user.schema';
 import { AuthUserModule } from 'src/shared/guards/auth-user.module';
 import { ConfigModule } from '@nestjs/config';
+import { ReportsModule } from 'src/reports/reports.module';
 
 @Module({
   imports: [
@@ -16,7 +17,8 @@ import { ConfigModule } from '@nestjs/config';
     { name: User.name, schema: UserSchema },
   ]),
     AuthUserModule,
-    ConfigModule,
+    ConfigModule, 
+    ReportsModule,
 ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],

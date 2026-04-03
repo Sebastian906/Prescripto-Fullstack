@@ -11,6 +11,7 @@ import { AuthModule } from './auth/auth.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { SpecialitiesModule } from './specialities/specialities.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SchedulingModule } from './scheduling/scheduling.module';
     AppointmentsModule,
     SpecialitiesModule,
     SchedulingModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
