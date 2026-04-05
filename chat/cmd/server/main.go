@@ -12,12 +12,24 @@ import (
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/auth"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/config"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/repository"
+	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/socket"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
 	_ "github.com/Sebastian906/Prescripto-Fullstack/chat/docs"
 )
+
+var svcHub *socket.Hub
+var svcValidator *auth.Validator
+
+func userWS(c echo.Context) error {
+	return svcHub.HandleUserWS(c, svcValidator)
+}
+
+func adminWS(c echo.Context) error {
+	return svcHub.HandleAdminWS(c, svcValidator)
+}
 
 func main() {
 	cfg := config.Load()
@@ -39,6 +51,9 @@ func main() {
 		jwtValidator = auth.NewValidator(cfg.JWTSecret)
 	}
 
+	hub := socket.NewHub(repo)
+	go hub.Run()
+
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Logger())
@@ -58,6 +73,13 @@ func main() {
 	e.GET("/swagger/doc.json", func(c echo.Context) error {
 		return c.File("./docs/swagger.json")
 	})
+
+	svcHub = hub
+	svcValidator = jwtValidator
+
+	e.GET("/ws/chat", userWS)
+
+	e.GET("/ws/admin/:conversationId", adminWS)
 
 	e.GET("/api/chat/pending", func(c echo.Context) error {
 		return handlePending(c, repo, jwtValidator)
@@ -115,7 +137,6 @@ func handleHistory(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 	}
 	claims, err := v.Validate(token)
 	if err != nil {
-		// Try admin token
 		atoken := c.Request().Header.Get("atoken")
 		if atoken == "" {
 			atoken = c.QueryParam("atoken")
