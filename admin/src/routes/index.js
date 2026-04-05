@@ -10,6 +10,7 @@ import ResetPassword from '../pages/ResetPassword.vue'
 import SpecialitiesManager from '../pages/Admin/SpecialitiesManager.vue'
 import AdminReports from '../pages/Admin/AdminReports.vue'
 import DoctorReports from '../pages/Doctor/DoctorReports.vue'
+import AdminChat from '../pages/Admin/AdminChat.vue'
 
 const routes = [
     {
@@ -46,6 +47,11 @@ const routes = [
         path: '/admin-reports',
         name: 'AdminReports',
         component: AdminReports,
+    },
+    {
+        path: '/admin-chat',
+        name: 'AdminChat',
+        component: AdminChat,
     },
     // Doctor routes
     {
