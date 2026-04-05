@@ -29,6 +29,58 @@
                 }
             }
         },
+        "/ws/chat": {
+            "get": {
+                "summary": "User WebSocket chat",
+                "description": "Upgrades user's connection to WebSocket. Provide token as query param or header.",
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "query",
+                        "description": "JWT token",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                }
+            }
+        },
+        "/ws/admin/{conversationId}": {
+            "get": {
+                "summary": "Admin WebSocket for a conversation",
+                "description": "Upgrades admin connection to join a conversation room. Provide atoken as query param or header.",
+                "parameters": [
+                    {
+                        "name": "conversationId",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "atoken",
+                        "in": "query",
+                        "description": "Admin JWT token",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                }
+            }
+        },
         "/api/chat/pending": {
             "get": {
                 "summary": "List conversations waiting for admin",
