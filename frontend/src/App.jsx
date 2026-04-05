@@ -12,6 +12,7 @@ import Footer from './components/Footer'
 import { ToastContainer } from 'react-toastify';
 import OAuthCallback from './pages/OAuthCallback'
 import ResetPassword from './pages/ResetPassword'
+import ChatWidget from './components/ChatWidget'
 
 const App = () => {
   return (
@@ -34,6 +35,7 @@ const App = () => {
         </Routes>
         <Footer />
       </div>
+      <ChatWidget />
     </div>
   )
 }

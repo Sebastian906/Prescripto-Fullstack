@@ -164,9 +164,12 @@ func (h *Hub) Run() {
 		case c := <-h.unregister:
 			h.mu.Lock()
 			if room, ok := h.rooms[c.conversationID]; ok {
-				delete(room, c)
-				if len(room) == 0 {
-					delete(h.rooms, c.conversationID)
+				if _, exists := room[c]; exists {
+					delete(room, c)
+					close(c.send)
+					if len(room) == 0 {
+						delete(h.rooms, c.conversationID)
+					}
 				}
 			}
 			h.mu.Unlock()
@@ -339,6 +342,10 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 
 func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 	atoken := c.QueryParam("atoken")
+	if atoken == "" {
+		atoken = c.Request().Header.Get("atoken")
+	}
+
 	claims, err := v.ValidateAdmin(atoken)
 	if err != nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
@@ -379,20 +386,7 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 		Event:          "admin_joined",
 		CreatedAt:      time.Now(),
 	}
-	data, _ := json.Marshal(joinMsg)
-
-	h.mu.RLock()
-	room := h.rooms[convID]
-	h.mu.RUnlock()
-
-	for existingClient := range room {
-		select {
-		case existingClient.send <- data:
-		default:
-		}
-	}
-
-	h.register <- cl
+	h.broadcast(convID, joinMsg)
 
 	go cl.writePump()
 	go cl.readPump()
