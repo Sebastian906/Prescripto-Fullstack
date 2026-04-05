@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/auth"
+	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/bot"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/repository"
 
 	"github.com/gorilla/websocket"
@@ -39,7 +40,19 @@ type OutboundMessage struct {
 	Options        []Option               `json:"options,omitempty"`
 	Metadata       repository.BotMetadata `json:"metadata,omitempty"`
 	CreatedAt      time.Time              `json:"createdAt"`
-	Event string `json:"event,omitempty"`
+	Event          string                 `json:"event,omitempty"`
+}
+
+func convertOptions(opts []bot.Option) []Option {
+	out := make([]Option, len(opts))
+	for i, o := range opts {
+		out[i] = Option{Label: o.Label, Value: o.Value}
+	}
+	return out
+}
+
+func convertMetadata(m bot.Metadata) repository.BotMetadata {
+	return repository.BotMetadata{Action: m.Action, Route: m.Route, Intent: m.Intent}
 }
 
 type client struct {
@@ -122,15 +135,17 @@ type Hub struct {
 	unregister chan *client
 	inbound    chan inboundEvent
 	repo       *repository.Repo
+	bot        *bot.Engine
 }
 
-func NewHub(repo *repository.Repo) *Hub {
+func NewHub(repo *repository.Repo, engine *bot.Engine) *Hub {
 	return &Hub{
 		rooms:      make(map[string]map[*client]struct{}),
 		register:   make(chan *client, 64),
 		unregister: make(chan *client, 64),
 		inbound:    make(chan inboundEvent, 256),
 		repo:       repo,
+		bot:        engine,
 	}
 }
 
@@ -170,7 +185,7 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := h.repo.FindByID(ctx, c.conversationID)
+	conv, err := h.repo.FindByID(ctx, c.conversationID)
 	if err != nil {
 		log.Printf("hub: conversation not found %s: %v", c.conversationID, err)
 		return
@@ -194,6 +209,46 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		SenderID:       c.userID,
 		Content:        content,
 		CreatedAt:      now,
+	})
+
+	if conv.Status == repository.StatusWithAdmin {
+		return
+	}
+
+	if conv.Status == repository.StatusWaitingAdmin {
+		return
+	}
+
+	botResp := h.bot.Process(content, conv.BotState)
+
+	if botResp.NextState == "waiting_admin" {
+		_ = h.repo.UpdateStatus(ctx, c.conversationID, repository.StatusWaitingAdmin)
+		_ = h.repo.UpdateBotState(ctx, c.conversationID, "waiting_admin")
+	} else {
+		_ = h.repo.UpdateBotState(ctx, c.conversationID, botResp.NextState)
+	}
+
+	botMsg := repository.Message{
+		Sender:   "bot",
+		SenderID: "bot",
+		Content:  botResp.Text,
+		Metadata: &repository.BotMetadata{
+			Action: botResp.Metadata.Action,
+			Route:  botResp.Metadata.Route,
+			Intent: botResp.Metadata.Intent,
+		},
+		CreatedAt: time.Now(),
+	}
+	_ = h.repo.AppendMessage(ctx, c.conversationID, botMsg)
+
+	h.broadcast(c.conversationID, OutboundMessage{
+		ConversationID: c.conversationID,
+		Sender:         "bot",
+		SenderID:       "bot",
+		Content:        botResp.Text,
+		Options:        convertOptions(botResp.Options),
+		Metadata:       convertMetadata(botResp.Metadata),
+		CreatedAt:      botMsg.CreatedAt,
 	})
 }
 
@@ -249,16 +304,19 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 	h.register <- cl
 
 	if len(conv.Messages) == 0 {
+		welcomeResp := h.bot.Process("hello", "start")
 		welcome := OutboundMessage{
 			ConversationID: conv.ID.Hex(),
 			Sender:         "bot",
 			SenderID:       "bot",
-			Content:        "Hola — Bienvenido. ¿En qué puedo ayudarte?",
-			Options:        []Option{{Label: "Main Menu", Value: "main_menu"}},
+			Content:        welcomeResp.Text,
+			Options:        convertOptions(welcomeResp.Options),
+			Metadata:       convertMetadata(welcomeResp.Metadata),
 			CreatedAt:      time.Now(),
 		}
 		data, _ := json.Marshal(welcome)
 		cl.send <- data
+		_ = h.repo.UpdateBotState(ctx, conv.ID.Hex(), welcomeResp.NextState)
 	} else {
 		histMsg := OutboundMessage{
 			ConversationID: conv.ID.Hex(),
@@ -296,7 +354,6 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Mark conversation as "with_admin"
 	if err := h.repo.AssignAdmin(ctx, convID, claims.UserID); err != nil {
 		conn.Close()
 		return err
@@ -310,6 +367,8 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 		userID:         claims.UserID,
 		role:           "admin",
 	}
+
+	h.register <- cl
 
 	joinMsg := OutboundMessage{
 		ConversationID: convID,

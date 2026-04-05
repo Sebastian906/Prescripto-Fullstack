@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/auth"
+	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/bot"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/config"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/repository"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/socket"
@@ -44,14 +45,9 @@ func main() {
 		_ = repo.Disconnect(ctx)
 	}()
 
-	var jwtValidator *auth.Validator
-	if cfg.AdminEmail != "" || cfg.AdminPassword != "" {
-		jwtValidator = auth.NewValidatorWithAdmin(cfg.JWTSecret, cfg.AdminEmail, cfg.AdminPassword)
-	} else {
-		jwtValidator = auth.NewValidator(cfg.JWTSecret)
-	}
-
-	hub := socket.NewHub(repo)
+	jwtValidator := auth.NewValidator(cfg.JWTSecret)
+	botEngine := bot.NewEngine()
+	hub := socket.NewHub(repo, botEngine)
 	go hub.Run()
 
 	e := echo.New()
@@ -68,18 +64,16 @@ func main() {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	e.Static("/swagger", "./docs")
+	e.Static("/swagger", "docs")
+	e.File("/swagger/doc.json", "docs/swagger.json")
 
-	e.GET("/swagger/doc.json", func(c echo.Context) error {
-		return c.File("./docs/swagger.json")
+	e.GET("/ws/chat", func(c echo.Context) error {
+		return hub.HandleUserWS(c, jwtValidator)
 	})
 
-	svcHub = hub
-	svcValidator = jwtValidator
-
-	e.GET("/ws/chat", userWS)
-
-	e.GET("/ws/admin/:conversationId", adminWS)
+	e.GET("/ws/admin/:conversationId", func(c echo.Context) error {
+		return hub.HandleAdminWS(c, jwtValidator)
+	})
 
 	e.GET("/api/chat/pending", func(c echo.Context) error {
 		return handlePending(c, repo, jwtValidator)
