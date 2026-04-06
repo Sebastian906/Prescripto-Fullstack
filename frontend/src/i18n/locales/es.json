@@ -1,0 +1,159 @@
+{
+    "nav": {
+        "home": "INICIO",
+        "allDoctors": "TODOS LOS MÉDICOS",
+        "about": "NOSOTROS",
+        "contact": "CONTACTO",
+        "createAccount": "Crear cuenta",
+        "myProfile": "Mi Perfil",
+        "myAppointments": "Mis Citas",
+        "logout": "Cerrar sesión"
+    },
+    "home": {
+        "heroTitle1": "Reserva tu Cita",
+        "heroTitle2": "Con Médicos de Confianza",
+        "heroSubtitle": "Explora nuestra amplia lista de médicos de confianza y programa tu cita sin complicaciones",
+        "bookAppointment": "Reservar Cita",
+        "specialityTitle": "Buscar por Especialidad",
+        "specialitySubtitle": "Explora nuestra amplia lista de médicos de confianza y programa tu cita sin complicaciones.",
+        "topDoctorsTitle": "Médicos Destacados",
+        "topDoctorsSubtitle": "Explora nuestra amplia lista de médicos de confianza.",
+        "more": "ver más",
+        "bannerTitle1": "Reserva tu Cita",
+        "bannerTitle2": "Con más de 100 Médicos de Confianza",
+        "bannerCta": "Crear cuenta"
+    },
+    "doctors": {
+        "browse": "Explora médicos por especialidad.",
+        "filters": "Filtros",
+        "sortBy": "Ordenar por:",
+        "doctor": "médico",
+        "doctors": "médicos",
+        "available": "Disponible",
+        "notAvailable": "No Disponible",
+        "noDoctors": "No se encontraron médicos para esta especialidad.",
+        "sort": {
+            "none": "Por defecto",
+            "nameAsc": "Nombre (A → Z)",
+            "nameDesc": "Nombre (Z → A)",
+            "feesAsc": "Precio (menor → mayor)",
+            "feesDesc": "Precio (mayor → menor)",
+            "specialityGroupAsc": "Especialidad (A → Z, agrupado)",
+            "specialityGroupDesc": "Especialidad (Z → A, agrupado)"
+        }
+    },
+    "appointment": {
+        "smartSuggestions": "Sugerencias Inteligentes",
+        "findingSlots": "Buscando mejores horarios…",
+        "noSuggestions": "No hay sugerencias disponibles para las fechas seleccionadas.",
+        "bookingSlots": "Horarios disponibles",
+        "loadingSlots": "Cargando horarios…",
+        "noSlots": "Sin horarios disponibles para este día",
+        "bookButton": "Reservar cita",
+        "about": "Acerca de",
+        "appointmentFee": "Tarifa de la cita:",
+        "relatedDoctors": "Médicos Relacionados",
+        "relatedSubtitle": "Explora nuestra amplia lista de médicos de confianza.",
+        "priority": {
+            "urgent": "Urgente",
+            "normal": "Normal",
+            "flexible": "Flexible"
+        }
+    },
+    "myAppointments": {
+        "title": "Mis Citas",
+        "address": "Dirección:",
+        "dateTime": "Fecha y Hora:",
+        "payOnline": "Pagar en línea",
+        "paid": "Pagado",
+        "cancelAppointment": "Cancelar cita",
+        "appointmentCancelled": "Cita cancelada",
+        "completed": "Completada",
+        "payWithStripe": "Pagar con Stripe",
+        "cashOnDelivery": "Pago en efectivo"
+    },
+    "myProfile": {
+        "contactInfo": "INFORMACIÓN DE CONTACTO",
+        "basicInfo": "INFORMACIÓN BÁSICA",
+        "emailId": "Correo:",
+        "phone": "Teléfono:",
+        "address": "Dirección:",
+        "gender": "Género:",
+        "birthday": "Fecha de nacimiento:",
+        "saveInfo": "Guardar información",
+        "edit": "Editar",
+        "male": "Masculino",
+        "female": "Femenino",
+        "other": "Otro"
+    },
+    "login": {
+        "login": "Iniciar sesión",
+        "createAccount": "Crear cuenta",
+        "email": "Correo electrónico",
+        "password": "Contraseña",
+        "fullName": "Nombre completo",
+        "forgotPassword": "¿Olvidaste tu contraseña?",
+        "orLoginWith": "o inicia sesión con tus redes",
+        "orRegisterWith": "o regístrate con tus redes",
+        "helloWelcome": "¡Hola, Bienvenido!",
+        "welcomeBack": "¡Bienvenido de vuelta!",
+        "dontHaveAccount": "¿No tienes una cuenta?",
+        "alreadyHaveAccount": "¿Ya tienes una cuenta?"
+    },
+    "forgot": {
+        "title": "¿Olvidaste tu contraseña?",
+        "subtitle": "Ingresa tu correo y te enviaremos un enlace para restablecerla.",
+        "emailPlaceholder": "Correo electrónico",
+        "sendLink": "Enviar enlace",
+        "sending": "Enviando…",
+        "checkInbox": "¡Revisa tu bandeja de entrada!",
+        "successMsg": "Si existe una cuenta con ese correo, recibirás un enlace en breve.",
+        "done": "Listo"
+    },
+    "reset": {
+        "title": "Restablecer contraseña",
+        "subtitle": "Ingresa tu nueva contraseña.",
+        "newPassword": "Nueva contraseña",
+        "confirmPassword": "Confirmar contraseña",
+        "update": "Actualizar contraseña",
+        "updating": "Actualizando…",
+        "success": "Contraseña actualizada. Redirigiendo…",
+        "invalid": "Enlace de restablecimiento inválido o faltante."
+    },
+    "about": {
+        "title": "SOBRE",
+        "us": "NOSOTROS",
+        "whyChoose": "¿POR QUÉ",
+        "chooseUs": "ELEGIRNOS?",
+        "efficiency": "EFICIENCIA:",
+        "efficiencyText": "Programación de citas optimizada que se adapta a tu estilo de vida.",
+        "convenience": "CONVENIENCIA:",
+        "convenienceText": "Acceso a una red de profesionales de salud de confianza en tu área.",
+        "personalization": "PERSONALIZACIÓN:",
+        "personalizationText": "Recomendaciones y recordatorios a medida para que cuides tu salud."
+    },
+    "contact": {
+        "title": "CONTÁCTANOS",
+        "us": "",
+        "ourOffice": "NUESTRA OFICINA",
+        "careers": "TRABAJA CON NOSOTROS",
+        "careersText": "Conoce más sobre nuestros equipos y vacantes disponibles.",
+        "exploreJobs": "Ver Vacantes"
+    },
+    "footer": {
+        "company": "EMPRESA",
+        "getInTouch": "CONTÁCTANOS",
+        "copyright": "Copyright 2025© Prescripto - Todos los derechos reservados.",
+        "home": "Inicio",
+        "aboutUs": "Sobre nosotros",
+        "contactUs": "Contáctanos",
+        "privacyPolicy": "Política de privacidad"
+    },
+    "chat": {
+        "title": "Asistente Prescripto",
+        "online": "En línea",
+        "placeholder": "Escribe un mensaje…",
+        "loginPrompt": "Inicia sesión para chatear con nuestro asistente.",
+        "connecting": "Conectando al chat…"
+    }
+}

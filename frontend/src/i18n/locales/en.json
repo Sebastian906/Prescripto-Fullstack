@@ -1,0 +1,159 @@
+{
+    "nav": {
+        "home": "HOME",
+        "allDoctors": "ALL DOCTORS",
+        "about": "ABOUT",
+        "contact": "CONTACT",
+        "createAccount": "Create Account",
+        "myProfile": "My Profile",
+        "myAppointments": "My Appointments",
+        "logout": "Logout"
+    },
+    "home": {
+        "heroTitle1": "Book Appointment",
+        "heroTitle2": "With Trusted Doctors",
+        "heroSubtitle": "Simply browse through our extensive list of trusted doctors, schedule your appointment hassle-free",
+        "bookAppointment": "Book Appointment",
+        "specialityTitle": "Find by Speciality",
+        "specialitySubtitle": "Simply browse through our extensive list of trusted doctors, schedule your appointment hassle-free.",
+        "topDoctorsTitle": "Top Doctors to Book",
+        "topDoctorsSubtitle": "Simply browse through our extensive list of trusted doctors.",
+        "more": "more",
+        "bannerTitle1": "Book Appointment",
+        "bannerTitle2": "With 100+ Trusted Doctors",
+        "bannerCta": "Create Account"
+    },
+    "doctors": {
+        "browse": "Browse through the doctors speciality.",
+        "filters": "Filters",
+        "sortBy": "Sort by:",
+        "doctor": "doctor",
+        "doctors": "doctors",
+        "available": "Available",
+        "notAvailable": "Not Available",
+        "noDoctors": "No doctors found for this speciality.",
+        "sort": {
+            "none": "Default",
+            "nameAsc": "Name (A → Z)",
+            "nameDesc": "Name (Z → A)",
+            "feesAsc": "Price (low → high)",
+            "feesDesc": "Price (high → low)",
+            "specialityGroupAsc": "Speciality (A → Z, grouped)",
+            "specialityGroupDesc": "Speciality (Z → A, grouped)"
+        }
+    },
+    "appointment": {
+        "smartSuggestions": "Smart Suggestions",
+        "findingSlots": "Finding best slots…",
+        "noSuggestions": "No suggestions available for the selected dates.",
+        "bookingSlots": "Booking slots",
+        "loadingSlots": "Loading slots…",
+        "noSlots": "No slots available for this day",
+        "bookButton": "Book an appointment",
+        "about": "About",
+        "appointmentFee": "Appointment fee:",
+        "relatedDoctors": "Related Doctors",
+        "relatedSubtitle": "Simply browse through our extensive list of trusted doctors.",
+        "priority": {
+            "urgent": "Urgent",
+            "normal": "Normal",
+            "flexible": "Flexible"
+        }
+    },
+    "myAppointments": {
+        "title": "My Appointments",
+        "address": "Address:",
+        "dateTime": "Date & Time:",
+        "payOnline": "Pay Online",
+        "paid": "Paid",
+        "cancelAppointment": "Cancel appointment",
+        "appointmentCancelled": "Appointment cancelled",
+        "completed": "Completed",
+        "payWithStripe": "Pay with Stripe",
+        "cashOnDelivery": "Cash on Delivery"
+    },
+    "myProfile": {
+        "contactInfo": "CONTACT INFORMATION",
+        "basicInfo": "BASIC INFORMATION",
+        "emailId": "Email id:",
+        "phone": "Phone:",
+        "address": "Address:",
+        "gender": "Gender:",
+        "birthday": "Birthday:",
+        "saveInfo": "Save Information",
+        "edit": "Edit",
+        "male": "Male",
+        "female": "Female",
+        "other": "Other"
+    },
+    "login": {
+        "login": "Login",
+        "createAccount": "Create account",
+        "email": "Email",
+        "password": "Password",
+        "fullName": "Full Name",
+        "forgotPassword": "Forgot Password?",
+        "orLoginWith": "or login with your socials",
+        "orRegisterWith": "or register with your socials",
+        "helloWelcome": "Hello, Welcome!",
+        "welcomeBack": "Welcome Back!",
+        "dontHaveAccount": "Don't have an account?",
+        "alreadyHaveAccount": "Already have an account?"
+    },
+    "forgot": {
+        "title": "Forgot Password?",
+        "subtitle": "Enter your email and we'll send you a reset link.",
+        "emailPlaceholder": "Email address",
+        "sendLink": "Send Reset Link",
+        "sending": "Sending…",
+        "checkInbox": "Check your inbox!",
+        "successMsg": "If an account with that email exists, you will receive a reset link shortly.",
+        "done": "Done"
+    },
+    "reset": {
+        "title": "Reset Password",
+        "subtitle": "Enter your new password below.",
+        "newPassword": "New password",
+        "confirmPassword": "Confirm new password",
+        "update": "Update Password",
+        "updating": "Updating…",
+        "success": "Password changed successfully. Redirecting…",
+        "invalid": "Invalid or missing reset link."
+    },
+    "about": {
+        "title": "ABOUT",
+        "us": "US",
+        "whyChoose": "WHY",
+        "chooseUs": "CHOOSE US",
+        "efficiency": "EFFICIENCY:",
+        "efficiencyText": "Streamlined appointment scheduling that fits into your busy lifestyle.",
+        "convenience": "CONVENIENCE:",
+        "convenienceText": "Access to a network of trusted healthcare professionals in your area.",
+        "personalization": "PERSONALIZATION:",
+        "personalizationText": "Tailored recommendations and reminders to help you stay on top of your health."
+    },
+    "contact": {
+        "title": "CONTACT",
+        "us": "US",
+        "ourOffice": "OUR OFFICE",
+        "careers": "CAREERS AT PRESCRIPTO",
+        "careersText": "Learn more about our teams and job openings.",
+        "exploreJobs": "Explore Jobs"
+    },
+    "footer": {
+        "company": "COMPANY",
+        "getInTouch": "GET IN TOUCH",
+        "copyright": "Copyright 2025© Prescripto - All Rights Reserved.",
+        "home": "Home",
+        "aboutUs": "About us",
+        "contactUs": "Contact us",
+        "privacyPolicy": "Privacy policy"
+    },
+    "chat": {
+        "title": "Prescripto Assistant",
+        "online": "Online",
+        "placeholder": "Type a message…",
+        "loginPrompt": "Please log in to start chatting with our assistant.",
+        "connecting": "Connecting to chat…"
+    }
+}
