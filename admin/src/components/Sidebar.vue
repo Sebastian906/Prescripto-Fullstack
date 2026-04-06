@@ -3,9 +3,11 @@ import { useAdminContext } from '../context/AdminContext'
 import { RouterLink } from 'vue-router'
 import { assets } from '../assets/assets'
 import { useDoctorContext } from '../context/DoctorContext'
+import { useI18n } from 'vue-i18n'
 
 const { aToken } = useAdminContext()
 const { dToken } = useDoctorContext()
+const { t } = useI18n()
 
 const adminNavItems = [
     { to: '/admin-dashboard', icon: assets.home_icon, label: 'Dashboard' },
