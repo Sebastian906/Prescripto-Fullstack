@@ -173,10 +173,9 @@ func (h *Hub) Run() {
 				}
 			}
 			h.mu.Unlock()
-			close(c.send)
 
 		case evt := <-h.inbound:
-			h.handleInbound(evt)
+			go h.handleInbound(evt)
 		}
 	}
 }
@@ -306,6 +305,9 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 
 	h.register <- cl
 
+	go cl.writePump()
+	go cl.readPump()
+
 	if len(conv.Messages) == 0 {
 		welcomeResp := h.bot.Process("hello", "start")
 		welcome := OutboundMessage{
@@ -333,9 +335,6 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 		data, _ := json.Marshal(histMsg)
 		cl.send <- data
 	}
-
-	go cl.writePump()
-	go cl.readPump()
 
 	return nil
 }
@@ -377,6 +376,9 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 
 	h.register <- cl
 
+	go cl.writePump()
+	go cl.readPump()
+
 	joinMsg := OutboundMessage{
 		ConversationID: convID,
 		Sender:         "bot",
@@ -387,9 +389,6 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 		CreatedAt:      time.Now(),
 	}
 	h.broadcast(convID, joinMsg)
-
-	go cl.writePump()
-	go cl.readPump()
 
 	return nil
 }

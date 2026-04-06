@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ApiConsumes, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { AuthUserGuard } from 'src/shared/guards/auth-user.guard';
@@ -40,5 +40,11 @@ export class UsersController {
     ) {
         const userId = (req as any).userId as string;
         return this.usersService.updateProfile(userId, dto, imageFile);
+    }
+
+    @Get('profile/:id')
+    @ApiOperation({ summary: 'Get user profile by ID (public endpoint for admin/chat)' })
+    async getProfileById(@Param('id') userId: string) {
+        return this.usersService.getProfile(userId);
     }
 }

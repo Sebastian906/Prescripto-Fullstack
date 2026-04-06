@@ -11,7 +11,7 @@ import { CancelAppointmentAdminDto } from './dto/cancel-appointment.dto';
 @Controller('api/admin')
 export class AdminController {
     constructor(private readonly adminService: AdminService) { }
-    
+
     @Post('add-doctor')
     @ApiOperation({ summary: 'Add a new doctor to the system' })
     @ApiConsumes('multipart/form-data')

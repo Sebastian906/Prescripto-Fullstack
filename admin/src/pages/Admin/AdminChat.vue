@@ -18,12 +18,30 @@ const wsStatus = ref('idle')
 const pollInterval = ref(null)
 const bottomEl = ref(null)
 const seenMessageIds = ref(new Set())
+const userNames = ref({})
 
 const isConnected = computed(() => wsStatus.value === 'open')
 
 const activeConv = computed(() =>
     pendingConvs.value.find(c => c.id === activeConvId.value) ?? null
 )
+
+const getUserDisplayName = (userId) => {
+    return userNames.value[userId] || `User …${(userId ?? '??????').slice(-6)}`
+}
+
+const fetchUserName = async (userId) => {
+    if (userNames.value[userId]) return
+    try {
+        const res = await fetch(`${backendUrl}/api/users/profile/${userId}`)
+        const data = await res.json()
+        if (data.success && data.userData?.name) {
+            userNames.value[userId] = data.userData.name
+        }
+    } catch (e) {
+        console.error('[AdminChat] fetchUserName', e)
+    }
+}
 
 const scrollToBottom = () => {
     nextTick(() => {
@@ -38,7 +56,13 @@ const fetchPending = async () => {
             headers: { atoken: aToken.value },
         })
         const data = await res.json()
-        if (data.success) pendingConvs.value = data.conversations ?? []
+        if (data.success) {
+            pendingConvs.value = data.conversations ?? []
+            // Obtener nombres de usuarios de manera asincrónica
+            pendingConvs.value.forEach(conv => {
+                fetchUserName(conv.userID || conv.userId)
+            })
+        }
     } catch (e) {
         console.error('[AdminChat] fetchPending', e)
     }
@@ -100,9 +124,11 @@ const joinConversation = async (convId) => {
         try {
             const msg = JSON.parse(event.data)
 
-            if (msg.id && seenMessageIds.value.has(msg.id)) return
+            const isSystemEvent = msg.event === 'admin_joined' || msg.event === 'bot_message'
 
-            if (msg.id) seenMessageIds.value.add(msg.id)
+            if (!isSystemEvent && msg.id && seenMessageIds.value.has(msg.id)) return
+
+            if (msg.id && !isSystemEvent) seenMessageIds.value.add(msg.id)
 
             if (msg.event === 'admin_joined') {
                 const alreadyHasJoin = messages.value.some(
@@ -198,7 +224,7 @@ onUnmounted(() => {
                     <div class="flex items-center gap-2 mb-1">
                         <img src="../../assets/chat_user_icon.svg" class="w-5 h-5 opacity-60" alt="" />
                         <p class="text-sm font-medium text-slate-700 truncate">
-                            User …{{ (conv.userID ?? conv.userId ?? '??????').slice(-6) }}
+                            {{ getUserDisplayName(conv.userID ?? conv.userId) }}
                         </p>
                     </div>
                     <div class="flex items-center justify-between">
@@ -219,7 +245,7 @@ onUnmounted(() => {
                     <img src="../../assets/chat_user_icon.svg" class="w-6 h-6" alt="" />
                     <div>
                         <p class="text-sm font-semibold text-slate-700">
-                            User …{{ activeConvId.slice(-6) }}
+                            {{ getUserDisplayName(activeConvId) }}
                         </p>
                         <div class="flex items-center gap-1.5">
                             <span :class="[
