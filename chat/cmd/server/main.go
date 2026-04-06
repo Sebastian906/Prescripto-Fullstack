@@ -110,6 +110,7 @@ func handlePending(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 	if atoken == "" {
 		atoken = c.QueryParam("atoken")
 	}
+
 	if _, err := v.ValidateAdmin(atoken); err != nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}

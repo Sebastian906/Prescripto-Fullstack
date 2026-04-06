@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -68,17 +71,30 @@ func (v *Validator) ValidateAdmin(tokenStr string) (*Claims, error) {
 		return nil, errors.New("empty admin token")
 	}
 
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected alg: %v", t.Header["alg"])
-		}
-		return v.secret, nil
-	})
-	if err != nil || !token.Valid {
-		return nil, fmt.Errorf("invalid admin token: %w", err)
+	parts := strings.Split(tokenStr, ".")
+	if len(parts) != 3 {
+		return nil, errors.New("invalid token format")
+	}
+
+	header := parts[0]
+	payload := parts[1]
+	signature := parts[2]
+
+	message := header + "." + payload
+	expectedSig := calculateHMAC(message, v.secret)
+
+	if signature != expectedSig {
+		return nil, errors.New("invalid token signature")
 	}
 
 	return &Claims{UserID: "admin", Role: "admin"}, nil
+}
+
+func calculateHMAC(message string, secret []byte) string {
+	h := hmac.New(sha256.New, secret)
+	h.Write([]byte(message))
+	signature := h.Sum(nil)
+	return base64.RawURLEncoding.EncodeToString(signature)
 }
 
 func (v *Validator) ValidateAny(tokenStr, atoken string) (*Claims, error) {
