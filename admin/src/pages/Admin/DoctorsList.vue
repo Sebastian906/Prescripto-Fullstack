@@ -1,9 +1,11 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAdminContext } from '../../context/AdminContext'
 import { useSort } from '../../composables/useSort.vue'
 
 const { doctors, aToken, getAllDoctors, changeAvailability } = useAdminContext()
+const { t } = useI18n()
 const selectedSpeciality = ref('')
 
 const filteredDoctors = computed(() => {
@@ -30,20 +32,20 @@ onMounted(() => {
 <template>
     <div class="m-5 max-h-[90vh] overflow-y-scroll w-full">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h1 class="text-lg font-medium">All Doctors</h1>
+            <h1 class="text-lg font-medium">{{ t('doctorsList.title') }}</h1>
             <div class="flex flex-wrap items-center gap-3">
                 <div class="flex items-center gap-2">
-                    <label class="text-sm text-slate-500 shrink-0">Speciality:</label>
+                    <label class="text-sm text-slate-500 shrink-0">{{ t('doctorsList.specialityLabel') }}</label>
                     <select v-model="selectedSpeciality"
                         class="text-sm border border-slate-500 rounded px-3 py-1.5 text-slate-600 bg-indigo-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer">
-                        <option value="">All</option>
+                        <option value="">{{ t('doctorsList.all') }}</option>
                         <option v-for="spec in specialities" :key="spec" :value="spec">
                             {{ spec }}
                         </option>
                     </select>
                 </div>
                 <div class="flex items-center gap-2">
-                    <label class="text-sm text-slate-500 shrink-0">Sort by:</label>
+                    <label class="text-sm text-slate-500 shrink-0">{{ t('doctorsList.sortBy') }}</label>
                     <select v-model="sortOption"
                         class="text-sm border border-slate-500 rounded px-3 py-1.5 text-slate-600 bg-indigo-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer">
                         <option v-for="opt in SORT_OPTIONS" :key="opt.value" :value="opt.value">
@@ -52,7 +54,8 @@ onMounted(() => {
                     </select>
                 </div>
                 <span class="text-xs text-slate-400">
-                    {{ sortedDoctors.length }} doctor{{ sortedDoctors.length !== 1 ? 's' : '' }}
+                    {{ sortedDoctors.length }} {{ sortedDoctors.length !== 1 ? t('doctorsList.doctors') :
+                        t('doctorsList.doctor') }}
                 </span>
             </div>
         </div>
@@ -66,13 +69,13 @@ onMounted(() => {
                     <p class="text-zinc-600 text-sm">{{ item.speciality }}</p>
                     <div class="mt-2 flex items-center gap-1 text-sm">
                         <input type="checkbox" :checked="item.available" @change="changeAvailability(item._id)" />
-                        <p>Available</p>
+                        <p>{{ t('doctorsList.available') }}</p>
                     </div>
                 </div>
             </div>
         </div>
         <p v-if="sortedDoctors.length === 0" class="text-slate-500 mt-6 text-sm">
-            No doctors found.
+            {{ t('doctorsList.noDoctors') }}
         </p>
     </div>
 </template>

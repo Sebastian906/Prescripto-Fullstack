@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/auth"
-	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/bot"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/config"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/repository"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/socket"
@@ -46,8 +45,7 @@ func main() {
 	}()
 
 	jwtValidator := auth.NewValidator(cfg.JWTSecret)
-	botEngine := bot.NewEngine()
-	hub := socket.NewHub(repo, botEngine)
+	hub := socket.NewHub(repo)
 	go hub.Run()
 
 	e := echo.New()

@@ -3,12 +3,14 @@ import { AppContext } from "../context/AppContext"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import { toast } from "react-toastify"
+import { useTranslation } from "react-i18next"
 
 const MyAppointments = () => {
 
     const { backendUrl, token, getDoctorsData } = useContext(AppContext)
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
+    const { t } = useTranslation()
 
     const [appointments, setAppointments] = useState([])
     const [payingId, setPayingId] = useState(null)
@@ -124,29 +126,30 @@ const MyAppointments = () => {
 
     return (
         <div>
-            <p className="pb-3 mt-12 font-medium text-zinc-700 border-b border-slate-400">My Appointments</p>
+            <p className="pb-3 mt-12 font-medium text-zinc-700 border-b border-slate-400">
+                {t('myAppointments.title')}
+            </p>
             <div>
-                {appointments.slice(0,3).map((item, index) => (
+                {appointments.slice(0, 3).map((item, index) => (
                     <div
                         className="grid grid-cols-[1fr_2fr] gap-4 sm:flex sm:gap-6 py-2 border-b border-slate-300"
                         key={index}
                     >
                         <div>
-                            <img
-                                className="w-32 bg-indigo-200"
-                                src={item.docData.image}
-                                alt=""
-                            />
+                            <img className="w-32 bg-indigo-200" src={item.docData.image} alt="" />
                         </div>
                         <div className="flex-1 text-sm text-zinc-600">
                             <p className="text-neutral-800 font-semibold">{item.docData.name}</p>
                             <p>{item.docData.speciality}</p>
-                            <p className="text-zinc-700 font-medium mt-1">Address:</p>
+                            <p className="text-zinc-700 font-medium mt-1">{t('myAppointments.address')}</p>
                             <p className="text-xs">{item.docData.address.line1}</p>
                             <p className="text-xs">{item.docData.address.line2}</p>
-                            <p className="text-xs mt-1"><span className="text-sm text-neutral-700 font-medium">Date & Time:</span> {slotDateFormat(item.slotDate)} | {item.slotTime}</p>
+                            <p className="text-xs mt-1">
+                                <span className="text-sm text-neutral-700 font-medium">{t('myAppointments.dateTime')}</span>{' '}
+                                {slotDateFormat(item.slotDate)} | {item.slotTime}
+                            </p>
                         </div>
-                        <div></div>
+                        <div />
                         <div className="flex flex-col gap-2 justify-end">
                             {!item.cancelled && !item.payment && !item.isCompleted && (
                                 <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -154,7 +157,7 @@ const MyAppointments = () => {
                                         onClick={() => setPayingId(payingId === item._id ? null : item._id)}
                                         className="text-sm text-stone-500 text-center sm:min-w-48 py-2 border rounded hover:bg-indigo-500 hover:text-white transition-all duration-300 cursor-pointer w-full"
                                     >
-                                        Pay Online
+                                        {t('myAppointments.payOnline')}
                                     </button>
                                     {payingId === item._id && (
                                         <div className="absolute right-0 mt-1 w-full sm:min-w-48 bg-white border border-slate-200 rounded shadow-md z-10 overflow-hidden">
@@ -162,14 +165,14 @@ const MyAppointments = () => {
                                                 onClick={() => payWithStripe(item._id)}
                                                 className="w-full text-left text-sm px-4 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer"
                                             >
-                                                Pay with Stripe
+                                                {t('myAppointments.payWithStripe')}
                                             </button>
                                             <hr className="border-slate-100" />
                                             <button
                                                 onClick={() => payWithCOD(item._id)}
                                                 className="w-full text-left text-sm px-4 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer"
                                             >
-                                                Cash on Delivery
+                                                {t('myAppointments.cashOnDelivery')}
                                             </button>
                                         </div>
                                     )}
@@ -177,7 +180,7 @@ const MyAppointments = () => {
                             )}
                             {!item.cancelled && item.payment && !item.isCompleted && (
                                 <button className="sm:min-w-48 py-2 border border-green-600 rounded text-green-600 text-sm cursor-default">
-                                    Paid
+                                    {t('myAppointments.paid')}
                                 </button>
                             )}
                             {!item.cancelled && !item.isCompleted && (
@@ -185,17 +188,17 @@ const MyAppointments = () => {
                                     onClick={() => cancelAppointment(item._id)}
                                     className="text-sm text-stone-500 text-center sm:min-w-48 py-2 border rounded hover:bg-red-600 hover:text-white transition-all duration-300 cursor-pointer"
                                 >
-                                    Cancel appointment
+                                    {t('myAppointments.cancelAppointment')}
                                 </button>
                             )}
                             {item.cancelled && !item.isCompleted && (
                                 <button className="sm:min-w-48 py-2 border border-red-600 rounded text-red-600 text-sm cursor-default">
-                                    Appointment cancelled
+                                    {t('myAppointments.appointmentCancelled')}
                                 </button>
                             )}
                             {item.isCompleted && (
                                 <button className="sm:min-w-48 py-2 border border-green-600 rounded text-green-600">
-                                    Completed
+                                    {t('myAppointments.completed')}
                                 </button>
                             )}
                         </div>

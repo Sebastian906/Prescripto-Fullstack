@@ -10,20 +10,20 @@ const { dToken } = useDoctorContext()
 const { t } = useI18n()
 
 const adminNavItems = [
-    { to: '/admin-dashboard', icon: assets.home_icon, label: 'Dashboard' },
-    { to: '/all-appointments', icon: assets.appointment_icon, label: 'Appointments' },
-    { to: '/add-doctor', icon: assets.add_icon, label: 'Add Doctor' },
-    { to: '/doctor-list', icon: assets.people_icon, label: 'Doctors List' },
-    { to: '/specialities', icon: assets.list_icon, label: 'Specialities' },
-    { to: '/admin-reports', icon: assets.list_icon, label: 'Reports' },
-    { to: '/admin-chat', icon: assets.appointment_icon, label: 'Live Chat' },
+    { to: '/admin-dashboard', icon: assets.home_icon, labelKey: 'sidebar.dashboard' },
+    { to: '/all-appointments', icon: assets.appointment_icon, labelKey: 'sidebar.appointments' },
+    { to: '/add-doctor', icon: assets.add_icon, labelKey: 'sidebar.addDoctor' },
+    { to: '/doctor-list', icon: assets.people_icon, labelKey: 'sidebar.doctorsList' },
+    { to: '/specialities', icon: assets.list_icon, labelKey: 'sidebar.specialities' },
+    { to: '/admin-reports', icon: assets.list_icon, labelKey: 'sidebar.reports' },
+    { to: '/admin-chat', icon: assets.appointment_icon, labelKey: 'sidebar.liveChat' },
 ]
 
 const doctorNavItems = [
-    { to: '/doctor-dashboard', icon: assets.home_icon, label: 'Dashboard' },
-    { to: '/doctor-appointments', icon: assets.appointment_icon, label: 'Appointments' },
-    { to: '/doctor-profile', icon: assets.people_icon, label: 'Profile' },
-    { to: '/doctor-reports', icon: assets.list_icon, label: 'Reports' },
+    { to: '/doctor-dashboard', icon: assets.home_icon, labelKey: 'sidebar.dashboard' },
+    { to: '/doctor-appointments', icon: assets.appointment_icon, labelKey: 'sidebar.appointments' },
+    { to: '/doctor-profile', icon: assets.people_icon, labelKey: 'sidebar.profile' },
+    { to: '/doctor-reports', icon: assets.list_icon, labelKey: 'sidebar.reports' },
 ]
 </script>
 
@@ -38,7 +38,7 @@ const doctorNavItems = [
                         : 'hover:bg-indigo-200 text-neutral-500'
                 ]">
                     <img :src="item.icon" alt="" />
-                    <p class="hidden sm:block">{{ item.label }}</p>
+                    <p class="hidden sm:block">{{ t(item.labelKey) }}</p>
                 </li>
             </RouterLink>
         </ul>
@@ -51,7 +51,7 @@ const doctorNavItems = [
                         : 'hover:bg-indigo-200 text-neutral-500'
                 ]">
                     <img :src="item.icon" alt="" />
-                    <p class="hidden sm:block">{{ item.label }}</p>
+                    <p class="hidden sm:block">{{ t(item.labelKey) }}</p>
                 </li>
             </RouterLink>
         </ul>

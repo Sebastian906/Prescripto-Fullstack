@@ -35,35 +35,38 @@ type Metadata struct {
 	Intent string `json:"intent"`
 }
 
-type Engine struct{}
+type Engine struct {
+	language string
+}
 
-func NewEngine() *Engine { return &Engine{} }
+func NewEngine(lang string) *Engine {
+	if lang == "" {
+		lang = "en"
+	}
+	return &Engine{language: lang}
+}
 
 func (e *Engine) Process(userMessage, state string) Response {
 	intent := classify(userMessage, state)
+	trans := GetTranslation(e.language)
 
 	switch intent {
 
 	case IntentGreeting:
 		return Response{
-			Text:      "Welcome to Prescripto! I'm your virtual assistant. How can I help you today?",
-			Options:   mainMenu(),
+			Text:      trans.Greeting,
+			Options:   e.mainMenu(trans),
 			Metadata:  Metadata{Intent: string(IntentGreeting)},
 			NextState: "awaiting_topic",
 		}
 
 	case IntentHowToBook:
 		return Response{
-			Text: "Booking an appointment is simple:\n\n" +
-				"1. **Pick a Doctor** — Browse by speciality, name, price or availability.\n" +
-				"2. **Select a Slot** — Choose a date & time that works for you.\n" +
-				"3. **Confirm Booking** — Review your appointment details and confirm.\n" +
-				"4. **Pay** — Use Stripe (card) or Cash on Delivery.\n\n" +
-				"Would you like me to take you to the doctors list?",
+			Text: trans.HowToBook,
 			Options: []Option{
-				{Label: "Show me Doctors", Value: "pick_doctor"},
-				{Label: "My Appointments", Value: "view_appointments"},
-				{Label: "Main Menu", Value: "main_menu"},
+				{Label: trans.ShowMeDocsBtn, Value: "pick_doctor"},
+				{Label: trans.MyAppointmentsBtn, Value: "view_appointments"},
+				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
 			Metadata:  Metadata{Intent: string(IntentHowToBook)},
 			NextState: "awaiting_booking_action",
@@ -71,12 +74,11 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	case IntentPickDoctor:
 		return Response{
-			Text: "You can browse our full list of verified doctors. " +
-				"Filter by speciality, sort by price or name, and click any doctor to see their profile and available slots.",
+			Text: trans.PickDoctorInfo,
 			Options: []Option{
-				{Label: "Browse All Doctors", Value: "navigate_doctors"},
-				{Label: "How to Book", Value: "how_to_book"},
-				{Label: "Main Menu", Value: "main_menu"},
+				{Label: trans.BrowseAllDocsBtn, Value: "navigate_doctors"},
+				{Label: trans.HowToBookBtn, Value: "how_to_book"},
+				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
 			Metadata:  Metadata{Action: "navigate", Route: "/doctors", Intent: string(IntentPickDoctor)},
 			NextState: "awaiting_topic",
@@ -84,13 +86,11 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	case IntentSlotSelection:
 		return Response{
-			Text: "Once you've chosen a doctor, you'll see their available time slots for the next 7 days. " +
-				"Our Smart Suggestions widget will highlight the best slots based on your priority (Urgent / Normal / Flexible). " +
-				"Simply click a slot and press **Book an appointment**.",
+			Text: trans.SlotSelectionInfo,
 			Options: []Option{
-				{Label: "Find a Doctor", Value: "navigate_doctors"},
-				{Label: "About Payment", Value: "payment"},
-				{Label: "Main Menu", Value: "main_menu"},
+				{Label: trans.FindDoctorBtn, Value: "navigate_doctors"},
+				{Label: trans.AboutPaymentBtn, Value: "payment"},
+				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
 			Metadata:  Metadata{Intent: string(IntentSlotSelection)},
 			NextState: "awaiting_topic",
@@ -98,13 +98,10 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	case IntentPayment:
 		return Response{
-			Text: "Prescripto supports two payment methods:\n\n" +
-				"• **Stripe** — Secure online card payment. You'll be redirected to Stripe's checkout and returned automatically.\n" +
-				"• **Cash on Delivery** — Pay at the clinic on the day of your appointment.\n\n" +
-				"You can choose when you view your appointment list.",
+			Text: trans.PaymentInfo,
 			Options: []Option{
-				{Label: "My Appointments", Value: "navigate_appointments"},
-				{Label: "Main Menu", Value: "main_menu"},
+				{Label: trans.GoMyApptsBtn, Value: "navigate_appointments"},
+				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
 			Metadata:  Metadata{Action: "navigate", Route: "/my-appointments", Intent: string(IntentPayment)},
 			NextState: "awaiting_topic",
@@ -112,14 +109,10 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	case IntentCancelAppt:
 		return Response{
-			Text: "To cancel an appointment:\n\n" +
-				"1. Go to **My Appointments**.\n" +
-				"2. Find the appointment you want to cancel.\n" +
-				"3. Click **Cancel appointment**.\n\n" +
-				"Please note that slots are released immediately so other patients can book them.",
+			Text: trans.CancelApptInfo,
 			Options: []Option{
-				{Label: "Go to My Appointments", Value: "navigate_appointments"},
-				{Label: "Main Menu", Value: "main_menu"},
+				{Label: trans.GoToMyApptsBtn, Value: "navigate_appointments"},
+				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
 			Metadata:  Metadata{Action: "navigate", Route: "/my-appointments", Intent: string(IntentCancelAppt)},
 			NextState: "awaiting_topic",
@@ -127,11 +120,10 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	case IntentViewAppts:
 		return Response{
-			Text: "All your past and upcoming appointments live in **My Appointments**. " +
-				"There you can:\n• Pay pending appointments\n• Cancel upcoming ones\n• See completed visits",
+			Text: trans.ViewApptsInfo,
 			Options: []Option{
-				{Label: "Open My Appointments", Value: "navigate_appointments"},
-				{Label: "Main Menu", Value: "main_menu"},
+				{Label: trans.OpenMyApptsBtn, Value: "navigate_appointments"},
+				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
 			Metadata:  Metadata{Action: "navigate", Route: "/my-appointments", Intent: string(IntentViewAppts)},
 			NextState: "awaiting_topic",
@@ -139,14 +131,11 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	case IntentDoctorProfile:
 		return Response{
-			Text: "👤 Each doctor has a detailed profile showing:\n" +
-				"• Speciality & education\n• Years of experience\n• Appointment fee\n• Available slots\n" +
-				"• Smart scheduling suggestions\n\n" +
-				"Click any doctor card to open their profile.",
+			Text: trans.DoctorProfileInfo,
 			Options: []Option{
-				{Label: "Browse Doctors", Value: "navigate_doctors"},
-				{Label: "How to Book", Value: "how_to_book"},
-				{Label: "Main Menu", Value: "main_menu"},
+				{Label: trans.BrowseDocsBtn, Value: "navigate_doctors"},
+				{Label: trans.HowToBookBtn, Value: "how_to_book"},
+				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
 			Metadata:  Metadata{Action: "navigate", Route: "/doctors", Intent: string(IntentDoctorProfile)},
 			NextState: "awaiting_topic",
@@ -154,9 +143,7 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	case IntentContactAdmin:
 		return Response{
-			Text: "Connecting you with a human administrator. " +
-				"Please hold on — someone will join this chat shortly.\n\n" +
-				"You can type your question now and the admin will see it when they arrive.",
+			Text: trans.ContactAdminMsg,
 			Options:   []Option{},
 			Metadata:  Metadata{Action: "escalate", Intent: string(IntentContactAdmin)},
 			NextState: "waiting_admin",
@@ -164,8 +151,8 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	default: 
 		return Response{
-			Text:      "I'm not sure I understood that. Here's what I can help you with:",
-			Options:   mainMenu(),
+			Text:      trans.FallbackMsg,
+			Options:   e.mainMenu(trans),
 			Metadata:  Metadata{Intent: string(IntentFallback)},
 			NextState: state, 
 		}
@@ -229,13 +216,13 @@ func contains(text string, keywords ...string) bool {
 	return false
 }
 
-func mainMenu() []Option {
+func (e *Engine) mainMenu(trans Translation) []Option {
 	return []Option{
-		{Label: "How to Book", Value: "how_to_book"},
-		{Label: "Find a Doctor", Value: "pick_doctor"},
-		{Label: "My Appointments", Value: "view_appointments"},
-		{Label: "Payment", Value: "payment"},
-		{Label: "Cancel Appointment", Value: "cancel_appointment"},
-		{Label: "Contact Administrator", Value: "contact_admin"},
+		{Label: trans.HowToBookBtn, Value: "how_to_book"},
+		{Label: trans.FindDoctorBtn, Value: "pick_doctor"},
+		{Label: trans.MyAppointmentsBtn, Value: "view_appointments"},
+		{Label: trans.PaymentMethodsBtn, Value: "payment"},
+		{Label: trans.CancelApptBtn, Value: "cancel_appointment"},
+		{Label: trans.ContactAdminBtn, Value: "contact_admin"},
 	}
 }

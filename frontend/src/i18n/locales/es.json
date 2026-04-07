@@ -54,6 +54,7 @@
         "appointmentFee": "Tarifa de la cita:",
         "relatedDoctors": "Médicos Relacionados",
         "relatedSubtitle": "Explora nuestra amplia lista de médicos de confianza.",
+        "relatedMore": "ver más",
         "priority": {
             "urgent": "Urgente",
             "normal": "Normal",
@@ -125,6 +126,10 @@
         "us": "NOSOTROS",
         "whyChoose": "¿POR QUÉ",
         "chooseUs": "ELEGIRNOS?",
+        "intro1": "Bienvenido a Prescripto, tu aliado de confianza para gestionar tus necesidades de salud de manera conveniente y eficiente. En Prescripto entendemos los desafíos que enfrentan las personas al programar citas médicas y gestionar sus registros de salud.",
+        "intro2": "Prescripto está comprometido con la excelencia en tecnología de salud. Mejoramos continuamente nuestra plataforma integrando los últimos avances para mejorar la experiencia del usuario. Ya sea que reserves tu primera cita o gestiones una atención continua, Prescripto está aquí para apoyarte en cada paso.",
+        "visionTitle": "Nuestra Visión",
+        "visionText": "Nuestra visión en Prescripto es crear una experiencia de atención médica sin fricciones para cada usuario. Buscamos conectar a pacientes y proveedores de salud para que puedas acceder a la atención que necesitas, cuando la necesitas.",
         "efficiency": "EFICIENCIA:",
         "efficiencyText": "Programación de citas optimizada que se adapta a tu estilo de vida.",
         "convenience": "CONVENIENCIA:",
@@ -136,6 +141,9 @@
         "title": "CONTÁCTANOS",
         "us": "",
         "ourOffice": "NUESTRA OFICINA",
+        "officeAddress": "54709 Willms Station\nSuite 350, Washington, USA",
+        "officePhone": "Tel: (123) 456-7890",
+        "officeEmail": "Correo: elsebas1912@prescripto.com",
         "careers": "TRABAJA CON NOSOTROS",
         "careersText": "Conoce más sobre nuestros equipos y vacantes disponibles.",
         "exploreJobs": "Ver Vacantes"
@@ -147,7 +155,8 @@
         "home": "Inicio",
         "aboutUs": "Sobre nosotros",
         "contactUs": "Contáctanos",
-        "privacyPolicy": "Política de privacidad"
+        "privacyPolicy": "Política de privacidad",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipisicing elit. Quo nulla reprehenderit quis expedita."
     },
     "chat": {
         "title": "Asistente Prescripto",
@@ -155,5 +164,75 @@
         "placeholder": "Escribe un mensaje…",
         "loginPrompt": "Inicia sesión para chatear con nuestro asistente.",
         "connecting": "Conectando al chat…"
+    },
+    "relatedDoctors": {
+        "title": "Médicos Relacionados",
+        "subtitle": "Explora nuestra amplia lista de médicos de confianza.",
+        "more": "ver más"
+    },
+    "topDoctors": {
+        "title": "Médicos Destacados",
+        "subtitle": "Explora nuestra amplia lista de médicos de confianza.",
+        "more": "ver más",
+        "available": "Disponible",
+        "notAvailable": "No Disponible"
+    },
+    "doctorsPage": {
+        "browse": "Explora médicos por especialidad.",
+        "filters": "Filtros",
+        "filterLegend": "Especialidad:",
+        "allSpecialties": "Todas",
+        "sortBy": "Ordenar por:",
+        "noDoctors": "No se encontraron médicos para esta especialidad.",
+        "available": "Disponible",
+        "notAvailable": "No Disponible",
+        "specialty": {
+            "generalPhysician": "Médico general",
+            "gynecologist": "Ginecólogo",
+            "dermatologist": "Dermatólogo",
+            "pediatricians": "Pediatras",
+            "neurologist": "Neurólogo",
+            "gastroenterologist": "Gastroenterólogo"
+        }
+    },
+    "loginPage": {
+        "loginTitle": "Iniciar sesión",
+        "createAccountTitle": "Crear cuenta",
+        "email": "Correo electrónico",
+        "password": "Contraseña",
+        "fullName": "Nombre completo",
+        "loginBtn": "Ingresar",
+        "forgotPassword": "¿Olvidaste tu contraseña?",
+        "orLoginWith": "o inicia sesión con tus redes",
+        "orRegisterWith": "o regístrate con tus redes",
+        "helloWelcome": "¡Hola, Bienvenido!",
+        "welcomeBack": "¡Bienvenido de vuelta!",
+        "createNewAccount": "¿Crear una nueva cuenta?",
+        "dontHaveAccount": "¿No tienes una cuenta?",
+        "alreadyHaveAccount": "¿Ya tienes una cuenta?",
+        "invalidCredentials": "Credenciales inválidas, por favor intenta de nuevo",
+        "errorRegistration": "Error en el registro"
+    },
+    "resetPasswordPage": {
+        "title": "Restablecer contraseña",
+        "subtitle": "Ingresa tu nueva contraseña.",
+        "newPassword": "Nueva contraseña",
+        "confirmPassword": "Confirmar contraseña",
+        "updateBtn": "Actualizar contraseña",
+        "updating": "Actualizando…",
+        "success": "Contraseña actualizada. Redirigiendo…",
+        "invalid": "Enlace de restablecimiento inválido o faltante.",
+        "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
+        "passwordMismatch": "Las contraseñas no coinciden"
+    },
+    "forgotPasswordModalFrontend": {
+        "title": "¿Olvidaste tu contraseña?",
+        "subtitle": "Ingresa tu correo y te enviaremos un enlace para restablecerla.",
+        "emailPlaceholder": "Correo electrónico",
+        "sendLink": "Enviar enlace",
+        "sending": "Enviando…",
+        "checkInbox": "¡Revisa tu bandeja de entrada!",
+        "successMsg": "Si existe una cuenta con ese correo, recibirás un enlace en breve.",
+        "done": "Listo"
     }
 }

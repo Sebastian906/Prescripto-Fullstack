@@ -32,9 +32,9 @@ function senderLabel(sender) {
 
 const ChatWidget = () => {
     const { token } = useContext(AppContext)
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const navigate = useNavigate()
-    const { messages, status, send, isConnected } = useChat(token)
+    const { messages, status, send, sendOption, isConnected } = useChat(token, i18n.language)
     const [open, setOpen] = useState(false)
     const [input, setInput] = useState('')
     const bottomRef = useRef(null)
@@ -50,7 +50,7 @@ const ChatWidget = () => {
 
     const handleSend = () => { const t = input.trim(); if (!t) return; send(t); setInput('') }
     const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }
-    const handleOption = (v) => send(v)
+    const handleOption = (value, label) => sendOption(value, label)
 
     const statusDot = {
         open: 'bg-green-400',
@@ -186,10 +186,10 @@ const ChatWidget = () => {
                                     </div>
                                     {msg.options?.length > 0 && (
                                         <div className="flex flex-wrap gap-1.5 mt-0.5">
-                                            {msg.options.map((opt) => (
+                                            {msg.options.map((opt, idx) => (
                                                 <button
-                                                    key={opt.value}
-                                                    onClick={() => handleOption(opt.value)}
+                                                    key={`${msg.id}-${idx}-${opt.value}`}
+                                                    onClick={() => handleOption(opt.value, opt.label)}
                                                     className="
                                                         text-xs px-3 py-1.5
                                                         bg-white hover:bg-indigo-500 hover:text-white
@@ -199,7 +199,7 @@ const ChatWidget = () => {
                                                         font-medium
                                                     "
                                                 >
-                                                    {opt.label || formatOptionLabel(opt.value)}
+                                                    {opt.label}
                                                 </button>
                                             ))}
                                         </div>

@@ -6,6 +6,7 @@ import RelatedDoctors from "../components/RelatedDoctors"
 import { toast } from "react-toastify"
 import axios from "axios"
 import { useSlotSuggestions } from "../hooks/useSlotSuggestions"
+import { useTranslation } from "react-i18next"
 
 function generateDateRange(daysAhead = 7) {
     const today = new Date()
@@ -27,6 +28,7 @@ const Appointment = () => {
     const { docId } = useParams()
     const { doctors, currencySymbol, backendUrl, token, getDoctorsData } = useContext(AppContext)
     const navigate = useNavigate()
+    const { t } = useTranslation()
     const [docInfo, setDocInfo] = useState(null)
     const [docSlots, setDocSlots] = useState([])
     const [slotIndex, setSlotIndex] = useState(0)
@@ -196,39 +198,35 @@ const Appointment = () => {
                     {/* SOBRE EL DOCTOR */}
                     <div>
                         <p className="flex items-center gap-1 text-sm font-medium text-slate-900 mt-3">
-                            About <img src={assets.info_icon} alt="" />
+                            {t('appointment.about')} <img src={assets.info_icon} alt="" />
                         </p>
-                        <p className="text-sm text-slate-500 max-w-175 mt-1">
-                            {docInfo.about}
-                        </p>
+                        <p className="text-sm text-slate-500 max-w-175 mt-1">{docInfo.about}</p>
                     </div>
                     <p className="text-slate-500 font-medium mt-4">
-                        Appointment fee: <span className="text-slate-800">{currencySymbol}{docInfo.fees}</span>
+                        {t('appointment.appointmentFee')} <span className="text-slate-800">{currencySymbol}{docInfo.fees}</span>
                     </p>
                 </div>
             </div>
 
             <div className="sm:ml-72 sm:pl-4 mt-4">
                 <div className="flex items-center justify-between mb-2">
-                    <p className="font-medium text-slate-700">Smart Suggestions</p>
+                    <p className="font-medium text-slate-700">{t('appointment.smartSuggestions')}</p>
                     <select
                         value={priorityLevel}
                         onChange={(e) => setPriorityLevel(e.target.value)}
                         className="text-xs border border-slate-500 rounded px-2 py-1 text-slate-600 bg-indigo-50"
                     >
-                        <option value="urgent" className="text-red-500">Urgent</option>
-                        <option value="normal" className="text-amber-500">Normal</option>
-                        <option value="flexible" className="text-emerald-500">Flexible</option>
+                        <option value="urgent" className="text-red-500">{t('appointment.urgent')}</option>
+                        <option value="normal" className="text-amber-500">{t('appointment.normal')}</option>
+                        <option value="flexible" className="text-emerald-500">{t('appointment.flexible')}</option>
                     </select>
                 </div>
 
                 {loadingSuggestions ? (
-                    <p className="text-xs text-slate-400 animate-pulse mb-3">Finding best slots…</p>
+                    <p className="text-xs text-slate-400 animate-pulse mb-3">{t('appointment.findingSlots')}</p>
                 ) : suggestions.length > 0 ? (
                     <div className="flex flex-col gap-2 mb-4">
-                        {isIdeal && (
-                            <p className="text-xs text-indigo-500 font-medium">{reason}</p>
-                        )}
+                        {isIdeal && <p className="text-xs text-indigo-500 font-medium">{reason}</p>}
                         <div className="flex gap-2 flex-wrap">
                             {suggestions.map((s, i) => (
                                 <button
@@ -243,13 +241,13 @@ const Appointment = () => {
                                         setSlotTime(s.slotTime)
                                     }}
                                     className={`flex flex-col items-start px-3 py-2 rounded-lg border text-xs cursor-pointer transition-all
-                            ${slotTime === s.slotTime
+                                        ${slotTime === s.slotTime
                                             ? 'bg-indigo-500 text-white border-indigo-500'
                                             : 'bg-indigo-100 text-slate-600 border-slate-300 hover:border-indigo-400'
                                         }`}
                                 >
                                     <span className="flex items-center gap-1 font-medium">
-                                        {i === 0 && <span>Time</span>}
+                                        {i === 0 && <span>{t('appointment.priority.normal') !== 'Normal' ? '' : 'Time'}</span>}
                                         {s.slotDate} · {s.slotTime.toLowerCase()}
                                     </span>
                                     <span className={`mt-0.5 ${slotTime === s.slotTime ? 'text-indigo-100' : 'text-slate-400'}`}>
@@ -261,23 +259,20 @@ const Appointment = () => {
                     </div>
                 ) : (
                     !loadingSuggestions && (
-                        <p className="text-xs text-slate-400 mb-3">No suggestions available for the selected dates.</p>
+                        <p className="text-xs text-slate-400 mb-3">{t('appointment.noSuggestions')}</p>
                     )
                 )}
             </div>
 
             {/* HORARIOS DISPONIBLES */}
             <div className="sm:ml-72 sm:pl-4 mt-4 font-medium text-slate-700">
-                <p>Booking slots</p>
+                <p>{t('appointment.bookingSlots')}</p>
                 <div className="flex gap-3 items-center w-full overflow-x-scroll mt-4">
                     {dateRange.map((date, index) => (
                         <div
                             key={index}
                             onClick={() => setSlotIndex(index)}
-                            className={`text-center py-6 min-w-16 rounded-full cursor-pointer ${slotIndex === index
-                                ? 'bg-indigo-500 text-white'
-                                : 'border border-slate-300'
-                                }`}
+                            className={`text-center py-6 min-w-16 rounded-full cursor-pointer ${slotIndex === index ? 'bg-indigo-500 text-white' : 'border border-slate-300'}`}
                         >
                             <p>{DAYS[date.getDay()]}</p>
                             <p>{date.getDate()}</p>
@@ -286,22 +281,15 @@ const Appointment = () => {
                 </div>
                 <div className="flex items-center gap-3 w-full overflow-x-scroll mt-4 min-h-12">
                     {loadingSlots ? (
-                        <p className="text-sm text-slate-400 animate-pulse">
-                            Loading slots…
-                        </p>
+                        <p className="text-sm text-slate-400 animate-pulse">{t('appointment.loadingSlots')}</p>
                     ) : availableSlots.length === 0 ? (
-                        <p className="text-sm text-slate-400">
-                            No slots available for this day
-                        </p>
+                        <p className="text-sm text-slate-400">{t('appointment.noSlots')}</p>
                     ) : (
                         availableSlots.map((time, index) => (
                             <p
                                 key={index}
                                 onClick={() => setSlotTime(time)}
-                                className={`text-sm font-light shrink-0 px-5 py-2 rounded-full cursor-pointer ${slotTime === time
-                                    ? 'bg-indigo-500 text-white'
-                                    : 'text-slate-500 border border-slate-300'
-                                    }`}
+                                className={`text-sm font-light shrink-0 px-5 py-2 rounded-full cursor-pointer ${slotTime === time ? 'bg-indigo-500 text-white' : 'text-slate-500 border border-slate-300'}`}
                             >
                                 {time.toLowerCase()}
                             </p>
@@ -313,7 +301,7 @@ const Appointment = () => {
                     disabled={!slotTime || loadingSlots}
                     className="bg-indigo-500 text-white text-sm font-light px-14 py-3 rounded-full my-6 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Book an appointment
+                    {t('appointment.bookButton')}
                 </button>
             </div>
             {/* DOCTORES RELACIONADOS */}

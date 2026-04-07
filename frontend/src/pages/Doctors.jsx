@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { AppContext } from "../context/AppContext"
 import { useSort, SORT_OPTIONS } from "../hooks/useSort"
 
@@ -11,10 +12,29 @@ const Doctors = () => {
     const navigate = useNavigate();
     const { doctors } = useContext(AppContext)
     const { sortedDoctors, sortOption, setSortOption } = useSort(filterDoc)
+    const { t } = useTranslation()
+
+    // Mapeo de especialidades: inglés (BD) <-> valor para URL/API
+    const SPECIALTY_MAP = {
+        generalPhysician: 'General physician',
+        gynecologist: 'Gynecologist',
+        dermatologist: 'Dermatologist',
+        pediatricians: 'Pediatricians',
+        neurologist: 'Neurologist',
+        gastroenterologist: 'Gastroenterologist'
+    }
+
+    // Obtener el nombre en inglés desde el parámetro de URL o key
+    const getSpecialityInEnglish = (urlParam) => {
+        if (!urlParam) return null
+        // Si viene del parámetro de URL, buscar su equivalente en inglés
+        return Object.values(SPECIALTY_MAP).includes(urlParam) ? urlParam : null
+    }
 
     const applyFilter = () => {
-        if (speciality) {
-            setFilterDoc(doctors.filter(doc => doc.speciality === speciality))
+        const specialityInEnglish = getSpecialityInEnglish(speciality)
+        if (specialityInEnglish) {
+            setFilterDoc(doctors.filter(doc => doc.speciality === specialityInEnglish))
         } else {
             setFilterDoc(doctors)
         }
@@ -26,50 +46,50 @@ const Doctors = () => {
 
     return (
         <div>
-            <p className="text-slate-600">Browse through the doctors speciality.</p>
+            <p className="text-slate-600">{t('doctorsPage.browse')}</p>
             <div className="flex flex-col sm:flex-row items-start gap-5 mt-5">
                 <button
                     className={`py-1 px-3 border rounded text-sm transition-all sm:hidden ${showFilters ? 'bg-indigo-500 text-white' : ''}`}
                     onClick={() => setShowFilters(prev => !prev)}
                 >
-                    Filters
+                    {t('doctorsPage.filters')}
                 </button>
                 <div className={`flex-col gap-4 text-sm text-slate-600 ${showFilters ? 'flex' : 'hidden'} sm:flex`}>
                     <p
-                        onClick={() => speciality === 'General physician' ? navigate('/doctors') : navigate('/doctors/General physician')}
-                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === 'General physician' ? 'bg-indigo-200 text-slate-950' : ''}`}
+                        onClick={() => speciality === SPECIALTY_MAP.generalPhysician ? navigate('/doctors') : navigate(`/doctors/${SPECIALTY_MAP.generalPhysician}`)}
+                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === SPECIALTY_MAP.generalPhysician ? 'bg-indigo-200 text-slate-950' : ''}`}
                     >
-                        General physician
+                        {t('doctorsPage.specialty.generalPhysician')}
                     </p>
                     <p
-                        onClick={() => speciality === 'Gynecologist' ? navigate('/doctors') : navigate('/doctors/Gynecologist')}
-                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === 'Gynecologist' ? 'bg-indigo-200 text-slate-950' : ''}`}
+                        onClick={() => speciality === SPECIALTY_MAP.gynecologist ? navigate('/doctors') : navigate(`/doctors/${SPECIALTY_MAP.gynecologist}`)}
+                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === SPECIALTY_MAP.gynecologist ? 'bg-indigo-200 text-slate-950' : ''}`}
                     >
-                        Gynecologist
+                        {t('doctorsPage.specialty.gynecologist')}
                     </p>
                     <p
-                        onClick={() => speciality === 'Dermatologist' ? navigate('/doctors') : navigate('/doctors/Dermatologist')}
-                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === 'Dermatologist' ? 'bg-indigo-200 text-slate-950' : ''}`}
+                        onClick={() => speciality === SPECIALTY_MAP.dermatologist ? navigate('/doctors') : navigate(`/doctors/${SPECIALTY_MAP.dermatologist}`)}
+                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === SPECIALTY_MAP.dermatologist ? 'bg-indigo-200 text-slate-950' : ''}`}
                     >
-                        Dermatologist
+                        {t('doctorsPage.specialty.dermatologist')}
                     </p>
                     <p
-                        onClick={() => speciality === 'Pediatricians' ? navigate('/doctors') : navigate('/doctors/Pediatricians')}
-                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === 'Pediatricians' ? 'bg-indigo-200 text-slate-950' : ''}`}
+                        onClick={() => speciality === SPECIALTY_MAP.pediatricians ? navigate('/doctors') : navigate(`/doctors/${SPECIALTY_MAP.pediatricians}`)}
+                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === SPECIALTY_MAP.pediatricians ? 'bg-indigo-200 text-slate-950' : ''}`}
                     >
-                        Pediatricians
+                        {t('doctorsPage.specialty.pediatricians')}
                     </p>
                     <p
-                        onClick={() => speciality === 'Neurologist' ? navigate('/doctors') : navigate('/doctors/Neurologist')}
-                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === 'Neurologist' ? 'bg-indigo-200 text-slate-950' : ''}`}
+                        onClick={() => speciality === SPECIALTY_MAP.neurologist ? navigate('/doctors') : navigate(`/doctors/${SPECIALTY_MAP.neurologist}`)}
+                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === SPECIALTY_MAP.neurologist ? 'bg-indigo-200 text-slate-950' : ''}`}
                     >
-                        Neurologist
+                        {t('doctorsPage.specialty.neurologist')}
                     </p>
                     <p
-                        onClick={() => speciality === 'Gastroenterologist' ? navigate('/doctors') : navigate('/doctors/Gastroenterologist')}
-                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === 'Gastroenterologist' ? 'bg-indigo-200 text-slate-950' : ''}`}
+                        onClick={() => speciality === SPECIALTY_MAP.gastroenterologist ? navigate('/doctors') : navigate(`/doctors/${SPECIALTY_MAP.gastroenterologist}`)}
+                        className={`w-[94vh] sm:w-auto pl-3 py-1.5 pr-16 border border-slate-300 rounded transition-all cursor-pointer ${speciality === SPECIALTY_MAP.gastroenterologist ? 'bg-indigo-200 text-slate-950' : ''}`}
                     >
-                        Gastroenterologist
+                        {t('doctorsPage.specialty.gastroenterologist')}
                     </p>
                 </div>
                 <div className="w-full flex flex-col gap-4">
@@ -78,7 +98,7 @@ const Doctors = () => {
                             htmlFor="sort-select"
                             className="text-sm text-slate-500 shrink-0"
                         >
-                            Sort by:
+                            {t('doctorsPage.sortBy')}
                         </label>
                         <select
                             id="sort-select"
@@ -93,7 +113,7 @@ const Doctors = () => {
                             ))}
                         </select>
                         <span className="text-xs text-slate-400">
-                            {sortedDoctors.length} doctor{sortedDoctors.length !== 1 ? 's' : ''}
+                            {sortedDoctors.length} {sortedDoctors.length !== 1 ? t('doctorsPage.filters') : t('doctorsPage.filterLegend')}
                         </span>
                     </div>
                     <div className="w-full grid grid-cols-auto gap-4 gap-y-6">
@@ -111,7 +131,7 @@ const Doctors = () => {
                                 <div className="p-4">
                                     <div className={`flex items-center gap-2 text-sm ${item.available ? 'text-green-500' : 'text-gray-500'}`}>
                                         <p className={`w-2 h-2 rounded-full ${item.available ? 'bg-green-500' : 'bg-gray-500'}`} />
-                                        <p>{item.available ? 'Available' : 'Not Available'}</p>
+                                        <p>{item.available ? t('doctorsPage.available') : t('doctorsPage.notAvailable')}</p>
                                     </div>
                                     <p className="text-slate-900 text-lg font-medium">{item.name}</p>
                                     <p className="text-slate-600 text-sm">{item.speciality}</p>
@@ -121,7 +141,7 @@ const Doctors = () => {
                     </div>
                     {sortedDoctors.length === 0 && (
                         <p className="text-center text-slate-400 py-16 text-sm">
-                            No doctors found for this speciality.
+                            {t('doctorsPage.noDoctors')}
                         </p>
                     )}
                 </div>

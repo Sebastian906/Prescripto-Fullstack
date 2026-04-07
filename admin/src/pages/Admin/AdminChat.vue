@@ -1,10 +1,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAdminContext } from '../../context/AdminContext'
 
 const { aToken, backendUrl } = useAdminContext()
-
-const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:4000'
+const { t } = useI18n()
 const HTTP_URL = (import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:4000')
     .replace('ws://', 'http://')
     .replace('wss://', 'https://')
@@ -204,15 +204,15 @@ onUnmounted(() => {
 
         <div class="w-72 shrink-0 bg-white rounded-xl border border-slate-200 flex flex-col overflow-hidden">
             <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                <p class="font-semibold text-slate-700 text-sm">Pending Chats</p>
+                <p class="font-semibold text-slate-700 text-sm">{{ t('chat.pendingChats') }}</p>
                 <button @click="fetchPending" class="text-xs text-indigo-500 hover:underline cursor-pointer">
-                    Refresh
+                    {{ t('chat.refresh') }}
                 </button>
             </div>
 
             <div class="flex-1 overflow-y-auto">
                 <div v-if="pendingConvs.length === 0" class="text-center text-slate-400 text-sm py-10 px-4">
-                    No pending chats
+                    {{ t('chat.noPendingChats') }}
                 </div>
 
                 <div v-for="conv in pendingConvs" :key="conv.id" @click="joinConversation(conv.id)" :class="[
@@ -229,7 +229,7 @@ onUnmounted(() => {
                     </div>
                     <div class="flex items-center justify-between">
                         <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
-                            waiting
+                            {{ t('chat.waiting') }}
                         </span>
                         <p class="text-[10px] text-slate-400">
                             {{ formatTime(conv.updatedAt) }}
@@ -257,18 +257,18 @@ onUnmounted(() => {
                     </div>
                 </div>
                 <div v-else class="flex-1">
-                    <p class="text-sm text-slate-400">Select a conversation to start chatting</p>
+                    <p class="text-sm text-slate-400">{{ t('chat.selectConversation') }}</p>
                 </div>
                 <button v-if="activeConvId" @click="closeConversation"
                     class="text-xs px-3 py-1.5 border border-red-300 text-red-500 rounded-full hover:bg-red-50 transition-colors cursor-pointer">
-                    Close Chat
+                    {{ t('chat.closeChat') }}
                 </button>
             </div>
 
             <div class="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-slate-50">
                 <div v-if="!activeConvId"
                     class="flex items-center justify-center h-full text-slate-400 text-sm text-center">
-                    Select a pending chat from the sidebar to get started.
+                    {{ t('chat.selectPrompt') }}
                 </div>
 
                 <template v-else>
@@ -323,7 +323,7 @@ onUnmounted(() => {
             </div>
 
             <div v-if="activeConvId" class="px-4 py-3 border-t border-slate-200 bg-white flex gap-2 items-end">
-                <textarea v-model="inputText" @keydown="handleKeyDown" rows="1" placeholder="Reply to user…"
+                <textarea v-model="inputText" @keydown="handleKeyDown" rows="1" :placeholder="t('chat.placeholder')"
                     :disabled="!isConnected" class="flex-1 resize-none text-sm border border-slate-300 rounded-xl px-3 py-2.5
                             focus:outline-none focus:ring-2 focus:ring-indigo-400
                             disabled:opacity-40 max-h-28" style="line-height:1.4" />

@@ -4,14 +4,29 @@ import { useAdminContext } from '../../context/AdminContext'
 import { useToast } from 'vue-toastification'
 import { assets } from '../../assets/assets'
 import axios from 'axios'
+import { useI18n } from 'vue-i18n'
 
 const { backendUrl, aToken } = useAdminContext()
 const toast = useToast()
+const { t } = useI18n()
 
 const docImg = ref(null)
 const docImgPreview = computed(() =>
     docImg.value ? URL.createObjectURL(docImg.value) : assets.upload_area
 )
+
+const experienceOptions = [
+    { value: '1 Year', key: 'addDoctor.years.1' },
+    { value: '2 Years', key: 'addDoctor.years.2' },
+    { value: '3 Years', key: 'addDoctor.years.3' },
+    { value: '4 Years', key: 'addDoctor.years.4' },
+    { value: '5 Years', key: 'addDoctor.years.5' },
+    { value: '6 Years', key: 'addDoctor.years.6' },
+    { value: '7 Years', key: 'addDoctor.years.7' },
+    { value: '8 Years', key: 'addDoctor.years.8' },
+    { value: '9 Years', key: 'addDoctor.years.9' },
+    { value: '+10 Years', key: 'addDoctor.years.10' },
+]
 
 const name = ref('')
 const email = ref('')
@@ -87,7 +102,7 @@ const loadSpecialities = async () => {
         }
     } catch (error) {
         toast.error('Could not load specialities')
-        console.log(error);
+        console.log(error)
     }
 }
 
@@ -96,146 +111,82 @@ onMounted(loadSpecialities)
 
 <template>
     <form @submit="onSubmitHandler" class="m-5 w-full">
-        <p class="mb-3 text-lg font-medium">Add Doctor</p>
+        <p class="mb-3 text-lg font-medium">{{ t('addDoctor.title') }}</p>
         <div class="bg-slate-100 px-8 py-8 border rounded w-full max-w-4xl max-h-screen overflow-y-scroll">
             <div class="flex items-center gap-4 mb-8 text-gray-500">
                 <label for="doc-img" class="cursor-pointer">
-                    <img
-                        class="w-16 bg-gray-100 rounded-full object-cover"
-                        :src="docImgPreview"
-                        alt=""
-                    />
+                    <img class="w-16 bg-gray-100 rounded-full object-cover" :src="docImgPreview" alt="" />
                 </label>
-                <input
-                    @change="(e) => docImg = e.target.files[0]"
-                    type="file"
-                    id="doc-img"
-                    accept="image/*"
-                    class="hidden"
-                />
-                <p>Upload doctor <br /> picture</p>
+                <input @change="(e) => docImg = e.target.files[0]" type="file" id="doc-img" accept="image/*"
+                    class="hidden" />
+                <p>{{ t('addDoctor.uploadLabel') }} <br /> {{ t('addDoctor.uploadLabel2') }}</p>
             </div>
 
             <div class="flex flex-col lg:flex-row items-start gap-10 text-gray-600">
                 <div class="w-full lg:flex-1 flex flex-col gap-4">
                     <div class="flex flex-col gap-1">
-                        <p>Doctor Name</p>
-                        <input
-                            v-model="name"
-                            class="border rounded px-3 py-2"
-                            type="text"
-                            placeholder="Name"
-                            required
-                        />
+                        <p>{{ t('addDoctor.name') }}</p>
+                        <input v-model="name" class="border rounded px-3 py-2" type="text"
+                            :placeholder="t('addDoctor.name')" required />
                     </div>
                     <div class="flex flex-col gap-1">
-                        <p>Doctor Email</p>
-                        <input
-                            v-model="email"
-                            class="border rounded px-3 py-2"
-                            type="email"
-                            placeholder="Email"
-                            required
-                        />
+                        <p>{{ t('addDoctor.email') }}</p>
+                        <input v-model="email" class="border rounded px-3 py-2" type="email"
+                            :placeholder="t('addDoctor.email')" required />
                     </div>
                     <div class="flex flex-col gap-1">
-                        <p>Doctor Password</p>
-                        <input
-                            v-model="password"
-                            class="border rounded px-3 py-2"
-                            type="password"
-                            placeholder="Password"
-                            required
-                        />
+                        <p>{{ t('addDoctor.password') }}</p>
+                        <input v-model="password" class="border rounded px-3 py-2" type="password"
+                            :placeholder="t('addDoctor.password')" required />
                     </div>
                     <div class="flex flex-col gap-1">
-                        <p>Experience</p>
+                        <p>{{ t('addDoctor.experience') }}</p>
                         <select v-model="experience" class="border rounded px-3 py-2">
-                            <option value="1 Year">1 Year</option>
-                            <option value="2 Years">2 Years</option>
-                            <option value="3 Years">3 Years</option>
-                            <option value="4 Years">4 Years</option>
-                            <option value="5 Years">5 Years</option>
-                            <option value="6 Years">6 Years</option>
-                            <option value="7 Years">7 Years</option>
-                            <option value="8 Years">8 Years</option>
-                            <option value="9 Years">9 Years</option>
-                            <option value="+10 Years">+10 Years</option>
+                            <option v-for="opt in experienceOptions" :key="opt.value" :value="opt.value">
+                                {{ t(opt.key) }}
+                            </option>
                         </select>
                     </div>
                     <div class="flex flex-col gap-1">
-                        <p>Fees</p>
-                        <input
-                            v-model="fees"
-                            class="border rounded px-3 py-2"
-                            type="number"
-                            placeholder="Fees"
-                            required
-                        />
+                        <p>{{ t('addDoctor.fees') }}</p>
+                        <input v-model="fees" class="border rounded px-3 py-2" type="number"
+                            :placeholder="t('addDoctor.fees')" required />
                     </div>
                 </div>
 
                 <div class="w-full lg:flex-1 flex flex-col gap-4">
                     <div class="flex flex-col gap-1">
-                        <p>Speciality</p>
+                        <p>{{ t('addDoctor.speciality') }}</p>
                         <select v-model="speciality" class="border rounded px-3 py-2">
-                            <option
-                                v-for="s in specialities"
-                                :key="s.slug"
-                                :value="s.name"
-                            >
-                                {{ s.name }}
-                            </option>
+                            <option v-for="s in specialities" :key="s.slug" :value="s.name">{{ s.name }}</option>
                         </select>
                         <p v-if="specialities.length === 0" class="text-xs text-red-400">
-                            No specialities found. Add them first in the Specialities panel.
+                            {{ t('addDoctor.noSpecialities') }}
                         </p>
                     </div>
                     <div class="flex flex-col gap-1">
-                        <p>Education</p>
-                        <input
-                            v-model="degree"
-                            class="border rounded px-3 py-2"
-                            type="text"
-                            placeholder="Degree"
-                            required
-                        />
+                        <p>{{ t('addDoctor.education') }}</p>
+                        <input v-model="degree" class="border rounded px-3 py-2" type="text"
+                            :placeholder="t('addDoctor.degree')" required />
                     </div>
                     <div class="flex flex-col gap-1">
-                        <p>Address</p>
-                        <input
-                            v-model="address1"
-                            class="border rounded px-3 py-2"
-                            type="text"
-                            placeholder="Address 1"
-                            required
-                        />
-                        <input
-                            v-model="address2"
-                            class="border rounded px-3 py-2"
-                            type="text"
-                            placeholder="Address 2"
-                            required
-                        />
+                        <p>{{ t('addDoctor.address') }}</p>
+                        <input v-model="address1" class="border rounded px-3 py-2" type="text"
+                            :placeholder="t('addDoctor.address1')" required />
+                        <input v-model="address2" class="border rounded px-3 py-2" type="text"
+                            :placeholder="t('addDoctor.address2')" required />
                     </div>
                 </div>
             </div>
 
             <div>
-                <p class="mt-4 mb-2">About Doctor</p>
-                <textarea
-                    v-model="about"
-                    class="w-full px-4 pt-2 border rounded"
-                    placeholder="Write about doctor"
-                    rows="5"
-                    required
-                />
+                <p class="mt-4 mb-2">{{ t('addDoctor.about') }}</p>
+                <textarea v-model="about" class="w-full px-4 pt-2 border rounded"
+                    :placeholder="t('addDoctor.aboutPlaceholder')" rows="5" required />
             </div>
-            <button
-                type="submit"
-                class="bg-indigo-500 px-10 py-3 mt-4 text-white rounded-full cursor-pointer hover:bg-indigo-600 transition-colors"
-            >
-                Add Doctor
+            <button type="submit"
+                class="bg-indigo-500 px-10 py-3 mt-4 text-white rounded-full cursor-pointer hover:bg-indigo-600 transition-colors">
+                {{ t('addDoctor.addBtn') }}
             </button>
         </div>
     </form>

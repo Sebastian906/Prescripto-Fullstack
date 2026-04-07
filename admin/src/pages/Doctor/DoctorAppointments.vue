@@ -1,11 +1,13 @@
 <script setup>
 import { useDoctorContext } from '../../context/DoctorContext'
 import { useAppContext } from '../../context/AppContext'
+import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted } from 'vue'
 import { assets } from '../../assets/assets'
 
 const { dToken, appointments, getAppointments, completeAppointment, cancelAppointment } = useDoctorContext()
 const { calculateAge, slotDateFormat, currency } = useAppContext()
+const { t } = useI18n()
 
 const PAGE_SIZE = 8
 const currentPage = ref(1)
@@ -34,18 +36,18 @@ onMounted(() => {
 
 <template>
     <div class="w-full max-w-6xl m-5">
-        <p class="mb-3 text-lg font-medium">All Appointments</p>
+        <p class="mb-3 text-lg font-medium">{{ t('doctorAppointments.title') }}</p>
 
         <div class="bg-slate-100 border rounded text-sm">
             <div
                 class="hidden sm:grid grid-cols-[0.5fr_2fr_1fr_1fr_3fr_1fr_1fr] gap-1 py-3 px-6 border-b font-medium text-gray-600">
-                <p>#</p>
-                <p>Patient</p>
-                <p>Payment</p>
-                <p>Age</p>
-                <p>Date &amp; Time</p>
-                <p>Fees</p>
-                <p>Action</p>
+                <p>{{ t('doctorAppointments.number') }}</p>
+                <p>{{ t('doctorAppointments.patient') }}</p>
+                <p>{{ t('doctorAppointments.payment') }}</p>
+                <p>{{ t('doctorAppointments.age') }}</p>
+                <p>{{ t('doctorAppointments.dateTime') }}</p>
+                <p>{{ t('doctorAppointments.fees') }}</p>
+                <p>{{ t('doctorAppointments.action') }}</p>
             </div>
 
             <div v-for="(item, index) in paginatedAppointments" :key="item._id"
@@ -56,31 +58,33 @@ onMounted(() => {
                         :alt="item.userData.name" />
                     <p>{{ item.userData.name }}</p>
                 </div>
-                <p>{{ item.payment ? 'Online' : 'CASH' }}</p>
+                <p>{{ item.payment ? t('doctorAppointments.online') : t('doctorAppointments.cash') }}</p>
                 <p class="max-sm:hidden">{{ calculateAge(item.userData.dob) }}</p>
                 <p>{{ slotDateFormat(item.slotDate) }}, {{ item.slotTime }}</p>
                 <p>{{ currency }}{{ item.amount }}</p>
                 <div class="flex items-center gap-1">
-                    <p v-if="item.cancelled" class="text-red-500 text-xs font-medium">Cancelled</p>
-                    <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">Completed</p>
+                    <p v-if="item.cancelled" class="text-red-500 text-xs font-medium">{{
+                        t('doctorAppointments.cancelled') }}</p>
+                    <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">{{
+                        t('doctorAppointments.completed') }}</p>
                     <template v-else>
                         <img @click="cancelAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.cancel_icon"
-                            alt="Cancel" title="Cancel appointment" />
+                            alt="Cancel" :title="t('doctorAppointments.cancelAppointment')" />
                         <img @click="completeAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.tick_icon"
-                            alt="Complete" title="Mark as completed" />
+                            alt="Complete" :title="t('doctorAppointments.markCompleted')" />
                     </template>
                 </div>
             </div>
 
             <p v-if="appointments.length === 0" class="text-center text-slate-400 py-16">
-                No appointments found.
+                {{ t('doctorAppointments.noAppointments') }}
             </p>
         </div>
 
         <div v-if="totalPages > 1" class="flex items-center justify-center gap-1 mt-4">
             <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
                 class="px-3 py-1.5 rounded border text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer">
-                Previous
+                {{ t('doctorAppointments.previous') }}
             </button>
 
             <button v-for="page in pageNumbers" :key="page" @click="goToPage(page)" :class="[
@@ -94,13 +98,15 @@ onMounted(() => {
 
             <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages"
                 class="px-3 py-1.5 rounded border text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer">
-                Next
+                {{ t('doctorAppointments.next') }}
             </button>
         </div>
 
         <p v-if="appointments.length > 0" class="text-center text-xs text-slate-400 mt-2">
-            Showing {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, appointments.length) }}
-            of {{ appointments.length }} appointments
+            {{ t('doctorAppointments.showing') }} {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage *
+                PAGE_SIZE,
+            appointments.length) }}
+            {{ t('doctorAppointments.of') }} {{ appointments.length }} {{ t('doctorAppointments.appointments') }}
         </p>
     </div>
 </template>
