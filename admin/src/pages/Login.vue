@@ -6,6 +6,7 @@ import axios from 'axios'
 import { useDoctorContext } from '../context/DoctorContext'
 import ForgotPasswordModal from '../components/ForgotPasswordModal.vue'
 import { useForgotPassword } from '../composables/useForgotPassword'
+import { useI18n } from 'vue-i18n'
 
 const state = ref('Admin')
 const email = ref('')
@@ -15,6 +16,7 @@ const { setAToken, backendUrl } = useAdminContext()
 const { setDToken } = useDoctorContext()
 const forgot = useForgotPassword(backendUrl)
 const toast = useToast()
+const { t } = useI18n()
 
 const onSubmitHandler = async (event) => {
     event.preventDefault()
@@ -23,81 +25,61 @@ const onSubmitHandler = async (event) => {
             const { data } = await axios.post(backendUrl + '/api/admin/login', { email: email.value, password: password.value })
             if (data.success) {
                 setAToken(data.token)
-                toast.success('Login successful')
+                toast.success(t('login.title'))
             } else {
-                toast.error('Invalid Credentials')
+                toast.error(t('adminLogin.invalidCredentials'))
             }
         } else {
             const { data } = await axios.post(backendUrl + '/api/doctors/login', { email: email.value, password: password.value })
             if (data.success) {
                 setDToken(data.token)
-                toast.success('Login successful')
+                toast.success(t('login.title'))
             } else {
-                toast.error('Invalid Credentials')
+                toast.error(t('adminLogin.invalidCredentials'))
             }
         }
     } catch (error) {
-        toast.error('An error occurred. Please try again.')
+        toast.error(t('adminLogin.errorOccurred'))
         console.error(error)
     }
 }
 </script>
 
 <template>
-    <form
-        @submit="onSubmitHandler"
-        class="min-h-[80vh] flex items-center"
-    >
-        <div class="flex flex-col gap-3 m-auto items-start p-8 min-w-85 sm:min-w-96 border rounded-xl text-[#5e5e5e] text-sm shadow-lg">
+    <form @submit="onSubmitHandler" class="min-h-[80vh] flex items-center">
+        <div
+            class="flex flex-col gap-3 m-auto items-start p-8 min-w-85 sm:min-w-96 border rounded-xl text-[#5e5e5e] text-sm shadow-lg">
             <p class="text-2xl font-semibold m-auto">
-                <span class="text-indigo-500"> {{ state }} </span> Login
+                <span class="text-indigo-500"> {{ state }} </span> {{ $t('adminLogin.title') }}
             </p>
             <div class="w-full">
-                <p>Email</p>
-                <input
-                    v-model="email"
-                    class="border border-[#dadada] rounded w-full p-2 mt-1"
-                    type="email"
-                    required
-                />
+                <p>{{ $t('adminLogin.email') }}</p>
+                <input v-model="email" class="border border-[#dadada] rounded w-full p-2 mt-1" type="email" required />
             </div>
             <div class="w-full">
-                <p>Password</p>
-                <input
-                    v-model="password"
-                    class="border border-[#dadada] rounded w-full p-2 mt-1"
-                    type="password"
-                    required
-                />
+                <p>{{ $t('adminLogin.password') }}</p>
+                <input v-model="password" class="border border-[#dadada] rounded w-full p-2 mt-1" type="password"
+                    required />
             </div>
             <div class="text-left">
-                <button
-                    type="button"
-                    @click="forgot.open(state === 'Admin' ? 'admin' : 'doctor')"
-                    class="text-sm text-slate-500 hover:text-indigo-500 transition-colors cursor-pointer bg-transparent border-none p-0"
-                >
-                    Forgot Password?
+                <button type="button" @click="forgot.open(state === 'Admin' ? 'admin' : 'doctor')"
+                    class="text-sm text-slate-500 hover:text-indigo-500 transition-colors cursor-pointer bg-transparent border-none p-0">
+                    {{ $t('adminLogin.forgotPassword') }}
                 </button>
             </div>
             <button class="bg-indigo-500 text-slate-50 w-full py-2 rounded-md text-base cursor-pointer">
-                Login
+                {{ $t('adminLogin.loginBtn') }}
             </button>
             <p v-if="state === 'Admin'">
-                Doctor Login?
-                <span
-                    class="text-indigo-500 underline cursor-pointer"
-                    @click="state = 'Doctor'"
-                >
-                    Click here
+                {{ $t('adminLogin.doctorLogin') }}
+                <span class="text-indigo-500 underline cursor-pointer" @click="state = 'Doctor'">
+                    {{ $t('adminLogin.clickHere') }}
                 </span>
             </p>
             <p v-else>
-                Admin Login?
-                <span
-                    class="text-indigo-500 underline cursor-pointer"
-                    @click="state = 'Admin'"
-                >
-                    Click here
+                {{ $t('adminLogin.adminLogin') }}
+                <span class="text-indigo-500 underline cursor-pointer" @click="state = 'Admin'">
+                    {{ $t('adminLogin.clickHere') }}
                 </span>
             </p>
         </div>

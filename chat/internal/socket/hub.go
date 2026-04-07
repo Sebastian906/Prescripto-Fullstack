@@ -62,6 +62,7 @@ type client struct {
 	conversationID string
 	userID         string
 	role           string
+	engine         *bot.Engine
 }
 
 func (c *client) writePump() {
@@ -135,17 +136,15 @@ type Hub struct {
 	unregister chan *client
 	inbound    chan inboundEvent
 	repo       *repository.Repo
-	bot        *bot.Engine
 }
 
-func NewHub(repo *repository.Repo, engine *bot.Engine) *Hub {
+func NewHub(repo *repository.Repo) *Hub {
 	return &Hub{
 		rooms:      make(map[string]map[*client]struct{}),
 		register:   make(chan *client, 64),
 		unregister: make(chan *client, 64),
 		inbound:    make(chan inboundEvent, 256),
 		repo:       repo,
-		bot:        engine,
 	}
 }
 
@@ -221,7 +220,7 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		return
 	}
 
-	botResp := h.bot.Process(content, conv.BotState)
+	botResp := c.engine.Process(content, conv.BotState)
 
 	if botResp.NextState == "waiting_admin" {
 		_ = h.repo.UpdateStatus(ctx, c.conversationID, repository.StatusWaitingAdmin)
@@ -275,6 +274,10 @@ func (h *Hub) broadcast(conversationID string, msg OutboundMessage) {
 
 func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 	tokenStr := c.QueryParam("token")
+	lang := c.QueryParam("lang")
+	if lang == "" {
+		lang = "en"
+	}
 	claims, err := v.Validate(tokenStr)
 	if err != nil {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
@@ -301,6 +304,7 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 		conversationID: conv.ID.Hex(),
 		userID:         claims.UserID,
 		role:           "user",
+		engine:         bot.NewEngine(lang),
 	}
 
 	h.register <- cl
@@ -309,7 +313,7 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 	go cl.readPump()
 
 	if len(conv.Messages) == 0 {
-		welcomeResp := h.bot.Process("hello", "start")
+		welcomeResp := cl.engine.Process("hello", "start")
 		welcome := OutboundMessage{
 			ConversationID: conv.ID.Hex(),
 			Sender:         "bot",
@@ -323,12 +327,13 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 		cl.send <- data
 		_ = h.repo.UpdateBotState(ctx, conv.ID.Hex(), welcomeResp.NextState)
 	} else {
+		trans := bot.GetTranslation(lang)
 		histMsg := OutboundMessage{
 			ConversationID: conv.ID.Hex(),
 			Sender:         "bot",
 			SenderID:       "bot",
 			Content:        "Welcome back! How can I continue helping you?",
-			Options:        []Option{{Label: "Main Menu", Value: "main_menu"}},
+			Options:        []Option{{Label: trans.MainMenuBtn, Value: "main_menu"}},
 			Metadata:       repository.BotMetadata{Intent: "resume"},
 			CreatedAt:      time.Now(),
 		}

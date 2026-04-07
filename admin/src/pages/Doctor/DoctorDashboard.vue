@@ -1,17 +1,19 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDoctorContext } from '../../context/DoctorContext'
 import { useAppContext } from '../../context/AppContext'
 import { assets } from '../../assets/assets'
 
 const { dToken, dashData, getDashData, completeAppointment, cancelAppointment, schedulingSuggestions, getSchedulingSuggestions } = useDoctorContext()
 const { currency, slotDateFormat } = useAppContext()
+const { t } = useI18n()
 
-const statCards = [
-    { key: 'earnings', label: 'Earnings', icon: assets.earning_icon, prefix: currency },
-    { key: 'appointments', label: 'Appointments', icon: assets.appointments_icon, prefix: '' },
-    { key: 'patients', label: 'Patients', icon: assets.patients_icon, prefix: '' },
-]
+const statCards = computed(() => [
+    { key: 'earnings', label: t('doctorDashboard.earnings'), icon: assets.earning_icon, prefix: currency },
+    { key: 'appointments', label: t('doctorDashboard.appointments'), icon: assets.appointments_icon, prefix: '' },
+    { key: 'patients', label: t('doctorDashboard.patients'), icon: assets.patients_icon, prefix: '' },
+])
 
 const selectedPriority = ref('normal')
 const loadingSlots = ref(false)
@@ -24,11 +26,11 @@ const next7Dates = computed(() => {
     })
 })
 
-const priorityOptions = [
-    { value: 'urgent', label: 'Urgent' },
-    { value: 'normal', label: 'Normal' },
-    { value: 'flexible', label: 'Flexible' },
-]
+const priorityOptions = computed(() => [
+    { value: 'urgent', label: t('doctorDashboard.urgent') },
+    { value: 'normal', label: t('doctorDashboard.normal') },
+    { value: 'flexible', label: t('doctorDashboard.flexible') },
+])
 
 const fetchSuggestions = async () => {
     loadingSlots.value = true
@@ -62,7 +64,7 @@ onMounted(() => {
         <div class="bg-slate-100 mt-10 rounded border">
             <div class="flex items-center gap-2.5 px-4 py-4 border-b">
                 <img :src="assets.list_icon" alt="" />
-                <p class="font-semibold">Latest Bookings</p>
+                <p class="font-semibold">{{ t('doctorDashboard.latestBookings') }}</p>
             </div>
             <div>
                 <div v-for="(item, index) in dashData.latestAppointments" :key="item._id ?? index"
@@ -73,13 +75,15 @@ onMounted(() => {
                         <p class="text-gray-800 font-medium">{{ item.userData.name }}</p>
                         <p class="text-gray-500">{{ slotDateFormat(item.slotDate) }}</p>
                     </div>
-                    <p v-if="item.cancelled" class="text-red-500 text-xs font-medium">Cancelled</p>
-                    <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">Completed</p>
+                    <p v-if="item.cancelled" class="text-red-500 text-xs font-medium">{{ t('doctorDashboard.cancelled')
+                    }}</p>
+                    <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">{{
+                        t('doctorDashboard.completed') }}</p>
                     <template v-else>
                         <img @click="cancelAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.cancel_icon"
-                            alt="Cancel" title="Cancel appointment" />
+                            alt="Cancel" :title="t('doctorDashboard.cancelAppointment')" />
                         <img @click="completeAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.tick_icon"
-                            alt="Complete" title="Mark as completed" />
+                            alt="Complete" :title="t('doctorDashboard.markCompleted')" />
                     </template>
                 </div>
             </div>
@@ -88,7 +92,7 @@ onMounted(() => {
             <div class="flex items-center justify-between px-4 py-4 border-b">
                 <div class="flex items-center gap-2.5">
                     <img :src="assets.appointment_icon" alt="" class="w-5" />
-                    <p class="font-semibold text-gray-700">Scheduling Insights</p>
+                    <p class="font-semibold text-gray-700">{{ t('doctorDashboard.schedulingInsights') }}</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <select v-model="selectedPriority" @change="fetchSuggestions"
@@ -98,21 +102,21 @@ onMounted(() => {
                         </option>
                     </select>
                     <button @click="fetchSuggestions" class="text-xs text-indigo-500 hover:underline cursor-pointer">
-                        Refresh
+                        {{ t('doctorDashboard.refresh') }}
                     </button>
                 </div>
             </div>
 
             <div v-if="loadingSlots" class="px-4 py-6 text-sm text-slate-400 animate-pulse text-center">
-                Analyzing your schedule…
+                {{ t('doctorDashboard.analysing') }}
             </div>
 
             <div v-else-if="schedulingSuggestions?.suggestions?.length > 0" class="px-4 py-3">
                 <p v-if="schedulingSuggestions.isIdeal" class="text-xs text-indigo-500 font-medium mb-3">
-                    Correct {{ schedulingSuggestions.reason }}
+                    {{ t('doctorDashboard.correct') }} {{ schedulingSuggestions.reason }}
                 </p>
                 <p v-else class="text-xs text-amber-500 font-medium mb-3">
-                    Warning {{ schedulingSuggestions.reason }}
+                    {{ t('doctorDashboard.warning') }} {{ schedulingSuggestions.reason }}
                 </p>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -123,12 +127,14 @@ onMounted(() => {
                             : 'border-slate-200 bg-slate-50'
                     ]">
                         <div class="flex items-center gap-1 font-medium text-slate-700 mb-1">
-                            <span v-if="i === 0">Time</span>
+                            <span v-if="i === 0">{{ t('doctorDashboard.time') }}</span>
                             <span>{{ slotDateFormat(s.slotDate) }} · {{ s.slotTime }}</span>
                         </div>
                         <div class="flex items-center gap-3 text-xs text-slate-500">
-                            <span>Load: {{ s.doctorLoad }} appts</span>
-                            <span>Gap: {{ s.gapMinutes }}min</span>
+                            <span>{{ t('doctorDashboard.load') }}: {{ s.doctorLoad }} {{ t('doctorDashboard.appts')
+                            }}</span>
+                            <span>{{ t('doctorDashboard.gap') }}: {{ s.gapMinutes }}{{ t('doctorDashboard.min')
+                            }}</span>
                         </div>
                         <div class="mt-2 h-1.5 rounded-full bg-slate-200 overflow-hidden">
                             <div class="h-full rounded-full bg-indigo-400 transition-all"
@@ -139,11 +145,11 @@ onMounted(() => {
             </div>
 
             <div v-else class="px-4 py-6 text-sm text-slate-400 text-center">
-                No available slots found for the next 7 days.
+                {{ t('doctorDashboard.noSlots') }}
             </div>
         </div>
     </div>
     <div v-else class="flex items-center justify-center h-64 text-slate-400 text-sm">
-        Loading dashboard…
+        {{ t('doctorDashboard.loading') }}
     </div>
 </template>

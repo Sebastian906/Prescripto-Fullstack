@@ -2,13 +2,13 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:4000'
 
-export function useChat(token) {
+export function useChat(token, lang = 'en') {
     const [messages, setMessages] = useState([])
-    const [status, setStatus]     = useState('idle')
-    const [convId, setConvId]     = useState(null)
-    const wsRef                   = useRef(null)
-    const retryRef                = useRef(0)
-    const mountedRef              = useRef(true)
+    const [status, setStatus] = useState('idle')
+    const [convId, setConvId] = useState(null)
+    const wsRef = useRef(null)
+    const retryRef = useRef(0)
+    const mountedRef = useRef(true)
 
     const appendMessage = useCallback((msg) => {
         setMessages(prev => [...prev, { ...msg, id: msg.id ?? `${Date.now()}-${Math.random()}` }])
@@ -28,7 +28,7 @@ export function useChat(token) {
         if (wsRef.current?.readyState === WebSocket.OPEN) return
 
         setStatus('connecting')
-        const ws = new WebSocket(`${CHAT_URL}/ws/chat?token=${token}`)
+        const ws = new WebSocket(`${CHAT_URL}/ws/chat?token=${token}&lang=${lang}`)
         wsRef.current = ws
 
         ws.onopen = () => {
@@ -45,13 +45,13 @@ export function useChat(token) {
                 if (!convId && msg.conversationId) setConvId(msg.conversationId)
 
                 appendMessage({
-                    id:        msg.id,
-                    sender:    msg.sender,
-                    content:   msg.content,
-                    options:   msg.options ?? [],
-                    metadata:  msg.metadata ?? {},
+                    id: msg.id,
+                    sender: msg.sender,
+                    content: msg.content,
+                    options: msg.options ?? [],
+                    metadata: msg.metadata ?? {},
                     createdAt: msg.createdAt,
-                    event:     msg.event,
+                    event: msg.event,
                 })
 
                 handleNavigation(msg.metadata)
@@ -73,7 +73,7 @@ export function useChat(token) {
             retryRef.current += 1
             setTimeout(connect, delay)
         }
-    }, [token, convId, appendMessage, handleNavigation])
+    }, [token, lang, convId, appendMessage, handleNavigation])
 
     useEffect(() => {
         mountedRef.current = true
@@ -89,7 +89,7 @@ export function useChat(token) {
 
         if (!token) {
             appendMessage({
-                sender:  'bot',
+                sender: 'bot',
                 content: 'Please log in to start chatting.',
                 options: [],
                 metadata: { action: 'navigate', route: '/login', intent: 'auth_required' },
@@ -108,11 +108,26 @@ export function useChat(token) {
 
     const clearMessages = useCallback(() => setMessages([]), [])
 
+    const sendOption = useCallback((value, label) => {
+        // Mostrar el label traducido en el chat del usuario
+        appendMessage({
+            id: `${Date.now()}-${Math.random()}`,
+            sender: 'user',
+            content: label,
+            options: [],
+            metadata: {},
+            createdAt: new Date().toISOString(),
+        })
+        // Enviar el value al backend para procesamiento
+        send(value)
+    }, [appendMessage, send])
+
     return {
         messages,
         status,
         convId,
         send,
+        sendOption,
         connect,
         clearMessages,
         isConnected: status === 'open',

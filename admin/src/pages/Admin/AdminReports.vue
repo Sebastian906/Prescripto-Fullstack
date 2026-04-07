@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAdminContext } from '../../context/AdminContext'
 import { useAppContext } from '../../context/AppContext'
 
 const { aToken, annualReport, monthlyTrend, getAnnualReport, getMonthlyTrend } = useAdminContext()
 const { currency } = useAppContext()
+const { t } = useI18n()
 
 const selectedYear = ref(new Date().getFullYear())
 const trendMonths = ref(12)
@@ -45,58 +47,58 @@ onMounted(() => {
 <template>
     <div class="m-5 w-full max-w-6xl">
         <div class="flex items-center justify-between mb-6">
-            <p class="text-lg font-medium text-gray-700">Annual Reports</p>
+            <p class="text-lg font-medium text-gray-700">{{ t('adminReports.title') }}</p>
             <div class="flex items-center gap-3">
                 <select v-model="selectedYear" @change="loadData"
                     class="border rounded px-3 py-1.5 text-sm text-slate-600 focus:outline-indigo-400">
                     <option v-for="y in [2025, 2026, 2027]" :key="y" :value="y">{{ y }}</option>
                 </select>
                 <button @click="loadData" class="text-xs text-indigo-500 hover:underline cursor-pointer">
-                    Refresh
+                    {{ t('adminReports.refresh') }}
                 </button>
             </div>
         </div>
 
         <div v-if="totals.totalAppointments !== undefined" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             <div class="bg-white rounded-lg border p-4">
-                <p class="text-xs text-slate-400 uppercase">Total Appointments</p>
+                <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.totalAppointments') }}</p>
                 <p class="text-2xl font-semibold text-slate-700 mt-1">{{ totals.totalAppointments }}</p>
             </div>
             <div class="bg-white rounded-lg border p-4">
-                <p class="text-xs text-slate-400 uppercase">Completed</p>
+                <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.completed') }}</p>
                 <p class="text-2xl font-semibold text-green-600 mt-1">{{ totals.completedAppointments }}</p>
             </div>
             <div class="bg-white rounded-lg border p-4">
-                <p class="text-xs text-slate-400 uppercase">Cancelled</p>
+                <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.cancelled') }}</p>
                 <p class="text-2xl font-semibold text-red-500 mt-1">{{ totals.cancelledAppointments }}</p>
             </div>
             <div class="bg-white rounded-lg border p-4">
-                <p class="text-xs text-slate-400 uppercase">Total Earnings</p>
+                <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.totalEarnings') }}</p>
                 <p class="text-2xl font-semibold text-indigo-600 mt-1">{{ currency }}{{
                     totals.totalEarnings?.toLocaleString() }}</p>
             </div>
         </div>
 
         <p class="text-lg font-medium text-slate-600 pb-4">
-            Monthly Breakdown — {{ selectedYear }}
-            <span class="text-xs text-slate-400 ml-2">(Showing Appointment Stats)</span>
+            {{ t('adminReports.monthlyBreakdown') }} — {{ selectedYear }}
+            <span class="text-xs text-slate-400 ml-2">{{ t('adminReports.showingStats') }}</span>
         </p>
 
         <div class="bg-slate-100 rounded-lg border overflow-hidden mb-6">
             <div v-if="loading" class="text-center py-10 text-slate-400 text-sm animate-pulse">
-                Loading report…
+                {{ t('adminReports.loading') }}
             </div>
 
             <table v-else class="w-full text-sm text-gray-600">
                 <thead>
                     <tr class="border-b text-xs text-gray-600 uppercase bg-slate-200">
-                        <th class="py-3 px-6 text-left">Month</th>
-                        <th class="py-3 px-4 text-right">Appts</th>
-                        <th class="py-3 px-4 text-right">Completed</th>
-                        <th class="py-3 px-4 text-right">Cancelled</th>
-                        <th class="py-3 px-4 text-right">Earnings</th>
-                        <th class="py-3 px-4 text-right">Patients</th>
-                        <th class="py-3 px-4 text-right">Cumul. Earnings</th>
+                        <th class="py-3 px-6 text-left">{{ t('adminReports.month') }}</th>
+                        <th class="py-3 px-4 text-right">{{ t('adminReports.appts') }}</th>
+                        <th class="py-3 px-4 text-right">{{ t('adminReports.done') }}</th>
+                        <th class="py-3 px-4 text-right">{{ t('adminReports.cancelled') }}</th>
+                        <th class="py-3 px-4 text-right">{{ t('adminReports.earnings') }}</th>
+                        <th class="py-3 px-4 text-right">{{ t('adminReports.patients') }}</th>
+                        <th class="py-3 px-4 text-right">{{ t('adminReports.cumulativeEarnings') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -120,12 +122,12 @@ onMounted(() => {
 
         <div class="bg-slate-100 rounded-lg border p-6">
             <div class="flex items-center justify-between mb-4">
-                <p class="text-sm font-medium text-slate-600">Monthly Trend</p>
+                <p class="text-sm font-medium text-slate-600">{{ t('adminReports.monthlyTrend') }}</p>
                 <select v-model="trendMonths" @change="getMonthlyTrend(trendMonths)"
                     class="border rounded px-2 py-1 text-xs text-slate-600">
-                    <option :value="6">Last 6 months</option>
-                    <option :value="12">Last 12 months</option>
-                    <option :value="24">Last 24 months</option>
+                    <option :value="6">{{ t('adminReports.last6') }}</option>
+                    <option :value="12">{{ t('adminReports.last12') }}</option>
+                    <option :value="24">{{ t('adminReports.last24') }}</option>
                 </select>
             </div>
 

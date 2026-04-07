@@ -54,6 +54,7 @@
         "appointmentFee": "Appointment fee:",
         "relatedDoctors": "Related Doctors",
         "relatedSubtitle": "Simply browse through our extensive list of trusted doctors.",
+        "relatedMore": "more",
         "priority": {
             "urgent": "Urgent",
             "normal": "Normal",
@@ -125,6 +126,10 @@
         "us": "US",
         "whyChoose": "WHY",
         "chooseUs": "CHOOSE US",
+        "intro1": "Welcome to Prescripto, your trusted partner in managing your healthcare needs conveniently and efficiently. At Prescripto, we understand the challenges individuals face when it comes to scheduling doctor appointments and managing their health records.",
+        "intro2": "Prescripto is committed to excellence in healthcare technology. We continuously strive to enhance our platform, integrating the latest advancements to improve user experience and deliver superior service. Whether you're booking your first appointment or managing ongoing care, Prescripto is here to support you every step of the way.",
+        "visionTitle": "Our Vision",
+        "visionText": "Our vision at Prescripto is to create a seamless healthcare experience for every user. We aim to bridge the gap between patients and healthcare providers, making it easier for you to access the care you need, when you need it.",
         "efficiency": "EFFICIENCY:",
         "efficiencyText": "Streamlined appointment scheduling that fits into your busy lifestyle.",
         "convenience": "CONVENIENCE:",
@@ -136,6 +141,9 @@
         "title": "CONTACT",
         "us": "US",
         "ourOffice": "OUR OFFICE",
+        "officeAddress": "54709 Willms Station\nSuite 350, Washington, USA",
+        "officePhone": "Tel: (123) 456-7890",
+        "officeEmail": "Email: elsebas1912@prescripto.com",
         "careers": "CAREERS AT PRESCRIPTO",
         "careersText": "Learn more about our teams and job openings.",
         "exploreJobs": "Explore Jobs"
@@ -147,7 +155,8 @@
         "home": "Home",
         "aboutUs": "About us",
         "contactUs": "Contact us",
-        "privacyPolicy": "Privacy policy"
+        "privacyPolicy": "Privacy policy",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipisicing elit. Quo nulla reprehenderit quis expedita."
     },
     "chat": {
         "title": "Prescripto Assistant",
@@ -155,5 +164,75 @@
         "placeholder": "Type a message…",
         "loginPrompt": "Please log in to start chatting with our assistant.",
         "connecting": "Connecting to chat…"
+    },
+    "relatedDoctors": {
+        "title": "Related Doctors",
+        "subtitle": "Simply browse through our extensive list of trusted doctors.",
+        "more": "more"
+    },
+    "topDoctors": {
+        "title": "Top Doctors to Book",
+        "subtitle": "Simply browse through our extensive list of trusted doctors.",
+        "more": "more",
+        "available": "Available",
+        "notAvailable": "Not Available"
+    },
+    "doctorsPage": {
+        "browse": "Browse through the doctors speciality.",
+        "filters": "Filters",
+        "filterLegend": "Speciality:",
+        "allSpecialties": "All",
+        "sortBy": "Sort by:",
+        "noDoctors": "No doctors found for this speciality.",
+        "available": "Available",
+        "notAvailable": "Not Available",
+        "specialty": {
+            "generalPhysician": "General physician",
+            "gynecologist": "Gynecologist",
+            "dermatologist": "Dermatologist",
+            "pediatricians": "Pediatricians",
+            "neurologist": "Neurologist",
+            "gastroenterologist": "Gastroenterologist"
+        }
+    },
+    "loginPage": {
+        "loginTitle": "Login",
+        "createAccountTitle": "Create account",
+        "email": "Email",
+        "password": "Password",
+        "fullName": "Full Name",
+        "loginBtn": "Login",
+        "forgotPassword": "Forgot Password?",
+        "orLoginWith": "or login with your socials",
+        "orRegisterWith": "or register with your socials",
+        "helloWelcome": "Hello, Welcome!",
+        "welcomeBack": "Welcome Back!",
+        "createNewAccount": "Create a new account?",
+        "dontHaveAccount": "Don't have an account?",
+        "alreadyHaveAccount": "Already have an account?",
+        "invalidCredentials": "Invalid credentials, please try again",
+        "errorRegistration": "Error at registration"
+    },
+    "resetPasswordPage": {
+        "title": "Reset Password",
+        "subtitle": "Enter your new password below.",
+        "newPassword": "New password",
+        "confirmPassword": "Confirm new password",
+        "updateBtn": "Update Password",
+        "updating": "Updating…",
+        "success": "Password changed successfully. Redirecting…",
+        "invalid": "Invalid or missing reset link.",
+        "passwordTooShort": "Password must be at least 8 characters",
+        "passwordMismatch": "Passwords do not match"
+    },
+    "forgotPasswordModalFrontend": {
+        "title": "Forgot Password?",
+        "subtitle": "Enter your email and we'll send you a reset link.",
+        "emailPlaceholder": "Email address",
+        "sendLink": "Send Reset Link",
+        "sending": "Sending…",
+        "checkInbox": "Check your inbox!",
+        "successMsg": "If an account with that email exists, you will receive a reset link shortly.",
+        "done": "Done"
     }
 }

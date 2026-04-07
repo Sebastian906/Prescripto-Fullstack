@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react"
 import { socialsIcons } from "../assets/assets"
 import { AppContext } from "../context/AppContext"
+import { useTranslation } from "react-i18next"
 import axios from "axios"
 import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
@@ -10,6 +11,7 @@ const Login = () => {
 
     const { backendUrl, token, setToken } = useContext(AppContext)
     const navigate = useNavigate()
+    const { t } = useTranslation()
     const [state, setState] = useState('Login')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -26,7 +28,7 @@ const Login = () => {
                     localStorage.setItem('token', data.token)
                     setToken(data.token)
                 } else {
-                    toast.error('Invalid credentials, please try again')
+                    toast.error(t('loginPage.invalidCredentials'))
                 }
             } else {
                 const { data } = await axios.post(backendUrl + '/api/auth/register', { name, password, email })
@@ -34,7 +36,7 @@ const Login = () => {
                     localStorage.setItem('token', data.token)
                     setToken(data.token)
                 } else {
-                    toast.error('Error at registration')
+                    toast.error(t('loginPage.errorRegistration'))
                 }
             }
         } catch (error) {
@@ -83,15 +85,15 @@ const Login = () => {
                         style={{ right: isActive ? "50%" : "0" }}
                     >
                         <form onSubmit={onSubmitHandler} className="w-full">
-                            <h1 className="text-4xl font-semibold mb-2 -mt-2.5 text-slate-800">Login</h1>
+                            <h1 className="text-4xl font-semibold mb-2 -mt-2.5 text-slate-800">{t('loginPage.loginTitle')}</h1>
                             <div className="relative my-7">
-                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="email" placeholder="Email" onChange={(e) => setEmail(e.target.value)} value={email} required />
+                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="email" placeholder={t('loginPage.email')} onChange={(e) => setEmail(e.target.value)} value={email} required />
                                 <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                                 </span>
                             </div>
                             <div className="relative my-7">
-                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="password" placeholder="Password" onChange={(e) => setPassword(e.target.value)} value={password} required />
+                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="password" placeholder={t('loginPage.password')} onChange={(e) => setPassword(e.target.value)} value={password} required />
                                 <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                 </span>
@@ -102,11 +104,11 @@ const Login = () => {
                                     onClick={() => setShowForgot(true)}
                                     className="text-sm text-slate-600 hover:text-indigo-500 transition-colors cursor-pointer bg-transparent border-none p-0"
                                 >
-                                    Forgot Password?
+                                    {t('loginPage.forgotPassword')}
                                 </button>
                             </div>
-                            <button type="submit" className="w-full h-12 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-semibold text-base cursor-pointer transition-colors shadow-md duration-300">Login</button>
-                            <p className="text-sm text-slate-500 my-4">or login with your socials</p>
+                            <button type="submit" className="w-full h-12 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-semibold text-base cursor-pointer transition-colors shadow-md duration-300">{t('loginPage.loginBtn')}</button>
+                            <p className="text-sm text-slate-500 my-4">{t('loginPage.orLoginWith')}</p>
                             <div className="flex justify-center gap-4">
                                 {socialsIcons.map((item) => (
                                     <button
@@ -128,27 +130,27 @@ const Login = () => {
                         style={{ left: isActive ? "0" : "-50%" }}
                     >
                         <form onSubmit={onSubmitHandler} className="w-full">
-                            <h1 className="text-4xl font-semibold mb-2 -mt-2.5 text-slate-800">Create account</h1>
+                            <h1 className="text-4xl font-semibold mb-2 -mt-2.5 text-slate-800">{t('loginPage.createAccountTitle')}</h1>
                             <div className="relative my-5">
-                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="text" placeholder="Full Name" onChange={(e) => setName(e.target.value)} value={name} required />
+                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="text" placeholder={t('loginPage.fullName')} onChange={(e) => setName(e.target.value)} value={name} required />
                                 <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                                 </span>
                             </div>
                             <div className="relative my-5">
-                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="email" placeholder="Email" onChange={(e) => setEmail(e.target.value)} value={email} required />
+                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="email" placeholder={t('loginPage.email')} onChange={(e) => setEmail(e.target.value)} value={email} required />
                                 <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                                 </span>
                             </div>
                             <div className="relative my-5">
-                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="password" placeholder="Password" onChange={(e) => setPassword(e.target.value)} value={password} required />
+                                <input className="w-full py-3.5 pl-5 pr-12 bg-slate-100 rounded-lg border-none outline-none text-base text-slate-700 font-medium placeholder:text-slate-400 placeholder:font-normal" type="password" placeholder={t('loginPage.password')} onChange={(e) => setPassword(e.target.value)} value={password} required />
                                 <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                 </span>
                             </div>
-                            <button type="submit" className="w-full h-12 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-semibold text-base cursor-pointer transition-colors shadow-md duration-300">Create account</button>
-                            <p className="text-sm text-slate-500 my-3">or register with your socials</p>
+                            <button type="submit" className="w-full h-12 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-semibold text-base cursor-pointer transition-colors shadow-md duration-300">{t('loginPage.createAccountTitle')}</button>
+                            <p className="text-sm text-slate-500 my-3">{t('loginPage.orRegisterWith')}</p>
                             <div className="flex justify-center gap-4">
                                 {socialsIcons.map((item) => (
                                     <button
@@ -174,28 +176,28 @@ const Login = () => {
                             className="absolute top-0 w-1/2 h-full text-white flex flex-col justify-center items-center z-2 pointer-events-auto transition-[left] duration-600 ease-in-out"
                             style={{ left: isActive ? "-50%" : "0", transitionDelay: isActive ? "0.6s" : "1.2s" }}
                         >
-                            <h1 className="text-4xl font-semibold mb-2">Hello, Welcome!</h1>
-                            <p className="text-sm mb-5">Create a new account?</p>
+                            <h1 className="text-4xl font-semibold mb-2">{t('loginPage.helloWelcome')}</h1>
+                            <p className="text-sm mb-5">{t('loginPage.createNewAccount')}</p>
                             <button
                                 onClick={handleRegisterClick}
                                 type="submit"
                                 className="w-40 h-11 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-base cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300"
                             >
-                                Create account
+                                {t('loginPage.createAccountTitle')}
                             </button>
                         </div>
                         <div
                             className="absolute top-0 w-1/2 h-full text-white flex flex-col justify-center items-center z-2 pointer-events-auto transition-[right] duration-600 ease-in-out"
                             style={{ right: isActive ? "0" : "-50%", transitionDelay: isActive ? "1.2s" : "0.6s" }}
                         >
-                            <h1 className="text-4xl font-semibold mb-2">Welcome Back!</h1>
-                            <p className="text-sm mb-5">Already have an account?</p>
+                            <h1 className="text-4xl font-semibold mb-2">{t('loginPage.welcomeBack')}</h1>
+                            <p className="text-sm mb-5">{t('loginPage.alreadyHaveAccount')}</p>
                             <button
                                 onClick={handleLoginClick}
                                 type="submit"
                                 className="w-40 h-11 bg-transparent border-2 border-white text-white rounded-lg font-semibold text-base cursor-pointer hover:bg-white hover:text-indigo-500 transition-all duration-300"
                             >
-                                Login
+                                {t('loginPage.loginTitle')}
                             </button>
                         </div>
                     </div>

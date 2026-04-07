@@ -3,9 +3,11 @@ import { ref, computed, onMounted } from 'vue';
 import { useAdminContext } from '../../context/AdminContext';
 import { useAppContext } from '../../context/AppContext';
 import { assets } from '../../assets/assets';
+import { useI18n } from 'vue-i18n';
 
 const { aToken, appointments, getAllAppointments, cancelAppointment } = useAdminContext()
 const { calculateAge, slotDateFormat, currency } = useAppContext()
+const { t } = useI18n()
 
 const PAGE_SIZE = 8
 const currentPage = ref(1)
@@ -34,17 +36,17 @@ onMounted(() => {
 
 <template>
     <div class="w-full max-w-6xl m-5">
-        <p class="mb-3 text-lg font-medium">All Appointments</p>
+        <p class="mb-3 text-lg font-medium">{{ t('allAppointments.title') }}</p>
         <div class="bg-slate-50 border rounded text-sm">
             <div
                 class="hidden sm:grid grid-cols-[0.5fr_3fr_1fr_3fr_3fr_1fr_1fr] py-3 px-6 border-b font-medium text-gray-600">
                 <p>#</p>
-                <p>Patient</p>
-                <p>Age</p>
-                <p>Date &amp; Time</p>
-                <p>Doctor</p>
-                <p>Fees</p>
-                <p>Actions</p>
+                <p>{{ t('allAppointments.patient') }}</p>
+                <p>{{ t('allAppointments.age') }}</p>
+                <p>{{ t('allAppointments.dateTime') }}</p>
+                <p>{{ t('allAppointments.doctor') }}</p>
+                <p>{{ t('allAppointments.fees') }}</p>
+                <p>{{ t('allAppointments.actions') }}</p>
             </div>
 
             <div v-for="(item, index) in paginatedAppointments" :key="item._id"
@@ -64,42 +66,39 @@ onMounted(() => {
                 </div>
                 <p>{{ currency }}{{ item.amount }}</p>
                 <div>
-                    <p v-if="item.cancelled" class="text-red-400 text-xs font-medium">Cancelled</p>
-                    <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">Completed</p>
+                    <p v-if="item.cancelled" class="text-red-400 text-xs font-medium">{{ t('allAppointments.cancelled')
+                        }}</p>
+                    <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">{{
+                        t('allAppointments.completed') }}</p>
                     <img v-else @click="cancelAppointment(item._id)" class="w-10 cursor-pointer"
-                        :src="assets.cancel_icon" alt="Cancel appointment" title="Cancel appointment" />
+                        :src="assets.cancel_icon" alt="Cancel" />
                 </div>
             </div>
 
             <p v-if="appointments.length === 0" class="text-center text-slate-400 py-16">
-                No appointments found.
+                {{ t('allAppointments.noAppointments') }}
             </p>
         </div>
 
         <div v-if="totalPages > 1" class="flex items-center justify-center gap-1 mt-4">
             <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
                 class="px-3 py-1.5 rounded border text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer">
-                Previous
+                {{ t('allAppointments.previous') }}
             </button>
-
             <button v-for="page in pageNumbers" :key="page" @click="goToPage(page)" :class="[
                 'px-3 py-1.5 rounded border text-sm transition-colors cursor-pointer',
-                page === currentPage
-                    ? 'bg-indigo-500 text-white border-indigo-500'
-                    : 'text-slate-600 hover:bg-slate-100'
-            ]">
-                {{ page }}
-            </button>
-
+                page === currentPage ? 'bg-indigo-500 text-white border-indigo-500' : 'text-slate-600 hover:bg-slate-100'
+            ]">{{ page }}</button>
             <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages"
                 class="px-3 py-1.5 rounded border text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer">
-                Next
+                {{ t('allAppointments.next') }}
             </button>
         </div>
 
         <p v-if="appointments.length > 0" class="text-center text-xs text-slate-400 mt-2">
-            Showing {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, appointments.length) }}
-            of {{ appointments.length }} appointments
+            {{ t('allAppointments.showing') }}
+            {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, appointments.length) }}
+            {{ t('allAppointments.of') }} {{ appointments.length }} {{ t('allAppointments.appointments') }}
         </p>
     </div>
 </template>
