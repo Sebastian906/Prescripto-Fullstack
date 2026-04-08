@@ -1,6 +1,9 @@
 package bot
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 type Intent string
 
@@ -143,71 +146,244 @@ func (e *Engine) Process(userMessage, state string) Response {
 
 	case IntentContactAdmin:
 		return Response{
-			Text: trans.ContactAdminMsg,
+			Text:      trans.ContactAdminMsg,
 			Options:   []Option{},
 			Metadata:  Metadata{Action: "escalate", Intent: string(IntentContactAdmin)},
 			NextState: "waiting_admin",
 		}
 
-	default: 
+	default:
+		fallbackText := trans.FallbackMsg
+		if contextualHint := e.contextualFallback(userMessage, trans); contextualHint != "" {
+			fallbackText = contextualHint
+		}
 		return Response{
-			Text:      trans.FallbackMsg,
+			Text:      fallbackText,
 			Options:   e.mainMenu(trans),
 			Metadata:  Metadata{Intent: string(IntentFallback)},
-			NextState: state, 
+			NextState: state,
 		}
 	}
 }
 
+func (e *Engine) contextualFallback(msg string, trans Translation) string {
+	raw := normalize(msg)
+
+	switch {
+	case containsAny(raw, "price", "cost", "fee", "expensive", "cheap", "precio", "costo", "tarifa", "barato", "caro"):
+		return trans.FallbackPriceHint
+	case containsAny(raw, "doctor", "medico", "specialist", "especialista", "physician"):
+		return trans.FallbackDoctorHint
+	case containsAny(raw, "appointment", "cita", "reserva", "book", "reservar", "agendar", "schedule"):
+		return trans.FallbackBookingHint
+	case containsAny(raw, "pay", "pagar", "pago", "stripe", "cash", "card", "tarjeta"):
+		return trans.FallbackPaymentHint
+	case containsAny(raw, "cancel", "cancelar", "delete", "eliminar", "remove"):
+		return trans.FallbackCancelHint
+	case containsAny(raw, "help", "ayuda", "assist", "asistencia", "support", "soporte"):
+		return trans.FallbackHelpHint
+	case containsAny(raw, "problem", "error", "issue", "fail", "problema", "fallo", "no funciona", "not working"):
+		return trans.FallbackIssueHint
+	}
+	return ""
+}
+
 func classify(msg, state string) Intent {
-	raw := strings.ToLower(strings.TrimSpace(msg))
+	raw := normalize(msg)
 
 	switch raw {
-	case "main_menu", "hello", "hi", "hey", "start", "menu":
+	case "main_menu", "menu", "start", "inicio", "comenzar", "empezar":
 		return IntentGreeting
-	case "how_to_book", "book", "booking", "how do i book":
+	case "hello", "hi", "hey", "hola", "buenas", "buenos dias",
+		"good morning", "good afternoon", "good evening":
+		return IntentGreeting
+	case "how_to_book", "book", "booking", "how do i book", "como reservo":
 		return IntentHowToBook
-	case "pick_doctor", "find_doctor", "navigate_doctors", "doctors":
+	case "pick_doctor", "find_doctor", "navigate_doctors", "doctors", "medicos":
 		return IntentPickDoctor
-	case "slot_selection", "slots", "time", "schedule", "slot":
+	case "slot_selection", "slots", "time", "schedule", "slot", "horario", "horarios":
 		return IntentSlotSelection
-	case "payment", "pay", "stripe", "cash", "cod":
+	case "payment", "pay", "stripe", "cash", "cod", "pago", "pagar":
 		return IntentPayment
-	case "cancel_appointment", "cancel":
+	case "cancel_appointment", "cancel", "cancelar", "cancelar cita":
 		return IntentCancelAppt
-	case "view_appointments", "navigate_appointments", "my appointments", "appointments":
+	case "view_appointments", "navigate_appointments", "my appointments",
+		"appointments", "mis citas", "citas":
 		return IntentViewAppts
-	case "doctor_profile", "profile":
+	case "doctor_profile", "profile", "perfil":
 		return IntentDoctorProfile
-	case "contact_admin", "human", "talk to someone", "administrator":
+	case "contact_admin", "human", "administrator", "administrador",
+		"talk to someone", "hablar con alguien":
 		return IntentContactAdmin
 	}
 
+	if isOrientationQuery(raw) {
+		return IntentGreeting
+	}
+
 	switch {
-	case contains(raw, "book", "appointment", "schedule", "reserve"):
-		return IntentHowToBook
-	case contains(raw, "doctor", "specialist", "physician", "find"):
-		return IntentPickDoctor
-	case contains(raw, "slot", "time", "available", "when"):
-		return IntentSlotSelection
-	case contains(raw, "pay", "payment", "stripe", "cash", "cost", "fee", "price"):
-		return IntentPayment
-	case contains(raw, "cancel", "delete appointment", "remove"):
+	// Más específicos primero: cancelar, ver citas
+	case containsAny(raw,
+		"cancel", "delete", "remove", "cancelar", "eliminar", "borrar",
+		"no quiero", "ya no quiero"):
 		return IntentCancelAppt
-	case contains(raw, "my appointment", "appointments", "history"):
+
+	case containsAny(raw,
+		"my appointment", "my appointments", "mis citas", "mis reservas",
+		"history", "historial", "past", "upcoming", "view", "ver mis"):
 		return IntentViewAppts
-	case contains(raw, "profile", "info", "experience", "about doctor"):
+
+	// Luego genéricos
+	case containsAny(raw,
+		"book", "appointment", "schedule", "reserve", "reservar", "agendar",
+		"quiero una cita", "necesito cita", "necesito una", "how do i", "como hago"):
+		return IntentHowToBook
+
+	case containsAny(raw,
+		"find", "doctor", "medico", "specialist", "especialista",
+		"physician", "surgeon", "who", "which doctor", "que medico",
+		"list", "lista", "browse", "search"):
+		return IntentPickDoctor
+
+	case containsAny(raw,
+		"slot", "time", "horario", "available", "disponible", "when", "cuando",
+		"what time", "que hora", "fecha", "date"):
+		return IntentSlotSelection
+
+	case containsAny(raw,
+		"pay", "payment", "pagar", "pago", "stripe", "cash", "efectivo",
+		"card", "tarjeta", "cost", "costo", "precio", "fee", "tarifa",
+		"how much", "cuanto"):
+		return IntentPayment
+
+	case containsAny(raw,
+		"profile", "perfil", "info", "information", "informacion",
+		"experience", "experiencia", "about doctor", "about the doctor",
+		"sobre el medico", "credentials", "degree", "titulo"):
 		return IntentDoctorProfile
-	case contains(raw, "admin", "human", "person", "help", "support", "agent", "talk"):
+
+	case containsAny(raw,
+		"admin", "human", "person", "persona", "help me", "ayudame",
+		"support", "soporte", "agent", "agente", "talk", "hablar",
+		"necesito ayuda", "i need help", "real person", "persona real"):
 		return IntentContactAdmin
-	case contains(raw, "hi", "hello", "hey", "start", "good"):
+
+	case containsAny(raw,
+		"hi", "hello", "hey", "hola", "good", "greet", "welcome"):
 		return IntentGreeting
 	}
 
 	return IntentFallback
 }
 
-func contains(text string, keywords ...string) bool {
+func isOrientationQuery(raw string) bool {
+	orientationPhrases := []string{
+		// English
+		"what can i do", "what can you do", "what do you do",
+		"what are my options", "what are the options",
+		"how does this work", "how does it work",
+		"how can you help", "how can i use this",
+		"what is this", "what is prescripto",
+		"tell me more", "tell me about",
+		"i need help", "can you help me",
+		"show me", "show options", "show menu",
+		"what features", "what services", "services",
+		"options", "features", "capabilities",
+		"get started", "getting started",
+		"i'm new", "im new", "first time",
+		"guide me", "guide", "tutorial",
+		// Spanish (all without accents to match normalize())
+		"que puedo hacer",
+		"que puedes hacer",
+		"que opciones tengo",
+		"como funciona",
+		"como me ayudas",
+		"que es esto",
+		"cuentame mas",
+		"necesito ayuda", "puedes ayudarme",
+		"mostrame", "mostrar opciones",
+		"que servicios",
+		"opciones", "servicios",
+		"empezar", "como empiezo",
+		"soy nuevo", "es mi primera vez",
+		"guia", "ayudame",
+	}
+
+	for _, phrase := range orientationPhrases {
+		if strings.Contains(raw, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalize(msg string) string {
+	var b strings.Builder
+	b.Grow(len(msg))
+
+	for _, r := range strings.ToLower(msg) {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsNumber(r):
+			b.WriteRune(r)
+		case unicode.IsSpace(r), r == '-', r == '_':
+			// Convert hyphens and underscores to spaces for proper word splitting
+			b.WriteRune(' ')
+		case r == 'á' || r == 'à' || r == 'ä' || r == 'â':
+			b.WriteRune('a')
+		case r == 'é' || r == 'è' || r == 'ë' || r == 'ê':
+			b.WriteRune('e')
+		case r == 'í' || r == 'ì' || r == 'ï' || r == 'î':
+			b.WriteRune('i')
+		case r == 'ó' || r == 'ò' || r == 'ö' || r == 'ô':
+			b.WriteRune('o')
+		case r == 'ú' || r == 'ù' || r == 'ü' || r == 'û':
+			b.WriteRune('u')
+		case r == 'ñ':
+			b.WriteRune('n')
+		}
+	}
+
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+func matchesWord(word string, keyword string) bool {
+	// Exact match
+	if word == keyword {
+		return true
+	}
+	// Handle plurals: appointment/appointments, doctor/doctors, etc.
+	if word == keyword+"s" || keyword == word+"s" {
+		return true
+	}
+	// Handle -es ending: search/searches
+	if word == keyword+"es" || keyword == word+"es" {
+		return true
+	}
+	return false
+}
+
+func containsAny(text string, keywords ...string) bool {
+	words := strings.Fields(text)
+
+	for _, keyword := range keywords {
+		// Para keywords multi-palabra, usa substring matching
+		if strings.Contains(" "+text+" ", " "+keyword+" ") {
+			return true
+		}
+
+		// Para keywords de una palabra, usa word matching
+		if !strings.Contains(keyword, " ") {
+			for _, word := range words {
+				if matchesWord(word, keyword) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func containsAnyPartial(text string, keywords ...string) bool {
 	for _, kw := range keywords {
 		if strings.Contains(text, kw) {
 			return true
