@@ -59,7 +59,32 @@
             "urgent": "Urgent",
             "normal": "Normal",
             "flexible": "Flexible"
+        },
+        "slotMetrics": {
+            "load": "Load",
+            "appointments": "appts",
+            "gap": "Gap",
+            "minutes": "min"
+        },
+        "optimalSlots": "Optimal slots found based on doctor availability and load",
+        "limitedAvailability": "Limited availability — consider expanding date range"
+    },
+    "addDoctor": {
+        "years": {
+            "1": "1 Year",
+            "2": "2 Years",
+            "3": "3 Years",
+            "4": "4 Years",
+            "5": "5 Years",
+            "6": "6 Years",
+            "7": "7 Years",
+            "8": "8 Years",
+            "9": "9 Years",
+            "10": "+10 Years"
         }
+    },
+    "doctorAbout": {
+        "comprehensive": "Dr. Davis has a strong commitment to delivering comprehensive medical care, focusing on preventive medicine, early diagnosis, and effective treatment strategies. Dr. Davis has a strong commitment to delivering comprehensive medical care, focusing on preventive medicine, early diagnosis, and effective treatment strategies."
     },
     "myAppointments": {
         "title": "My Appointments",

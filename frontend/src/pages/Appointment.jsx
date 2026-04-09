@@ -7,6 +7,7 @@ import { toast } from "react-toastify"
 import axios from "axios"
 import { useSlotSuggestions } from "../hooks/useSlotSuggestions"
 import { useTranslation } from "react-i18next"
+import { translateSpeciality, translateExperience, translateAbout } from "../utils/specialityUtils"
 
 function generateDateRange(daysAhead = 7) {
     const today = new Date()
@@ -52,9 +53,7 @@ const Appointment = () => {
             try {
                 const dateKey = dateToSlotKey(date)
                 const { data } = await axios.get(`${backendUrl}/api/appointments/available-slots`, { params: { docId, date: dateKey } })
-                if (data.success) {
-                    setAvailableSlots(data.slots)
-                }
+                if (data.success) setAvailableSlots(data.slots)
             } catch {
                 toast.error('Could not load available slots')
                 setAvailableSlots([])
@@ -77,18 +76,15 @@ const Appointment = () => {
 
     const getAvailableSlots = async () => {
         setDocSlots([])
-
         // getting current date
         let today = new Date()
         for (let i = 0; i < 7; i++) {
             let currentDate = new Date(today)
             currentDate.setDate(today.getDate() + i)
-
             // setting end time of the date with index
             let endTime = new Date()
             endTime.setDate(today.getDate() + i)
             endTime.setHours(21, 0, 0, 0)
-
             // setting hours
             if (today.getDate() === currentDate.getDate()) {
                 currentDate.setHours(currentDate.getHours() > 10 ? currentDate.getHours() + 1 : 10)
@@ -97,35 +93,17 @@ const Appointment = () => {
                 currentDate.setHours(10)
                 currentDate.setMinutes(0)
             }
-
             let timeSlots = []
-
             while (currentDate < endTime) {
                 let formattedTime = currentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                const slotDate = `${currentDate.getDate()}/${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`
+                const isSlotAvailable = !(docInfo.slots_booked[slotDate]?.includes(formattedTime))
 
-                let day = currentDate.getDate()
-                let month = currentDate.getMonth() + 1
-                let year = currentDate.getFullYear()
-
-                const slotDate = day + "/" + month + "/" + year
-                const slotTime = formattedTime
-
-                const isSlotAvailable = docInfo.slots_booked[slotDate] && docInfo.slots_booked[slotDate].includes(slotTime) ? false : true
-
-                if (isSlotAvailable) {
-                    // add slot to array
-                    timeSlots.push({
-                        datetime: new Date(currentDate),
-                        time: formattedTime
-                    })
-                }
-
+                if (isSlotAvailable) timeSlots.push({ datetime: new Date(currentDate), time: formattedTime })
                 // Increment current time by 30 minutes
                 currentDate.setMinutes(currentDate.getMinutes() + 30)
             }
-
             setDocSlots(prev => ([...prev, timeSlots]))
-
         }
     }
 
@@ -158,13 +136,7 @@ const Appointment = () => {
         }
     }
 
-    useEffect(() => {
-        getAvailableSlots()
-    }, [docInfo])
-
-    useEffect(() => {
-        console.log(docSlots);
-    }, [docSlots])
+    useEffect(() => { getAvailableSlots() }, [docInfo])
 
     if (!docInfo) return null
 
@@ -190,9 +162,9 @@ const Appointment = () => {
                         />
                     </p>
                     <div className="flex items-center gap-2 text-sm mt-1 text-slate-600">
-                        <p>{docInfo.degree} - {docInfo.speciality}</p>
+                        <p>{docInfo.degree} - {translateSpeciality(docInfo.speciality, t)}</p>
                         <button className="py-0.5 px-2 border text-xs rounded-full">
-                            {docInfo.experience}
+                            {translateExperience(docInfo.experience, t)}
                         </button>
                     </div>
                     {/* SOBRE EL DOCTOR */}
@@ -200,10 +172,11 @@ const Appointment = () => {
                         <p className="flex items-center gap-1 text-sm font-medium text-slate-900 mt-3">
                             {t('appointment.about')} <img src={assets.info_icon} alt="" />
                         </p>
-                        <p className="text-sm text-slate-500 max-w-175 mt-1">{docInfo.about}</p>
+                        <p className="text-sm text-slate-500 max-w-175 mt-1">{translateAbout(docInfo.about, t)}</p>
                     </div>
                     <p className="text-slate-500 font-medium mt-4">
-                        {t('appointment.appointmentFee')} <span className="text-slate-800">{currencySymbol}{docInfo.fees}</span>
+                        {t('appointment.appointmentFee')}{' '}
+                        <span className="text-slate-800">{currencySymbol}{docInfo.fees}</span>
                     </p>
                 </div>
             </div>
@@ -216,9 +189,9 @@ const Appointment = () => {
                         onChange={(e) => setPriorityLevel(e.target.value)}
                         className="text-xs border border-slate-500 rounded px-2 py-1 text-slate-600 bg-indigo-50"
                     >
-                        <option value="urgent" className="text-red-500">{t('appointment.urgent')}</option>
-                        <option value="normal" className="text-amber-500">{t('appointment.normal')}</option>
-                        <option value="flexible" className="text-emerald-500">{t('appointment.flexible')}</option>
+                        <option value="urgent" className="text-red-500">{t('appointment.priority.urgent')}</option>
+                        <option value="normal" className="text-amber-500">{t('appointment.priority.normal')}</option>
+                        <option value="flexible" className="text-emerald-500">{t('appointment.priority.flexible')}</option>
                     </select>
                 </div>
 
@@ -226,16 +199,17 @@ const Appointment = () => {
                     <p className="text-xs text-slate-400 animate-pulse mb-3">{t('appointment.findingSlots')}</p>
                 ) : suggestions.length > 0 ? (
                     <div className="flex flex-col gap-2 mb-4">
-                        {isIdeal && <p className="text-xs text-indigo-500 font-medium">{reason}</p>}
+                        {isIdeal && (
+                            <p className="text-xs text-indigo-500 font-medium">{t('appointment.optimalSlots')}</p>
+                        )}
                         <div className="flex gap-2 flex-wrap">
                             {suggestions.map((s, i) => (
                                 <button
                                     key={i}
                                     onClick={() => {
                                         // Sincronizar con el selector manual existente
-                                        const targetDate = `${s.slotDate}`
                                         const idx = dateRange.findIndex(d =>
-                                            `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}` === targetDate
+                                            `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}` === s.slotDate
                                         )
                                         if (idx !== -1) setSlotIndex(idx)
                                         setSlotTime(s.slotTime)
@@ -247,11 +221,10 @@ const Appointment = () => {
                                         }`}
                                 >
                                     <span className="flex items-center gap-1 font-medium">
-                                        {i === 0 && <span>{t('appointment.priority.normal') !== 'Normal' ? '' : 'Time'}</span>}
                                         {s.slotDate} · {s.slotTime.toLowerCase()}
                                     </span>
                                     <span className={`mt-0.5 ${slotTime === s.slotTime ? 'text-indigo-100' : 'text-slate-400'}`}>
-                                        Load: {s.doctorLoad} appts · Gap: {s.gapMinutes}min
+                                        {t('appointment.slotMetrics.load')}: {s.doctorLoad} {t('appointment.slotMetrics.appointments')} · {t('appointment.slotMetrics.gap')}: {s.gapMinutes}{t('appointment.slotMetrics.minutes')}
                                     </span>
                                 </button>
                             ))}

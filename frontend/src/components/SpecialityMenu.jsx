@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { specialityData } from "../assets/assets"
 import { Link } from "react-router-dom"
+import { translateSpeciality } from "../utils/specialityUtils"
 
 const SpecialityMenu = () => {
     const { t } = useTranslation()
@@ -12,21 +13,24 @@ const SpecialityMenu = () => {
             <h1 className="text-3xl font-medium">{t('home.specialityTitle')}</h1>
             <p className="sm:w-1/3 text-center text-sm">{t('home.specialitySubtitle')}</p>
             <div className="flex sm:justify-center gap-4 pt-5 w-full overflow-scroll">
-                {specialityData.map((item, index) => (
-                    <Link
-                        onClick={() => scrollTo(0, 0)}
-                        className="flex flex-col items-center text-xs cursor-pointer shrink-0 hover:-translate-y-2.5 transition-all duration-500"
-                        key={index}
-                        to={`/doctors/${item.speciality}`}
-                    >
-                        <img
-                            className="w-16 sm:w-24 mb-2"
-                            src={item.image}
-                            alt=""
-                        />
-                        <p className="font-semibold text-slate-700">{item.speciality}</p>
-                    </Link>
-                ))}
+                {specialityData.map((item, index) => {
+                    const translatedLabel = translateSpeciality(item.speciality, t)
+                    return (
+                        <Link
+                            onClick={() => scrollTo(0, 0)}
+                            className="flex flex-col items-center text-xs cursor-pointer shrink-0 hover:-translate-y-2.5 transition-all duration-500"
+                            key={index}
+                            to={`/doctors/${item.speciality}`}
+                        >
+                            <img
+                                className="w-16 sm:w-24 mb-2"
+                                src={item.image}
+                                alt={translatedLabel}
+                            />
+                            <p className="font-semibold text-slate-700">{translatedLabel}</p>
+                        </Link>
+                    )
+                })}
             </div>
         </div>
     )

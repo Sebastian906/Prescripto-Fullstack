@@ -59,7 +59,32 @@
             "urgent": "Urgente",
             "normal": "Normal",
             "flexible": "Flexible"
+        },
+        "slotMetrics": {
+            "load": "Carga",
+            "appointments": "citas",
+            "gap": "Intervalo",
+            "minutes": "min"
+        },
+        "optimalSlots": "Se encontraron horarios óptimos según disponibilidad y carga del doctor",
+        "limitedAvailability": "Disponibilidad limitada — considera expandir el rango de fechas"
+    },
+    "addDoctor": {
+        "years": {
+            "1": "1 Año",
+            "2": "2 Años",
+            "3": "3 Años",
+            "4": "4 Años",
+            "5": "5 Años",
+            "6": "6 Años",
+            "7": "7 Años",
+            "8": "8 Años",
+            "9": "9 Años",
+            "10": "+10 Años"
         }
+    },
+    "doctorAbout": {
+        "comprehensive": "El Dr. Davis tiene un fuerte compromiso con la prestación de atención médica integral, enfocándose en medicina preventiva, diagnóstico temprano y estrategias de tratamiento efectivas. El Dr. Davis tiene un fuerte compromiso con la prestación de atención médica integral, enfocándose en medicina preventiva, diagnóstico temprano y estrategias de tratamiento efectivas."
     },
     "myAppointments": {
         "title": "Mis Citas",

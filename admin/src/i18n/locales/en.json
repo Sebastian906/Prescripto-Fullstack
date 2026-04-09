@@ -70,6 +70,7 @@
         "aboutPlaceholder": "Write about doctor",
         "addBtn": "Add Doctor",
         "noSpecialities": "No specialities found. Add them first in the Specialities panel.",
+        "selectSpeciality": "Select a speciality…",
         "years": {
             "1": "1 Year",
             "2": "2 Years",
@@ -82,8 +83,9 @@
             "9": "9 Years",
             "10": "+10 Years"
         }
-    },
-    "doctorsList": {
+    },    "doctorAbout": {
+        "comprehensive": "Dr. Davis has a strong commitment to delivering comprehensive medical care, focusing on preventive medicine, early diagnosis, and effective treatment strategies. Dr. Davis has a strong commitment to delivering comprehensive medical care, focusing on preventive medicine, early diagnosis, and effective treatment strategies."
+    },    "doctorsList": {
         "title": "All Doctors",
         "specialityLabel": "Speciality:",
         "all": "All",
@@ -271,7 +273,8 @@
         "about": "About:",
         "loading": "Loading profile…",
         "save": "Save",
-        "edit": "Edit"
+        "edit": "Edit",
+        "speciality": "Speciality:"
     },
     "doctorReports": {
         "title": "My Reports",
@@ -281,6 +284,7 @@
         "cancelled": "Cancelled",
         "earnings": "Earnings",
         "month": "Month",
+        "appts": "Appts",
         "done": "Done",
         "cumulative": "Cumulative"
     },
@@ -310,5 +314,13 @@
         "passwordTooShort": "Password must be at least 8 characters",
         "passwordMismatch": "Passwords do not match",
         "somethingWrong": "Something went wrong"
+    },
+    "specialityNames": {
+        "generalPhysician": "General Physician",
+        "gynecologist": "Gynecologist",
+        "dermatologist": "Dermatologist",
+        "pediatricians": "Pediatricians",
+        "neurologist": "Neurologist",
+        "gastroenterologist": "Gastroenterologist"
     }
 }

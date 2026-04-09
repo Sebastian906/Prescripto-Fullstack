@@ -70,6 +70,7 @@
         "aboutPlaceholder": "Escribe sobre el médico",
         "addBtn": "Agregar Médico",
         "noSpecialities": "No se encontraron especialidades. Agrégalas primero en el panel de Especialidades.",
+        "selectSpeciality": "Selecciona una especialidad…",
         "years": {
             "1": "1 Año",
             "2": "2 Años",
@@ -82,8 +83,9 @@
             "9": "9 Años",
             "10": "+10 Años"
         }
-    },
-    "doctorsList": {
+    },    "doctorAbout": {
+        "comprehensive": "El Dr. Davis tiene un fuerte compromiso con la prestación de atención médica integral, enfocándose en medicina preventiva, diagnóstico temprano y estrategias de tratamiento efectivas. El Dr. Davis tiene un fuerte compromiso con la prestación de atención médica integral, enfocándose en medicina preventiva, diagnóstico temprano y estrategias de tratamiento efectivas."
+    },    "doctorsList": {
         "title": "Todos los Médicos",
         "specialityLabel": "Especialidad:",
         "all": "Todas",
@@ -271,7 +273,8 @@
         "about": "Acerca de:",
         "loading": "Cargando perfil…",
         "save": "Guardar",
-        "edit": "Editar"
+        "edit": "Editar",
+        "speciality": "Especialidad:"
     },
     "doctorReports": {
         "title": "Mis Informes",
@@ -281,6 +284,7 @@
         "cancelled": "Canceladas",
         "earnings": "Ganancias",
         "month": "Mes",
+        "appts": "Citas",
         "done": "Realizadas",
         "cumulative": "Acumulado"
     },
@@ -310,5 +314,13 @@
         "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
         "passwordMismatch": "Las contraseñas no coinciden",
         "somethingWrong": "Algo salió mal"
+    },
+    "specialityNames": {
+        "generalPhysician": "Médico general",
+        "gynecologist": "Ginecólogo",
+        "dermatologist": "Dermatólogo",
+        "pediatricians": "Pediatras",
+        "neurologist": "Neurólogo",
+        "gastroenterologist": "Gastroenterólogo"
     }
 }

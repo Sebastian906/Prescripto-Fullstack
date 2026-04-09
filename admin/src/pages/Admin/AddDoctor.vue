@@ -5,6 +5,7 @@ import { useToast } from 'vue-toastification'
 import { assets } from '../../assets/assets'
 import axios from 'axios'
 import { useI18n } from 'vue-i18n'
+import { translateSpeciality } from '../../utils/specialityUtils'
 
 const { backendUrl, aToken } = useAdminContext()
 const toast = useToast()
@@ -28,13 +29,17 @@ const experienceOptions = [
     { value: '+10 Years', key: 'addDoctor.years.10' },
 ]
 
+const aboutOptions = [
+    { value: 'doctorAbout.comprehensive', label: 'doctorAbout.comprehensive' },
+]
+
 const name = ref('')
 const email = ref('')
 const password = ref('')
 const experience = ref('1 Year')
 const fees = ref('')
-const about = ref('')
-const speciality = ref('General Physician')
+const about = ref('doctorAbout.comprehensive')
+const speciality = ref('')
 const specialities = ref([])
 const degree = ref('')
 const address1 = ref('')
@@ -59,9 +64,9 @@ const onSubmitHandler = async (event) => {
         formData.append('degree', degree.value)
         formData.append('address', JSON.stringify({ line1: address1.value, line2: address2.value }))
 
-        formData.forEach((value, key) => {
-            console.log(`${key} : ${value}`)
-        })
+        // formData.forEach((value, key) => {
+        //     console.log(`${key} : ${value}`)
+        // })
 
         const { data } = await axios.post(
             backendUrl + '/api/admin/add-doctor',
@@ -77,8 +82,8 @@ const onSubmitHandler = async (event) => {
             password.value = ''
             experience.value = '1 Year'
             fees.value = ''
-            about.value = ''
-            speciality.value = 'General Physician'
+            about.value = 'doctorAbout.comprehensive'
+            speciality.value = specialities.value[0]?.name ?? ''
             degree.value = ''
             address1.value = ''
             address2.value = ''
@@ -101,8 +106,8 @@ const loadSpecialities = async () => {
             }
         }
     } catch (error) {
-        toast.error('Could not load specialities')
-        console.log(error)
+        toast.error(t('addDoctor.noSpecialities'))
+        console.error(error)
     }
 }
 
@@ -157,8 +162,12 @@ onMounted(loadSpecialities)
                 <div class="w-full lg:flex-1 flex flex-col gap-4">
                     <div class="flex flex-col gap-1">
                         <p>{{ t('addDoctor.speciality') }}</p>
-                        <select v-model="speciality" class="border rounded px-3 py-2">
-                            <option v-for="s in specialities" :key="s.slug" :value="s.name">{{ s.name }}</option>
+                        <select :value="speciality" @change="speciality = $event.target.value"
+                            class="border rounded px-3 py-2">
+                            <option value="" disabled>{{ t('addDoctor.selectSpeciality') }}</option>
+                            <option v-for="s in specialities" :key="s.slug" :value="s.name">
+                                {{ translateSpeciality(s.name, t) }}
+                            </option>
                         </select>
                         <p v-if="specialities.length === 0" class="text-xs text-red-400">
                             {{ t('addDoctor.noSpecialities') }}
@@ -181,8 +190,12 @@ onMounted(loadSpecialities)
 
             <div>
                 <p class="mt-4 mb-2">{{ t('addDoctor.about') }}</p>
-                <textarea v-model="about" class="w-full px-4 pt-2 border rounded"
-                    :placeholder="t('addDoctor.aboutPlaceholder')" rows="5" required />
+                <select v-model="about" class="w-full px-3 py-2 border rounded" required>
+                    <option value="" disabled>{{ t('addDoctor.about') }}</option>
+                    <option v-for="opt in aboutOptions" :key="opt.value" :value="opt.value">
+                        {{ t(opt.label) }}
+                    </option>
+                </select>
             </div>
             <button type="submit"
                 class="bg-indigo-500 px-10 py-3 mt-4 text-white rounded-full cursor-pointer hover:bg-indigo-600 transition-colors">
