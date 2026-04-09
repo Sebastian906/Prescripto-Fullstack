@@ -3,13 +3,13 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDoctorContext } from '../../context/DoctorContext'
 import { useAppContext } from '../../context/AppContext'
+import { translateSpeciality, translateExperience, translateAbout } from '../../utils/specialityUtils'
 
 const { dToken, profileData, getProfileData, updateProfileData } = useDoctorContext()
 const { currency } = useAppContext()
 const { t } = useI18n()
 
 const isEdit = ref(false)
-
 const localFees = ref(0)
 const localAddress = ref({ line1: '', line2: '' })
 const localAvailable = ref(false)
@@ -51,15 +51,17 @@ onMounted(() => {
             <p class="text-3xl font-medium text-gray-700">{{ profileData.name }}</p>
 
             <div class="flex items-center gap-2 mt-1 text-gray-600">
-                <p>{{ profileData.degree }} - {{ profileData.speciality }}</p>
+                <p>
+                    {{ profileData.degree }} - {{ translateSpeciality(profileData.speciality, t) }}
+                </p>
                 <button class="py-0.5 px-2 border text-xs rounded-full">
-                    {{ profileData.experience }}
+                    {{ translateExperience(profileData.experience, t) }}
                 </button>
             </div>
 
             <div class="mt-3">
                 <p class="text-sm font-medium text-neutral-800">{{ t('doctorProfile.about') }}</p>
-                <p class="text-sm text-gray-600 max-w-175 mt-1">{{ profileData.about }}</p>
+                <p class="text-sm text-gray-600 max-w-175 mt-1">{{ translateAbout(profileData.about, t) }}</p>
             </div>
 
             <p class="text-gray-600 font-medium mt-4">
@@ -92,7 +94,9 @@ onMounted(() => {
             <div class="flex items-center gap-2 pt-2">
                 <input type="checkbox" id="available" :checked="isEdit ? localAvailable : profileData.available"
                     :disabled="!isEdit" @change="isEdit && (localAvailable = !localAvailable)" />
-                <label for="available" class="text-gray-600 text-sm">{{ t('doctorProfile.available') }}</label>
+                <label for="available" class="text-gray-600 text-sm">
+                    {{ t('doctorProfile.available') }}
+                </label>
             </div>
 
             <button v-if="isEdit" @click="saveProfile"

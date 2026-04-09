@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAdminContext } from '../../context/AdminContext'
 import { useSort } from '../../composables/useSort.vue'
+import { translateSpeciality } from '../../utils/specialityUtils'
 
 const { doctors, aToken, getAllDoctors, changeAvailability } = useAdminContext()
 const { t } = useI18n()
@@ -35,17 +36,21 @@ onMounted(() => {
             <h1 class="text-lg font-medium">{{ t('doctorsList.title') }}</h1>
             <div class="flex flex-wrap items-center gap-3">
                 <div class="flex items-center gap-2">
-                    <label class="text-sm text-slate-500 shrink-0">{{ t('doctorsList.specialityLabel') }}</label>
+                    <label class="text-sm text-slate-500 shrink-0">
+                        {{ t('doctorsList.specialityLabel') }}
+                    </label>
                     <select v-model="selectedSpeciality"
                         class="text-sm border border-slate-500 rounded px-3 py-1.5 text-slate-600 bg-indigo-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer">
                         <option value="">{{ t('doctorsList.all') }}</option>
                         <option v-for="spec in specialities" :key="spec" :value="spec">
-                            {{ spec }}
+                            {{ translateSpeciality(spec, t) }}
                         </option>
                     </select>
                 </div>
                 <div class="flex items-center gap-2">
-                    <label class="text-sm text-slate-500 shrink-0">{{ t('doctorsList.sortBy') }}</label>
+                    <label class="text-sm text-slate-500 shrink-0">
+                        {{ t('doctorsList.sortBy') }}
+                    </label>
                     <select v-model="sortOption"
                         class="text-sm border border-slate-500 rounded px-3 py-1.5 text-slate-600 bg-indigo-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer">
                         <option v-for="opt in SORT_OPTIONS" :key="opt.value" :value="opt.value">
@@ -54,8 +59,8 @@ onMounted(() => {
                     </select>
                 </div>
                 <span class="text-xs text-slate-400">
-                    {{ sortedDoctors.length }} {{ sortedDoctors.length !== 1 ? t('doctorsList.doctors') :
-                        t('doctorsList.doctor') }}
+                    {{ sortedDoctors.length }}
+                    {{ sortedDoctors.length !== 1 ? t('doctorsList.doctors') : t('doctorsList.doctor') }}
                 </span>
             </div>
         </div>
@@ -66,7 +71,7 @@ onMounted(() => {
                     :src="item.image" :alt="item.name" />
                 <div class="p-4">
                     <p class="text-neutral-800 text-lg font-medium">{{ item.name }}</p>
-                    <p class="text-zinc-600 text-sm">{{ item.speciality }}</p>
+                    <p class="text-zinc-600 text-sm">{{ translateSpeciality(item.speciality, t) }}</p>
                     <div class="mt-2 flex items-center gap-1 text-sm">
                         <input type="checkbox" :checked="item.available" @change="changeAvailability(item._id)" />
                         <p>{{ t('doctorsList.available') }}</p>

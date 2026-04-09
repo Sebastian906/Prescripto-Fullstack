@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { AppContext } from '../context/AppContext';
 import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
+import { translateSpeciality } from "../utils/specialityUtils"
 
 const TopDoctors = () => {
 
@@ -23,7 +24,7 @@ const TopDoctors = () => {
                         <img
                             className='bg-blue-200'
                             src={item.image}
-                            alt=""
+                            alt={item.name}
                         />
                         <div className='p-4'>
                             <div className={`flex items-center gap-2 text-sm text-center ${item.available ? 'text-green-500' : 'text-gray-500'}`}>
@@ -31,7 +32,9 @@ const TopDoctors = () => {
                                 <p>{item.available ? t('topDoctors.available') : t('topDoctors.notAvailable')}</p>
                             </div>
                             <p className='text-slate-900 text-lg font-medium'>{item.name}</p>
-                            <p className='text-slate-600 text-sm'>{item.speciality}</p>
+                            <p className='text-slate-600 text-sm'>
+                                {translateSpeciality(item.speciality, t)}
+                            </p>
                         </div>
                     </div>
                 ))}

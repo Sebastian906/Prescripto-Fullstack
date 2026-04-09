@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useAdminContext } from '../../context/AdminContext'
 import { useToast } from 'vue-toastification'
 import axios from 'axios'
+import { translateSpeciality } from '../../utils/specialityUtils'
 
 const { backendUrl, aToken } = useAdminContext()
 const { t } = useI18n()
@@ -31,7 +32,7 @@ const flatTree = computed(() => {
 const parentOptions = computed(() =>
     flatTree.value.map((node) => ({
         id: node.id,
-        label: '—'.repeat(node.depth) + ' ' + node.name,
+        label: '—'.repeat(node.depth) + ' ' + translateSpeciality(node.name, t),
     }))
 )
 
@@ -133,7 +134,7 @@ onMounted(fetchTree)
                 <p :style="{ paddingLeft: `${node.depth * 20}px` }"
                     class="flex items-center gap-1 text-gray-700 text-sm">
                     <span v-if="node.depth > 0" class="text-indigo-300 text-xs">└</span>
-                    {{ node.name }}
+                    {{ translateSpeciality(node.name, t) }}
                 </p>
 
                 <p class="text-xs text-slate-400">{{ node.slug }}</p>
@@ -144,16 +145,13 @@ onMounted(fetchTree)
 
                 <div class="flex items-center gap-2">
                     <button @click="openCreate(node.id)"
-                        class="text-xs text-indigo-400 hover:text-indigo-600 cursor-pointer"
-                        :title="t('specialities.addChild')">
+                        class="text-xs text-indigo-400 hover:text-indigo-600 cursor-pointer">
                         {{ t('specialities.addChild') }}
                     </button>
-                    <button @click="openEdit(node)" class="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
-                        :title="t('specialities.edit')">
+                    <button @click="openEdit(node)" class="text-xs text-slate-400 hover:text-slate-600 cursor-pointer">
                         {{ t('specialities.edit') }}
                     </button>
-                    <button @click="removeNode(node.id)" class="text-xs text-red-300 hover:text-red-500 cursor-pointer"
-                        :title="t('specialities.deactivate')">
+                    <button @click="removeNode(node.id)" class="text-xs text-red-300 hover:text-red-500 cursor-pointer">
                         ✕
                     </button>
                 </div>
