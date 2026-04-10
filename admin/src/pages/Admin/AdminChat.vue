@@ -4,10 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { useAdminContext } from '../../context/AdminContext'
 
 const { aToken, backendUrl } = useAdminContext()
-const { t } = useI18n()
-const HTTP_URL = (import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:4000')
-    .replace('ws://', 'http://')
-    .replace('wss://', 'https://')
+const { t, locale } = useI18n()
+const RAW_CHAT_URL = import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:4000'
+const HTTP_URL = RAW_CHAT_URL
+    .replace(/^ws:\/\//, 'http://')
+    .replace(/^wss:\/\//, 'https://')
+const WS_URL = RAW_CHAT_URL
 
 const pendingConvs = ref([])
 const activeConvId = ref(null)
@@ -22,13 +24,16 @@ const userNames = ref({})
 
 const isConnected = computed(() => wsStatus.value === 'open')
 
-const activeConv = computed(() =>
-    pendingConvs.value.find(c => c.id === activeConvId.value) ?? null
-)
+const displayWsStatus = computed(() => {
+    if (isConnected.value) return t('chat.online')
+    if (wsStatus.value === 'connecting') return t('chat.connecting')
+    if (wsStatus.value === 'error') return t('chat.error')
+    if (wsStatus.value === 'closed') return t('chat.closed')
+    return t('chat.idle')
+})
 
-const getUserDisplayName = (userId) => {
-    return userNames.value[userId] || `User …${(userId ?? '??????').slice(-6)}`
-}
+const getUserDisplayName = (userId) =>
+    userNames.value[userId] || `User …${(userId ?? '??????').slice(-6)}`
 
 const fetchUserName = async (userId) => {
     if (userNames.value[userId]) return
@@ -44,9 +49,19 @@ const fetchUserName = async (userId) => {
 }
 
 const scrollToBottom = () => {
-    nextTick(() => {
-        bottomEl.value?.scrollIntoView({ behavior: 'smooth' })
-    })
+    nextTick(() => { bottomEl.value?.scrollIntoView({ behavior: 'smooth' }) })
+}
+
+const formatTime = (iso) => {
+    if (!iso) return ''
+    try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+    catch { return '' }
+}
+
+const senderLabel = (sender) => {
+    if (sender === 'bot') return t('chat.bot')
+    if (sender === 'admin') return t('chat.admin')
+    return t('chat.user')
 }
 
 const fetchPending = async () => {
@@ -58,10 +73,7 @@ const fetchPending = async () => {
         const data = await res.json()
         if (data.success) {
             pendingConvs.value = data.conversations ?? []
-            // Obtener nombres de usuarios de manera asincrónica
-            pendingConvs.value.forEach(conv => {
-                fetchUserName(conv.userID || conv.userId)
-            })
+            pendingConvs.value.forEach(conv => fetchUserName(conv.userID || conv.userId))
         }
     } catch (e) {
         console.error('[AdminChat] fetchPending', e)
@@ -76,11 +88,7 @@ const fetchHistory = async (convId) => {
         const data = await res.json()
         if (data.success && data.conversation) {
             const hist = data.conversation.messages ?? []
-
-            seenMessageIds.value = new Set(
-                hist.map(m => m.id).filter(Boolean)
-            )
-
+            seenMessageIds.value = new Set(hist.map(m => m.id).filter(Boolean))
             messages.value = hist
             scrollToBottom()
         }
@@ -106,6 +114,12 @@ const closeConversation = async () => {
     await fetchPending()
 }
 
+const disconnectWS = () => {
+    wsRef.value?.close()
+    wsRef.value = null
+    wsStatus.value = 'idle'
+}
+
 const joinConversation = async (convId) => {
     disconnectWS()
     activeConvId.value = convId
@@ -115,19 +129,21 @@ const joinConversation = async (convId) => {
     await fetchHistory(convId)
 
     wsStatus.value = 'connecting'
-    const ws = new WebSocket(`${CHAT_URL}/ws/admin/${convId}?atoken=${aToken.value}`)
+
+    const ws = new WebSocket(`${WS_URL}/ws/admin/${convId}?atoken=${aToken.value}&lang=${locale.value}`)
     wsRef.value = ws
 
-    ws.onopen = () => { wsStatus.value = 'open' }
+    ws.onopen = () => {
+        wsStatus.value = 'open'
+    }
 
     ws.onmessage = (event) => {
         try {
             const msg = JSON.parse(event.data)
 
-            const isSystemEvent = msg.event === 'admin_joined' || msg.event === 'bot_message'
+            const isSystemEvent = msg.event === 'admin_joined'
 
             if (!isSystemEvent && msg.id && seenMessageIds.value.has(msg.id)) return
-
             if (msg.id && !isSystemEvent) seenMessageIds.value.add(msg.id)
 
             if (msg.event === 'admin_joined') {
@@ -152,14 +168,14 @@ const joinConversation = async (convId) => {
         }
     }
 
-    ws.onerror = () => { wsStatus.value = 'error' }
-    ws.onclose = () => { wsStatus.value = 'idle' }
-}
+    ws.onerror = (e) => {
+        console.error('[AdminChat] WebSocket error', e)
+        wsStatus.value = 'error'
+    }
 
-const disconnectWS = () => {
-    wsRef.value?.close()
-    wsRef.value = null
-    wsStatus.value = 'idle'
+    ws.onclose = () => {
+        wsStatus.value = 'idle'
+    }
 }
 
 const sendMessage = () => {
@@ -174,18 +190,6 @@ const handleKeyDown = (e) => {
         e.preventDefault()
         sendMessage()
     }
-}
-
-const formatTime = (iso) => {
-    if (!iso) return ''
-    try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-    catch { return '' }
-}
-
-const senderLabel = (sender) => {
-    if (sender === 'bot') return 'Bot'
-    if (sender === 'admin') return 'You'
-    return 'User'
 }
 
 onMounted(() => {
@@ -252,7 +256,9 @@ onUnmounted(() => {
                                 'w-2 h-2 rounded-full',
                                 isConnected ? 'bg-green-400' : 'bg-slate-300 animate-pulse'
                             ]" />
-                            <p class="text-xs text-slate-400 capitalize">{{ wsStatus }}</p>
+                            <p class="text-xs text-slate-400 capitalize">
+                                {{ displayWsStatus }}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -274,7 +280,6 @@ onUnmounted(() => {
                 <template v-else>
                     <div v-for="msg in messages" :key="msg.id"
                         :class="['flex gap-2', msg.sender === 'admin' ? 'flex-row-reverse' : 'flex-row']">
-                        <!-- avatar icon -->
                         <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border" :class="msg.sender === 'admin'
                             ? 'bg-indigo-50 border-indigo-200'
                             : msg.sender === 'bot'

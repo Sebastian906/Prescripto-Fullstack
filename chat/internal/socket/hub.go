@@ -129,22 +129,29 @@ type inboundEvent struct {
 	content string
 }
 
+type registerAndBroadcast struct {
+	cl  *client
+	msg OutboundMessage
+}
+
 type Hub struct {
-	mu         sync.RWMutex
-	rooms      map[string]map[*client]struct{}
-	register   chan *client
-	unregister chan *client
-	inbound    chan inboundEvent
-	repo       *repository.Repo
+	mu                sync.RWMutex
+	rooms             map[string]map[*client]struct{}
+	register          chan *client
+	registerBroadcast chan registerAndBroadcast
+	unregister        chan *client
+	inbound           chan inboundEvent
+	repo              *repository.Repo
 }
 
 func NewHub(repo *repository.Repo) *Hub {
 	return &Hub{
-		rooms:      make(map[string]map[*client]struct{}),
-		register:   make(chan *client, 64),
-		unregister: make(chan *client, 64),
-		inbound:    make(chan inboundEvent, 256),
-		repo:       repo,
+		rooms:             make(map[string]map[*client]struct{}),
+		register:          make(chan *client, 64),
+		registerBroadcast: make(chan registerAndBroadcast, 64),
+		unregister:        make(chan *client, 64),
+		inbound:           make(chan inboundEvent, 256),
+		repo:              repo,
 	}
 }
 
@@ -159,6 +166,16 @@ func (h *Hub) Run() {
 			}
 			h.rooms[c.conversationID][c] = struct{}{}
 			h.mu.Unlock()
+
+		case rb := <-h.registerBroadcast:
+			h.mu.Lock()
+			c := rb.cl
+			if h.rooms[c.conversationID] == nil {
+				h.rooms[c.conversationID] = make(map[*client]struct{})
+			}
+			h.rooms[c.conversationID][c] = struct{}{}
+			h.mu.Unlock()
+			h.broadcast(c.conversationID, rb.msg)
 
 		case c := <-h.unregister:
 			h.mu.Lock()
@@ -192,6 +209,9 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		return
 	}
 
+	// Debug: show conversation state and inbound content
+	log.Printf("hub: inbound conv=%s status=%s botState=%s user=%s content=%q", conv.ID.Hex(), conv.Status, conv.BotState, c.userID, content)
+
 	now := time.Now()
 
 	userMsg := repository.Message{
@@ -203,6 +223,7 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 	if err := h.repo.AppendMessage(ctx, c.conversationID, userMsg); err != nil {
 		log.Printf("hub: AppendMessage error: %v", err)
 	}
+	log.Printf("hub: appended user message conv=%s user=%s", c.conversationID, c.userID)
 
 	h.broadcast(c.conversationID, OutboundMessage{
 		ConversationID: c.conversationID,
@@ -211,21 +232,27 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		Content:        content,
 		CreatedAt:      now,
 	})
+	log.Printf("hub: broadcasted user message conv=%s user=%s", c.conversationID, c.userID)
 
 	if conv.Status == repository.StatusWithAdmin {
+		log.Printf("hub: conv=%s has admin present; skipping bot processing", c.conversationID)
 		return
 	}
 
 	if conv.Status == repository.StatusWaitingAdmin {
+		log.Printf("hub: conv=%s is waiting admin; skipping bot processing", c.conversationID)
 		return
 	}
 
 	botResp := c.engine.Process(content, conv.BotState)
+	log.Printf("hub: bot processed conv=%s user=%s botState=%s -> intent=%s nextState=%s text=%q", c.conversationID, c.userID, conv.BotState, botResp.Metadata.Intent, botResp.NextState, botResp.Text)
 
 	if botResp.NextState == "waiting_admin" {
+		log.Printf("hub: conv=%s bot requested human escalation -> setting waiting_admin", c.conversationID)
 		_ = h.repo.UpdateStatus(ctx, c.conversationID, repository.StatusWaitingAdmin)
 		_ = h.repo.UpdateBotState(ctx, c.conversationID, "waiting_admin")
 	} else {
+		log.Printf("hub: conv=%s updating botState -> %s", c.conversationID, botResp.NextState)
 		_ = h.repo.UpdateBotState(ctx, c.conversationID, botResp.NextState)
 	}
 
@@ -240,7 +267,9 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		},
 		CreatedAt: time.Now(),
 	}
-	_ = h.repo.AppendMessage(ctx, c.conversationID, botMsg)
+	if err := h.repo.AppendMessage(ctx, c.conversationID, botMsg); err != nil {
+		log.Printf("hub: AppendMessage bot error: %v", err)
+	}
 
 	h.broadcast(c.conversationID, OutboundMessage{
 		ConversationID: c.conversationID,
@@ -251,6 +280,7 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		Metadata:       convertMetadata(botResp.Metadata),
 		CreatedAt:      botMsg.CreatedAt,
 	})
+	log.Printf("hub: broadcasted bot message conv=%s text=%q", c.conversationID, botResp.Text)
 }
 
 func (h *Hub) broadcast(conversationID string, msg OutboundMessage) {
@@ -349,13 +379,28 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 	if atoken == "" {
 		atoken = c.Request().Header.Get("atoken")
 	}
+	if atoken == "" {
+		atoken = c.Request().Header.Get(echo.HeaderAuthorization)
+	}
+
+	masked := atoken
+	if len(masked) > 12 {
+		masked = masked[:8] + "..."
+	}
+	log.Printf("chat: HandleAdminWS received atoken (masked)=%s len=%d conv=%s", masked, len(atoken), c.Param("conversationId"))
 
 	claims, err := v.ValidateAdmin(atoken)
 	if err != nil {
+		log.Printf("chat: HandleAdminWS ValidateAdmin error=%v", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}
 
 	convID := c.Param("conversationId")
+
+	lang := c.QueryParam("lang")
+	if lang == "" {
+		lang = "en"
+	}
 
 	conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
@@ -377,23 +422,23 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 		conversationID: convID,
 		userID:         claims.UserID,
 		role:           "admin",
+		engine:         bot.NewEngine(lang),
 	}
-
-	h.register <- cl
 
 	go cl.writePump()
 	go cl.readPump()
 
+	trans := bot.GetTranslation(lang)
 	joinMsg := OutboundMessage{
 		ConversationID: convID,
 		Sender:         "bot",
 		SenderID:       "bot",
-		Content:        "An administrator has joined the chat. You're now speaking with a human.",
+		Content:        trans.AdminJoinedMsg,
 		Metadata:       repository.BotMetadata{Intent: "admin_joined"},
 		Event:          "admin_joined",
 		CreatedAt:      time.Now(),
 	}
-	h.broadcast(convID, joinMsg)
+	h.registerBroadcast <- registerAndBroadcast{cl: cl, msg: joinMsg}
 
 	return nil
 }

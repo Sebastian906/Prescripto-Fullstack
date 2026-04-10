@@ -70,7 +70,27 @@ func (v *Validator) ValidateAdmin(tokenStr string) (*Claims, error) {
 	if tokenStr == "" {
 		return nil, errors.New("empty admin token")
 	}
+	// Try parsing as a standard JWT first (handles tokens created by jwt libraries)
+	var mapClaims jwt.MapClaims
+	token, err := jwt.ParseWithClaims(tokenStr, &mapClaims, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return v.secret, nil
+	})
+	if err == nil && token.Valid {
+		userID, _ := mapClaims["id"].(string)
+		role := "admin"
+		if r, ok := mapClaims["role"].(string); ok && r != "" {
+			role = r
+		}
+		if userID == "" {
+			userID = "admin"
+		}
+		return &Claims{UserID: userID, Role: role}, nil
+	}
 
+	// Fallback to legacy HMAC verification (keeps compatibility with older tokens)
 	parts := strings.Split(tokenStr, ".")
 	if len(parts) != 3 {
 		return nil, errors.New("invalid token format")
