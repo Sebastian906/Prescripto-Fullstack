@@ -106,10 +106,21 @@ func main() {
 func handlePending(c echo.Context, repo *repository.Repo, v *auth.Validator) error {
 	atoken := c.Request().Header.Get("atoken")
 	if atoken == "" {
+		// try Authorization header as alternative (Bearer ...)
+		atoken = c.Request().Header.Get(echo.HeaderAuthorization)
+	}
+	if atoken == "" {
 		atoken = c.QueryParam("atoken")
 	}
 
+	masked := atoken
+	if len(masked) > 12 {
+		masked = masked[:8] + "..."
+	}
+	log.Printf("chat: handlePending received atoken (masked)=%s len=%d", masked, len(atoken))
+
 	if _, err := v.ValidateAdmin(atoken); err != nil {
+		log.Printf("chat: handlePending ValidateAdmin error=%v", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}
 
@@ -132,9 +143,14 @@ func handleHistory(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 	if err != nil {
 		atoken := c.Request().Header.Get("atoken")
 		if atoken == "" {
+			// try Authorization header as alternative
+			atoken = c.Request().Header.Get(echo.HeaderAuthorization)
+		}
+		if atoken == "" {
 			atoken = c.QueryParam("atoken")
 		}
 		if _, err2 := v.ValidateAdmin(atoken); err2 != nil {
+			log.Printf("chat: handleHistory ValidateAdmin error=%v", err2)
 			return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 		}
 		claims = nil
@@ -159,9 +175,13 @@ func handleHistory(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 func handleClose(c echo.Context, repo *repository.Repo, v *auth.Validator) error {
 	atoken := c.Request().Header.Get("atoken")
 	if atoken == "" {
+		atoken = c.Request().Header.Get(echo.HeaderAuthorization)
+	}
+	if atoken == "" {
 		atoken = c.QueryParam("atoken")
 	}
 	if _, err := v.ValidateAdmin(atoken); err != nil {
+		log.Printf("chat: handleClose ValidateAdmin error=%v", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}
 
