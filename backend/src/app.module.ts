@@ -12,6 +12,8 @@ import { AppointmentsModule } from './appointments/appointments.module';
 import { SpecialitiesModule } from './specialities/specialities.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { ReportsModule } from './reports/reports.module';
+import { MigrationModule } from './migration/migration.module';
+import { PostgresService } from './migration/postgres.service';
 
 @Module({
   imports: [
@@ -26,8 +28,9 @@ import { ReportsModule } from './reports/reports.module';
     SpecialitiesModule,
     SchedulingModule,
     ReportsModule,
+    MigrationModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, PostgresService],
 })
 export class AppModule {}
