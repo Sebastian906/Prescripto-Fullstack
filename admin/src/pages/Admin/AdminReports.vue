@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAdminContext } from '../../context/AdminContext'
 import { useAppContext } from '../../context/AppContext'
+import ReportExportButtons from '../../components/ReportExportButtons.vue'
 
 const { aToken, annualReport, monthlyTrend, getAnnualReport, getMonthlyTrend } = useAdminContext()
 const { currency } = useAppContext()
@@ -21,9 +22,9 @@ const reportRows = computed(() => annualReport.value?.report ?? [])
 const totals = computed(() => annualReport.value?.totals ?? {})
 
 const completionRate = computed(() => {
-    const t = totals.value
-    if (!t.totalAppointments) return 0
-    return Math.round((t.completedAppointments / t.totalAppointments) * 100)
+    const tot = totals.value
+    if (!tot.totalAppointments) return 0
+    return Math.round((tot.completedAppointments / tot.totalAppointments) * 100)
 })
 
 const loadData = async () => {
@@ -56,6 +57,9 @@ onMounted(() => {
                 <button @click="loadData" class="text-xs text-indigo-500 hover:underline cursor-pointer">
                     {{ t('adminReports.refresh') }}
                 </button>
+                <ReportExportButtons :rows="reportRows" :totals="totals" :trend="monthlyTrend" :year="selectedYear"
+                    :title="t('adminReports.title')" :currency="currency"
+                    :disabled="loading || reportRows.length === 0" />
             </div>
         </div>
 
@@ -74,8 +78,9 @@ onMounted(() => {
             </div>
             <div class="bg-white rounded-lg border p-4">
                 <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.totalEarnings') }}</p>
-                <p class="text-2xl font-semibold text-indigo-600 mt-1">{{ currency }}{{
-                    totals.totalEarnings?.toLocaleString() }}</p>
+                <p class="text-2xl font-semibold text-indigo-600 mt-1">
+                    {{ currency }}{{ totals.totalEarnings?.toLocaleString() }}
+                </p>
             </div>
         </div>
 
