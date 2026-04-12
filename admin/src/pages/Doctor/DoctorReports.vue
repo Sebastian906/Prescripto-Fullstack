@@ -3,9 +3,10 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDoctorContext } from '../../context/DoctorContext'
 import { useAppContext } from '../../context/AppContext'
+import ReportExportButtons from '../../components/ReportExportButtons.vue'
 
 const { t } = useI18n()
-const { dToken, doctorReport, doctorTrend, getDoctorAnnualReport, getDoctorTrend } = useDoctorContext()
+const { dToken, doctorReport, doctorTrend, getDoctorAnnualReport, getDoctorTrend, profileData, getProfileData } = useDoctorContext()
 const { currency } = useAppContext()
 
 const selectedYear = ref(new Date().getFullYear())
@@ -17,6 +18,8 @@ const maxEarnings = computed(() =>
     Math.max(...doctorTrend.value.map(p => p.earnings), 1)
 )
 
+const doctorName = computed(() => profileData.value?.name ?? null)
+
 const loadData = async () => {
     loading.value = true
     await Promise.all([
@@ -26,8 +29,11 @@ const loadData = async () => {
     loading.value = false
 }
 
-onMounted(() => {
-    if (dToken.value) loadData()
+onMounted(async () => {
+    if (dToken.value) {
+        if (!profileData.value?.name) await getProfileData()
+        loadData()
+    }
 })
 </script>
 
@@ -35,9 +41,15 @@ onMounted(() => {
     <div class="m-5 w-full max-w-4xl">
         <div class="flex items-center justify-between mb-5">
             <p class="text-lg font-medium text-gray-700">{{ t('doctorReports.title') }}</p>
-            <select v-model="selectedYear" @change="loadData" class="border rounded px-3 py-1.5 text-sm text-slate-600">
-                <option v-for="y in [2024, 2025, 2026]" :key="y" :value="y">{{ y }}</option>
-            </select>
+            <div class="flex items-center gap-3">
+                <select v-model="selectedYear" @change="loadData"
+                    class="border rounded px-3 py-1.5 text-sm text-slate-600">
+                    <option v-for="y in [2024, 2025, 2026]" :key="y" :value="y">{{ y }}</option>
+                </select>
+                <ReportExportButtons :rows="report" :totals="totals" :trend="doctorTrend" :year="selectedYear"
+                    :title="t('doctorReports.title')" :currency="currency" :doctor="doctorName"
+                    :disabled="loading || report.length === 0" />
+            </div>
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -55,8 +67,9 @@ onMounted(() => {
             </div>
             <div class="bg-white rounded-lg border p-4">
                 <p class="text-xs text-slate-400 uppercase">{{ t('doctorReports.earnings') }}</p>
-                <p class="text-xl font-semibold text-slate-700 mt-1">{{ currency }}{{
-                    totals.totalEarnings?.toLocaleString() ?? 0 }}</p>
+                <p class="text-xl font-semibold text-slate-700 mt-1">
+                    {{ currency }}{{ totals.totalEarnings?.toLocaleString() ?? 0 }}
+                </p>
             </div>
         </div>
 
