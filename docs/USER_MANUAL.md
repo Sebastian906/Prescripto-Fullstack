@@ -108,6 +108,8 @@ The main navigation typically includes:
 - Optimized for smaller screens
 - Touch-friendly buttons
 
+![Patient Use Cases Diagram](./images/patient-case.svg)
+
 ## Registration and Authentication
 
 ### Creating Your Account
@@ -296,6 +298,8 @@ When browsing the doctor list, you see:
 3. On the doctor's profile, click "Book Appointment"
 4. You'll proceed to the appointment booking form
 
+![Appointment Flow Diagram](./images/appointment-flow.svg)
+
 ### Step 1: Select Appointment Date
 
 1. A calendar will appear showing available dates
@@ -393,6 +397,8 @@ You receive an email containing:
 2. You see a list of all your appointments
 3. Appointments are organized by status (upcoming, completed, cancelled)
 
+![Appointment Sequence Diagram](./images/appointment-sequence.svg)
+
 ### Appointment Status
 
 **Upcoming:**
@@ -465,6 +471,8 @@ Click on any appointment to view:
 ### Types of Chat Modes
 
 Prescripto offers two chat modes:
+
+![Chatbot Flow Diagram](./images/chatbot-flow.svg)
 
 ### Assistant Mode
 

@@ -108,6 +108,8 @@ La navegación principal típicamente incluye:
 - Optimizado para pantallas más pequeñas
 - Botones amigables con el tacto
 
+![Diagrama de Casos de Uso de Pacientes](./images/patient-case.svg)
+
 ## Registro y Autenticación
 
 ### Creando Tu Cuenta
@@ -296,6 +298,7 @@ Al explorar la lista de doctores, ves:
 3. En el perfil del doctor, haz clic en "Reservar Cita"
 4. Procederás a la forma de reserva de cita
 
+![Diagrama de Flujo de Citas](./images/appointment-flow.svg)
 ### Paso 1: Seleccionar Fecha de Cita
 
 1. Aparecerá un calendario mostrando fechas disponibles
@@ -393,6 +396,7 @@ Recibes un correo electrónico conteniendo:
 2. Ves una lista de todas tus citas
 3. Las citas están organizadas por estado (próximas, completadas, canceladas)
 
+![Diagrama de Secuencia de Citas](./images/appointment-sequence.svg)
 ### Estado de Cita
 
 **Próximas:**
@@ -465,6 +469,8 @@ Haz clic en cualquier cita para ver:
 ### Tipos de Modos de Chat
 
 Prescripto ofrece dos modos de chat:
+
+![Diagrama de Flujo del Chatbot](./images/chatbot-flow.svg)
 
 ### Modo Asistente
 
