@@ -84,6 +84,8 @@ La arquitectura está diseñada para:
 * Redis (opcional, para caché futura)
 ```
 
+![Diagrama de Arquitectura de Software](./images/architecture-diagram.svg)
+
 ### Capas Arquitectónicas
 
 1. **Capa de Cliente**
@@ -110,6 +112,8 @@ La arquitectura está diseñada para:
    - Servicio de Chat (Go)
    - Servidor WebSocket independiente
    - Mensajería asíncrona
+
+![Diagrama de Clases UML](./images/uml-class-diagram.svg)
 
 ## Arquitectura Orientada a Servicios (SOA)
 
@@ -270,6 +274,8 @@ Contrato de API:
 └── POST /api/users/:id/upload-photo
 ```
 
+![Diagrama de Casos de Uso de Pacientes](./images/patient-case.svg)
+
 #### 3. **Servicio de Doctores**
 **Responsabilidad**: Gestión de profesionales de la salud
 
@@ -304,6 +310,8 @@ Contrato de API:
 
 #### 4. **Servicio de Citas**
 **Responsabilidad**: Reserva y gestión de citas principales
+
+![Diagrama de Flujo de Citas](./images/appointment-flow.svg)
 
 ```
 Operaciones:
@@ -454,6 +462,8 @@ Contrato de API:
 └── Autenticación de usuario
 ```
 
+![Diagrama de Casos de Uso del Chatbot](./images/chatbot-case.svg)
+
 ### Servicios de Infraestructura
 
 #### 10. **Servicio de Cloudinary**
@@ -465,6 +475,8 @@ Contrato de API:
 - Procesamiento de pagos
 - Gestión de transacciones
 - Facturación
+
+![Diagrama de Secuencia de Pagos](./images/payment-sequence.svg)
 
 #### 12. **Servicio de Email (Nodemailer)**
 - Correos de restablecimiento
@@ -556,6 +568,14 @@ Microservicio Chat (Go)
               ▼
 Usuario (Frontend)
 ```
+
+**Diagramas de Secuencia Detallados:**
+
+![Diagrama de Secuencia de Citas](./images/appointment-sequence.svg)
+
+![Diagrama de Secuencia de Autenticación](./images/auth-sequence.svg)
+
+![Diagrama de Secuencia de Chat](./images/chat-sequence.svg)
 
 ### Arquitectura Impulsada por Eventos (Futuro)
 

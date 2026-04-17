@@ -83,6 +83,8 @@ The architecture is designed to:
 * Redis (optional, for future caching)
 ```
 
+![Software Architecture Diagram](./images/architecture-diagram.svg)
+
 ### Architectural Layers
 
 1. **Client Layer**
@@ -109,6 +111,8 @@ The architecture is designed to:
    - Chat Service (Go)
    - Independent WebSocket server
    - Asynchronous messaging
+
+![UML Class Diagram](./images/uml-class-diagram.svg)
 
 ## Service-Oriented Architecture (SOA)
 
@@ -269,6 +273,8 @@ API Contract:
 └── POST /api/users/:id/upload-photo
 ```
 
+![Patient Use Cases Diagram](./images/patient-case.svg)
+
 #### 3. **Doctors Service**
 **Responsibility**: Healthcare professional management
 
@@ -303,6 +309,8 @@ API Contract:
 
 #### 4. **Appointments Service**
 **Responsibility**: Core appointment booking and management
+
+![Appointment Flow Diagram](./images/appointment-flow.svg)
 
 ```
 Operations:
@@ -453,6 +461,8 @@ API Contract:
 └── User authentication
 ```
 
+![Chatbot Use Cases Diagram](./images/chatbot-case.svg)
+
 ### Infrastructure Services
 
 #### 10. **Cloudinary Service**
@@ -464,6 +474,8 @@ API Contract:
 - Payment processing
 - Transaction management
 - Billing
+
+![Payment Sequence Diagram](./images/payment-sequence.svg)
 
 #### 12. **Email Service (Nodemailer)**
 - Password reset emails
@@ -555,6 +567,14 @@ Chat Microservice (Go)
               ▼
 User (Frontend)
 ```
+
+**Detailed Sequence Diagrams:**
+
+![Appointment Sequence Diagram](./images/appointment-sequence.svg)
+
+![Authentication Sequence Diagram](./images/auth-sequence.svg)
+
+![Chat Sequence Diagram](./images/chat-sequence.svg)
 
 ### Event-Driven Architecture (Future)
 

@@ -52,6 +52,8 @@ Servicio de Chat (Go)
     └── MongoDB (datos de chat)
 ```
 
+![Diagrama de Arquitectura de Software](./images/architecture-diagram.svg)
+
 ### Patrones de Comunicación
 
 - **Síncrono**: Llamadas a API REST (HTTP)
@@ -449,6 +451,8 @@ chat/
 
 ## Arquitectura del Backend
 
+![Diagrama de Clases UML](./images/uml-class-diagram.svg)
+
 ### Arquitectura de Módulos
 
 El backend sigue la arquitectura modular de NestJS con clara separación de responsabilidades:
@@ -524,6 +528,8 @@ AppointmentsService
 └── validateSlotAvailability(doctorId, date, time)
 ```
 
+![Diagrama de Flujo de Citas](./images/appointment-flow.svg)
+
 #### 5. **Módulo de Administración**
 - Operaciones administrativas
 - Métricas y análisis del sistema
@@ -583,6 +589,8 @@ ReportsService
 ├── exportToPdf(data)
 └── exportToExcel(data)
 ```
+
+![Diagrama de Flujo de Reportes](./images/report-flow.svg)
 
 #### 9. **Módulo de Migración**
 - Utilidades de migración de BD
@@ -843,6 +851,8 @@ Manejador WebSocket
     MongoDB
 ```
 
+![Diagrama de Flujo del Chatbot](./images/chatbot-flow.svg)
+
 #### Componentes Clave
 
 **Manejador WebSocket**
@@ -866,6 +876,14 @@ Manejador WebSocket
 - Mantiene sesiones de usuario
 
 ## Diseño de Bases de Datos
+
+**Diagrama de Entidad Relación**
+
+![Diagrama de Entidad Relación](./images/entity-relation-diagram.svg)
+
+**Diagrama No Relacional**
+
+![Diagrama No Relacional](./images/non-relational-diagram.svg)
 
 ### Colecciones de MongoDB
 
@@ -1037,6 +1055,14 @@ Authorization: Bearer <jwt_token>
 atoken: <admin_token>        // Para endpoints de admin
 dtoken: <doctor_token>       // Para endpoints de doctor
 ```
+
+### Secuencias de Comunicación de Servicios
+
+![Diagrama de Secuencia de Citas](./images/appointment-sequence.svg)
+
+![Diagrama de Secuencia de Autenticación](./images/auth-sequence.svg)
+
+![Diagrama de Secuencia de Chat](./images/chat-sequence.svg)
 
 ## Configuración de Entorno
 
