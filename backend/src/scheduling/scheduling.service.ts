@@ -44,42 +44,7 @@ export class SchedulingService {
         const queue = new PriorityQueue<SlotCandidate>();
 
         for (const dateStr of preferredDates) {
-            const [d, m, y] = dateStr.split('/').map(Number);
-            const date = new Date(y, m - 1, d);
-
-            const allSlots = generateDaySlots(date);
-            const booked: string[] = [...(doctor.slots_booked?.[dateStr] ?? [])].sort();
-            const available = getAvailableSlots(allSlots, booked);
-
-            if (available.length === 0) continue;
-
-            const dayLoad = booked.length;
-
-            for (let i = 0; i < available.length; i++) {
-                const slotTime = available[i];
-                const gapMinutes = this.computeGap(available, i, booked, minGapMinutes);
-
-                // ── Función de score greedy ──────────────────────────────────
-                const hourValue = this.parseHour(slotTime);
-                const morningBonus = hourValue < 13 ? WEIGHT_MORNING : 0;
-
-                const score =
-                    URGENCY_BONUS[priorityLevel] +
-                    WEIGHT_LOAD * dayLoad +
-                    WEIGHT_GAP * Math.min(gapMinutes / 30, 4) + // cap en 4 unidades
-                    morningBonus;
-
-                const candidate: SlotCandidate = {
-                    slotDate: dateStr, slotTime, doctorLoad: dayLoad,
-                    gapMinutes, score,
-                };
-
-                queue.insert(candidate, score);
-
-                // ── Poda Branch & Bound: si ya tenemos 10 candidatos con score
-                //    suficientemente bueno, detenemos la búsqueda por backtracking ──
-                if (queue.size >= 10 && this.meetsBound(score, priorityLevel)) break;
-            }
+            this.buildCandidatesForDate(dateStr, doctor, priorityLevel, minGapMinutes, queue);
         }
 
         const suggestions: SlotCandidate[] = [];
@@ -94,6 +59,52 @@ export class SchedulingService {
             : 'Limited availability — consider expanding date range';
 
         return { suggestions, isIdeal, reason };
+    }
+
+    private buildCandidatesForDate(
+        dateStr: string,
+        doctor: { slots_booked?: Record<string, string[]> },
+        priorityLevel: SchedulingSuggestionRequest['priorityLevel'],
+        minGapMinutes: number,
+        queue: PriorityQueue<SlotCandidate>,
+    ): void {
+        const [d, m, y] = dateStr.split('/').map(Number);
+        const date = new Date(y, m - 1, d);
+
+        const allSlots = generateDaySlots(date);
+        // comparador explícito de strings para evitar sort alfabético implícito
+        const booked: string[] = [...(doctor.slots_booked?.[dateStr] ?? [])].sort((a, b) => a.localeCompare(b));
+        const available = getAvailableSlots(allSlots, booked);
+
+        if (available.length === 0) return;
+
+        const dayLoad = booked.length;
+
+        for (let i = 0; i < available.length; i++) {
+            const slotTime = available[i];
+            const gapMinutes = this.computeGap(available, i, booked, minGapMinutes);
+            const score = this.computeScore(priorityLevel, dayLoad, gapMinutes, slotTime);
+
+            const candidate: SlotCandidate = { slotDate: dateStr, slotTime, doctorLoad: dayLoad, gapMinutes, score };
+            queue.insert(candidate, score);
+
+            if (queue.size >= 10 && this.meetsBound(score, priorityLevel)) break;
+        }
+    }
+
+    private computeScore(
+        priorityLevel: SchedulingSuggestionRequest['priorityLevel'],
+        dayLoad: number,
+        gapMinutes: number,
+        slotTime: string,
+    ): number {
+        const morningBonus = this.parseHour(slotTime) < 13 ? WEIGHT_MORNING : 0;
+        return (
+            URGENCY_BONUS[priorityLevel] +
+            WEIGHT_LOAD * dayLoad +
+            WEIGHT_GAP * Math.min(gapMinutes / 30, 4) +
+            morningBonus
+        );
     }
 
     /**

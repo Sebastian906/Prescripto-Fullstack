@@ -1,6 +1,7 @@
 import { useContext, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { AppContext } from "../context/AppContext"
+import { sanitizeToken } from '../utils/tokenUtils'
 
 const OAuthCallback = () => {
     const { setToken } = useContext(AppContext)
@@ -8,7 +9,8 @@ const OAuthCallback = () => {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search)
-        const token = params.get('token')
+        const raw = params.get('token')
+        const token = sanitizeToken(raw ?? '')
 
         if (token) {
             localStorage.setItem('token', token)

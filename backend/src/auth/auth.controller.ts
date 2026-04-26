@@ -41,7 +41,9 @@ export class AuthController {
     @Get('google')
     @ApiOperation({ summary: 'Initiate Google OAuth login' })
     @UseGuards(AuthGuard('google'))
-    googleLogin(): void { }
+    googleLogin(): void { 
+        // Intentionally empty: handled entirely by Passport AuthGuard('google')
+    }
 
     @Get('google/callback')
     @ApiOperation({ summary: 'Google OAuth callback' })
@@ -53,7 +55,9 @@ export class AuthController {
     @Get('facebook')
     @ApiOperation({ summary: 'Initiate Facebook OAuth login' })
     @UseGuards(AuthGuard('facebook'))
-    facebookLogin(): void { }
+    facebookLogin(): void {
+        // Intentionally empty: handled entirely by Passport AuthGuard('facebook')
+    }
 
     @Get('facebook/callback')
     @ApiOperation({ summary: 'Facebook OAuth callback' })

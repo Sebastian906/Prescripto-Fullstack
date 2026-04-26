@@ -5,6 +5,8 @@ import (
 	"unicode"
 )
 
+const routeMyAppointments = "/my-appointments"
+
 type Intent string
 
 const (
@@ -106,7 +108,7 @@ func (e *Engine) Process(userMessage, state string) Response {
 				{Label: trans.GoMyApptsBtn, Value: "navigate_appointments"},
 				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
-			Metadata:  Metadata{Action: "navigate", Route: "/my-appointments", Intent: string(IntentPayment)},
+			Metadata:  Metadata{Action: "navigate", Route: routeMyAppointments, Intent: string(IntentPayment)},
 			NextState: "awaiting_topic",
 		}
 
@@ -117,7 +119,7 @@ func (e *Engine) Process(userMessage, state string) Response {
 				{Label: trans.GoToMyApptsBtn, Value: "navigate_appointments"},
 				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
-			Metadata:  Metadata{Action: "navigate", Route: "/my-appointments", Intent: string(IntentCancelAppt)},
+			Metadata:  Metadata{Action: "navigate", Route: routeMyAppointments, Intent: string(IntentCancelAppt)},
 			NextState: "awaiting_topic",
 		}
 
@@ -128,7 +130,7 @@ func (e *Engine) Process(userMessage, state string) Response {
 				{Label: trans.OpenMyApptsBtn, Value: "navigate_appointments"},
 				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
-			Metadata:  Metadata{Action: "navigate", Route: "/my-appointments", Intent: string(IntentViewAppts)},
+			Metadata:  Metadata{Action: "navigate", Route: routeMyAppointments, Intent: string(IntentViewAppts)},
 			NextState: "awaiting_topic",
 		}
 
