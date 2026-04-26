@@ -292,36 +292,63 @@ export class MigrationService {
 
         await this.pg.withTransaction(async (client) => {
             for (const doc of docs) {
-                const doctorRow = await this.pg.queryOne<{ id: string }>(
-                    `SELECT id FROM doctors WHERE mongo_id = $1`,
-                    [String(doc._id)]
-                );
-                if (!doctorRow) { result.skipped++; continue; }
-
-                const slotsBooked: Record<string, string[]> = doc.slots_booked ?? {};
-
-                for (const [slotDate, times] of Object.entries(slotsBooked)) {
-                    if (!Array.isArray(times)) continue;
-                    for (const slotTime of times) {
-                        if (!slotTime) continue;
-                        try {
-                            await client.query(
-                                `INSERT INTO doctor_slots_booked (doctor_id, slot_date, slot_time)
-                                 VALUES ($1,$2,$3)
-                                 ON CONFLICT (doctor_id, slot_date, slot_time) DO NOTHING`,
-                                [doctorRow.id, slotDate, slotTime]
-                            );
-                            result.migrated++;
-                        } catch (err) {
-                            result.errors++;
-                            const errorMessage = err instanceof Error ? err.message : String(err);
-                            result.errorDetails = [...(result.errorDetails ?? []),
-                            `slot ${doc._id}/${slotDate}/${slotTime}: ${errorMessage}`];
-                        }
-                    }
-                }
+                await this.migrateSingleDoctorSlots(client, doc, result);
             }
         });
+    }
+
+    private async migrateSingleDoctorSlots(
+        client: PoolClient,
+        doc: { _id: unknown; slots_booked?: Record<string, unknown> },
+        result: MigrationResult,
+    ): Promise<void> {
+        const doctorRow = await this.pg.queryOne<{ id: string }>(
+            `SELECT id FROM doctors WHERE mongo_id = $1`,
+            [String(doc._id)],
+        );
+
+        if (!doctorRow) {
+            result.skipped++;
+            return;
+        }
+
+        const slotsBooked = doc.slots_booked ?? {};
+
+        for (const [slotDate, times] of Object.entries(slotsBooked)) {
+            if (!Array.isArray(times)) continue;
+            const validTimes = times.filter((time): time is string => typeof time === 'string');
+            if (validTimes.length === 0) continue;
+            await this.migrateSlotTimes(client, doctorRow.id, slotDate, validTimes, result, String(doc._id));
+        }
+    }
+
+    private async migrateSlotTimes(
+        client: PoolClient,
+        doctorPgId: string,
+        slotDate: string,
+        times: string[],
+        result: MigrationResult,
+        docMongoId: string,
+    ): Promise<void> {
+        for (const slotTime of times) {
+            if (!slotTime) continue;
+            try {
+                await client.query(
+                    `INSERT INTO doctor_slots_booked (doctor_id, slot_date, slot_time)
+                 VALUES ($1,$2,$3)
+                 ON CONFLICT (doctor_id, slot_date, slot_time) DO NOTHING`,
+                    [doctorPgId, slotDate, slotTime],
+                );
+                result.migrated++;
+            } catch (err) {
+                result.errors++;
+                const errorMessage = err instanceof Error ? err.message : String(err);
+                result.errorDetails = [
+                    ...(result.errorDetails ?? []),
+                    `slot ${docMongoId}/${slotDate}/${slotTime}: ${errorMessage}`,
+                ];
+            }
+        }
     }
 
     private async migrateAppointments(result: MigrationResult): Promise<void> {

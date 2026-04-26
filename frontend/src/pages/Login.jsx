@@ -19,28 +19,45 @@ const Login = () => {
     const [isActive, setIsActive] = useState(false)
     const [showForgot, setShowForgot] = useState(false)
 
+    const saveToken = (token, setToken) => {
+        localStorage.setItem('token', sanitizeToken(token))
+        setToken(token)
+    }
+
+    const sanitizeToken = (raw) => {
+        if (typeof raw !== 'string') return ''
+        // Whitelist: acepta únicamente el formato JWT estándar (header.payload.signature)
+        return /^[\w-]+\.[\w-]+\.[\w-]+$/.test(raw) ? raw : ''
+    }
+
     const onSubmitHandler = async (event) => {
         event.preventDefault()
         try {
             if (state === 'Login') {
-                const { data } = await axios.post(backendUrl + '/api/auth/login', { password, email })
-                if (data.success) {
-                    localStorage.setItem('token', data.token)
-                    setToken(data.token)
-                } else {
-                    toast.error(t('loginPage.invalidCredentials'))
-                }
+                await handleLogin()
             } else {
-                const { data } = await axios.post(backendUrl + '/api/auth/register', { name, password, email })
-                if (data.success) {
-                    localStorage.setItem('token', data.token)
-                    setToken(data.token)
-                } else {
-                    toast.error(t('loginPage.errorRegistration'))
-                }
+                await handleRegister()
             }
         } catch (error) {
             toast.error(error.message)
+        }
+    }
+
+    const handleLogin = async () => {
+        const { data } = await axios.post(backendUrl + '/api/auth/login', { password, email })
+        if (data.success) {
+            saveToken(data.token, setToken)
+        } else {
+            toast.error(t('loginPage.invalidCredentials'))
+        }
+    }
+
+    const handleRegister = async () => {
+        const { data } = await axios.post(backendUrl + '/api/auth/register', { name, password, email })
+        if (data.success) {
+            saveToken(data.token, setToken)
+        } else {
+            toast.error(t('loginPage.errorRegistration'))
         }
     }
 

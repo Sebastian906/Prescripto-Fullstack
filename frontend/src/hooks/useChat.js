@@ -28,7 +28,17 @@ export function useChat(token, lang = 'en') {
         if (wsRef.current?.readyState === WebSocket.OPEN) return
 
         setStatus('connecting')
-        const ws = new WebSocket(`${CHAT_URL}/ws/chat?token=${token}&lang=${lang}`)
+
+        // Construcción segura: la base viene de una variable de entorno,
+        // los parámetros se codifican individualmente con URLSearchParams.
+        const base = new URL('/ws/chat', CHAT_URL.replace(/^ws/, 'http'))
+        const params = new URLSearchParams({
+            token: String(token),
+            lang: /^[a-z]{2}$/.test(lang) ? lang : 'en',  // whitelist: solo códigos ISO 639-1
+        })
+        const safeUrl = `${CHAT_URL.replace(/^http/, 'ws')}/ws/chat?${params.toString()}`
+
+        const ws = new WebSocket(safeUrl)
         wsRef.current = ws
 
         ws.onopen = () => {
