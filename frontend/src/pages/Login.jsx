@@ -7,6 +7,37 @@ import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
 import ForgotPasswordModal from "../components/ForgotPasswordModal"
 
+const sanitizeToken = (raw) => {
+    if (typeof raw !== 'string') return ''
+    return /^[\w-]+\.[\w-]+\.[\w-]+$/.test(raw) ? raw : ''
+}
+
+const saveToken = (rawToken, setToken) => {
+    const clean = sanitizeToken(rawToken)
+    if (clean) {
+        localStorage.setItem('token', clean)
+        setToken(clean)
+    }
+}
+
+const handleLogin = async (backendUrl, email, password, setToken, t) => {
+    const { data } = await axios.post(backendUrl + '/api/auth/login', { password, email })
+    if (data.success) {
+        saveToken(data.token, setToken)
+    } else {
+        toast.error(t('loginPage.invalidCredentials'))
+    }
+}
+
+const handleRegister = async (backendUrl, name, email, password, setToken, t) => {
+    const { data } = await axios.post(backendUrl + '/api/auth/register', { name, password, email })
+    if (data.success) {
+        saveToken(data.token, setToken)
+    } else {
+        toast.error(t('loginPage.errorRegistration'))
+    }
+}
+
 const Login = () => {
 
     const { backendUrl, token, setToken } = useContext(AppContext)
@@ -19,45 +50,16 @@ const Login = () => {
     const [isActive, setIsActive] = useState(false)
     const [showForgot, setShowForgot] = useState(false)
 
-    const saveToken = (token, setToken) => {
-        localStorage.setItem('token', sanitizeToken(token))
-        setToken(token)
-    }
-
-    const sanitizeToken = (raw) => {
-        if (typeof raw !== 'string') return ''
-        // Whitelist: acepta únicamente el formato JWT estándar (header.payload.signature)
-        return /^[\w-]+\.[\w-]+\.[\w-]+$/.test(raw) ? raw : ''
-    }
-
     const onSubmitHandler = async (event) => {
         event.preventDefault()
         try {
             if (state === 'Login') {
-                await handleLogin()
+                await handleLogin(backendUrl, email, password, setToken, t)
             } else {
-                await handleRegister()
+                await handleRegister(backendUrl, name, email, password, setToken, t)
             }
         } catch (error) {
             toast.error(error.message)
-        }
-    }
-
-    const handleLogin = async () => {
-        const { data } = await axios.post(backendUrl + '/api/auth/login', { password, email })
-        if (data.success) {
-            saveToken(data.token, setToken)
-        } else {
-            toast.error(t('loginPage.invalidCredentials'))
-        }
-    }
-
-    const handleRegister = async () => {
-        const { data } = await axios.post(backendUrl + '/api/auth/register', { name, password, email })
-        if (data.success) {
-            saveToken(data.token, setToken)
-        } else {
-            toast.error(t('loginPage.errorRegistration'))
         }
     }
 
@@ -67,25 +69,14 @@ const Login = () => {
             Facebook: '/api/auth/facebook',
         }
         const endpoint = providerMap[providerName]
-        if (endpoint) {
-            window.location.href = backendUrl + endpoint
-        }
+        if (endpoint) window.location.href = backendUrl + endpoint
     }
 
-    const handleRegisterClick = () => {
-        setIsActive(true)
-        setState('Sign Up')
-    }
-
-    const handleLoginClick = () => {
-        setIsActive(false)
-        setState('Login')
-    }
+    const handleRegisterClick = () => { setIsActive(true); setState('Sign Up') }
+    const handleLoginClick = () => { setIsActive(false); setState('Login') }
 
     useEffect(() => {
-        if (token) {
-            navigate('/')
-        }
+        if (token) navigate('/')
     }, [token])
 
     return (

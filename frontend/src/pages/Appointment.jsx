@@ -9,6 +9,40 @@ import { useSlotSuggestions } from "../hooks/useSlotSuggestions"
 import { useTranslation } from "react-i18next"
 import { translateSpeciality, translateExperience, translateAbout } from "../utils/specialityUtils"
 
+function computeDayStartTs(baseDate, today) {
+    const isToday =
+        today.getDate() === baseDate.getDate() &&
+        today.getMonth() === baseDate.getMonth() &&
+        today.getFullYear() === baseDate.getFullYear()
+
+    let startHour, startMinute
+    if (isToday) {
+        startHour = today.getHours() > 10 ? today.getHours() + 1 : 10
+        startMinute = today.getMinutes() > 30 ? 30 : 0
+    } else {
+        startHour = 10
+        startMinute = 0
+    }
+
+    return new Date(
+        baseDate.getFullYear(),
+        baseDate.getMonth(),
+        baseDate.getDate(),
+        startHour,
+        startMinute,
+        0, 0,
+    ).getTime()
+}
+
+function computeDayEndTs(baseDate) {
+    return new Date(
+        baseDate.getFullYear(),
+        baseDate.getMonth(),
+        baseDate.getDate(),
+        21, 0, 0, 0,
+    ).getTime()
+}
+
 function generateDateRange(daysAhead = 7) {
     const today = new Date()
     return Array.from({ length: daysAhead }, (_, i) => {
@@ -78,54 +112,18 @@ const Appointment = () => {
         setDocSlots([])
         // getting current date
         const today = new Date()
-
+        const SLOT_INTERVAL_MS = 30 * 60 * 1000
         for (let i = 0; i < 7; i++) {
             const baseDate = new Date(today)
             baseDate.setDate(today.getDate() + i)
-            // calculate beginning timestamp
-            const isToday = today.getDate() === baseDate.getDate()
-                && today.getMonth() === baseDate.getMonth()
-                && today.getFullYear() === baseDate.getFullYear()
-            // setting start hour of appointment
-            let startHour, startMinute
-            if (isToday) {
-                const currentHour = today.getHours()
-                const currentMinute = today.getMinutes()
-                startHour = currentHour > 10 ? currentHour + 1 : 10
-                startMinute = currentMinute > 30 ? 30 : 0
-            } else {
-                startHour = 10
-                startMinute = 0
-            }
-            // setting beginning of appointment timestamp
-            const startTs = new Date(
-                baseDate.getFullYear(),
-                baseDate.getMonth(),
-                baseDate.getDate(),
-                startHour,
-                startMinute,
-                0, 0
-            ).getTime()
-            // setting ending of appointment timestamp
-            const endTs = new Date(
-                baseDate.getFullYear(),
-                baseDate.getMonth(),
-                baseDate.getDate(),
-                21, 0, 0, 0
-            ).getTime()
-            // generating time slots for the day
-            const SLOT_INTERVAL_MS = 30 * 60 * 1000
+            const startTs = computeDayStartTs(baseDate, today)
+            const endTs = computeDayEndTs(baseDate)
             const timeSlots = []
-            // iterating through time slots and checking availability
             for (let ts = startTs; ts < endTs; ts += SLOT_INTERVAL_MS) {
                 const slotDate = new Date(ts)
-                const formattedTime = slotDate.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                })
+                const formattedTime = slotDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 const slotKey = `${slotDate.getDate()}/${slotDate.getMonth() + 1}/${slotDate.getFullYear()}`
-                const isSlotAvailable = !(docInfo.slots_booked[slotKey]?.includes(formattedTime))
-                if (isSlotAvailable) {
+                if (!(docInfo.slots_booked[slotKey]?.includes(formattedTime))) {
                     timeSlots.push({ datetime: slotDate, time: formattedTime })
                 }
             }
