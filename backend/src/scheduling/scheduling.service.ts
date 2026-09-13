@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
 import { Doctor, DoctorDocument } from 'src/doctors/schemas/doctor.schema';
 import { PriorityQueue } from 'src/shared/structures/priority-queue';
@@ -31,6 +31,8 @@ export class SchedulingService {
     ): Promise<SchedulingSuggestionResult> {
         const { docId, preferredDates, priorityLevel, minGapMinutes = 30 } = req;
 
+        if (!isValidObjectId(docId)) throw new BadRequestException('Invalid docId');
+
         const doctor = await this.doctorModel
             .findById(docId)
             .select('slots_booked available')
@@ -44,7 +46,8 @@ export class SchedulingService {
         const queue = new PriorityQueue<SlotCandidate>();
 
         for (const dateStr of preferredDates) {
-            this.buildCandidatesForDate(dateStr, doctor, priorityLevel, minGapMinutes, queue);
+            const stop = this.buildCandidatesForDate(dateStr, doctor, priorityLevel, minGapMinutes, queue);
+            if (stop) break; // poda real a nivel fechas
         }
 
         const suggestions: SlotCandidate[] = [];
@@ -67,16 +70,24 @@ export class SchedulingService {
         priorityLevel: SchedulingSuggestionRequest['priorityLevel'],
         minGapMinutes: number,
         queue: PriorityQueue<SlotCandidate>,
-    ): void {
-        const [d, m, y] = dateStr.split('/').map(Number);
+    ): boolean {
+        const parts = dateStr.split('/');
+        if (parts.length !== 3) return false;
+        const [d, m, y] = parts.map(Number);
+        if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y)) return false;
         const date = new Date(y, m - 1, d);
+        // round-trip: evita 32/13/2026 -> fecha válida distinta
+        if (date.getDate() !== d || date.getMonth() !== m - 1 || date.getFullYear() !== y) return false;
 
         const allSlots = generateDaySlots(date);
-        // comparador explícito de strings para evitar sort alfabético implícito
-        const booked: string[] = [...(doctor.slots_booked?.[dateStr] ?? [])].sort((a, b) => a.localeCompare(b));
+
+        // orden cronológico por minutos, no lexicográfico (rompía AM/PM)
+        const booked: string[] = [...(doctor.slots_booked?.[dateStr] ?? [])]
+            .sort((a, b) => this.parseHour(a) - this.parseHour(b));
+        
         const available = getAvailableSlots(allSlots, booked);
 
-        if (available.length === 0) return;
+        if (available.length === 0) return false;
 
         const dayLoad = booked.length;
 
@@ -88,8 +99,9 @@ export class SchedulingService {
             const candidate: SlotCandidate = { slotDate: dateStr, slotTime, doctorLoad: dayLoad, gapMinutes, score };
             queue.insert(candidate, score);
 
-            if (queue.size >= 10 && this.meetsBound(score, priorityLevel)) break;
+            if (queue.size >= 10 && this.meetsBound(score, priorityLevel)) return true;
         }
+        return false;
     }
 
     private computeScore(
@@ -116,13 +128,15 @@ export class SchedulingService {
         available: string[],
         idx: number,
         booked: string[],
-        minGap: number,
+        _minGap: number,
     ): number {
         const currentHour = this.parseHour(available[idx]);
+        if (Number.isNaN(currentHour)) return 0;
         for (const bookedSlot of booked) {
             const bookedHour = this.parseHour(bookedSlot);
+            if (Number.isNaN(bookedHour)) continue;
             const diff = (bookedHour - currentHour) * 60;
-            if (diff > 0) return diff; // primer ocupado posterior
+            if (diff > 0) return diff;
         }
         // No hay citas posteriores ese día — gap "infinito", se normaliza a 120
         return 120;
@@ -130,10 +144,17 @@ export class SchedulingService {
 
     private parseHour(timeStr: string): number {
         // "10:30 AM" → 10.5,  "02:00 PM" → 14
-        const [time, period] = timeStr.split(' ');
-        let [h, m] = time.split(':').map(Number);
-        if (period === 'PM' && h !== 12) h += 12;
-        if (period === 'AM' && h === 12) h = 0;
+        const s = timeStr.trim().toUpperCase().replace(/\./g, '');
+        // 24h: "14:30"
+        const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
+        if (m24) return Number(m24[1]) + Number(m24[2]) / 60;
+        // 12h: "02:30 PM" / "2:30PM" / "10:30 A M"
+        const m12 = s.match(/^(\d{1,2}):(\d{2})\s*([AP])\s*M?$/);
+        if (!m12) return NaN;
+        let h = Number(m12[1]);
+        const m = Number(m12[2]);
+        if (m12[3] === 'P' && h !== 12) h += 12;
+        if (m12[3] === 'A' && h === 12) h = 0;
         return h + m / 60;
     }
 

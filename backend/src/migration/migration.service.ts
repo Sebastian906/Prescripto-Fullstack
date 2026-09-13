@@ -183,7 +183,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    result.errorDetails = [...(result.errorDetails ?? []), `user ${doc._id}: ${errorMessage}`];
+                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
                 }
             }
         });
@@ -218,7 +218,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    result.errorDetails = [...(result.errorDetails ?? []), `speciality ${doc._id}: ${errorMessage}`];
+                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
                 }
             }
         });
@@ -281,7 +281,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    result.errorDetails = [...(result.errorDetails ?? []), `doctor ${doc._id}: ${errorMessage}`];
+                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
                 }
             }
         });
@@ -330,24 +330,22 @@ export class MigrationService {
         result: MigrationResult,
         docMongoId: string,
     ): Promise<void> {
-        for (const slotTime of times) {
-            if (!slotTime) continue;
-            try {
-                await client.query(
-                    `INSERT INTO doctor_slots_booked (doctor_id, slot_date, slot_time)
-                 VALUES ($1,$2,$3)
-                 ON CONFLICT (doctor_id, slot_date, slot_time) DO NOTHING`,
-                    [doctorPgId, slotDate, slotTime],
-                );
-                result.migrated++;
-            } catch (err) {
-                result.errors++;
-                const errorMessage = err instanceof Error ? err.message : String(err);
-                result.errorDetails = [
-                    ...(result.errorDetails ?? []),
-                    `slot ${docMongoId}/${slotDate}/${slotTime}: ${errorMessage}`,
-                ];
-            }
+        // un round-trip por fecha en vez de N
+        const clean = times.filter(Boolean);
+        if (clean.length === 0) return;
+        try {
+            const res = await client.query(
+                `INSERT INTO doctor_slots_booked (doctor_id, slot_date, slot_time)
+                SELECT $1, $2, UNNEST($3::text[])
+                ON CONFLICT (doctor_id, slot_date, slot_time) DO NOTHING`,
+                [doctorPgId, slotDate, clean],
+            );
+            result.migrated += res.rowCount ?? 0; // solo reales, no conflictos
+        } catch (err) {
+            result.errors++;
+            const msg = err instanceof Error ? err.message : String(err);
+            (result.errorDetails ??= []).push(`slot ${docMongoId}/${slotDate}: ${msg}`);
+            if ((result.errorDetails?.length ?? 0) > 50) result.errorDetails = result.errorDetails?.slice(0, 50);
         }
     }
 
@@ -394,7 +392,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    result.errorDetails = [...(result.errorDetails ?? []), `appointment ${doc._id}: ${errorMessage}`];
+                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
                 }
             }
         });
@@ -449,7 +447,7 @@ export class MigrationService {
             } catch (err) {
                 result.errors++;
                 const errorMessage = err instanceof Error ? err.message : String(err);
-                result.errorDetails = [...(result.errorDetails ?? []), `stats ${doc._id}: ${errorMessage}`];
+                (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
             }
         }
     }
@@ -478,7 +476,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    result.errorDetails = [...(result.errorDetails ?? []), `token ${doc._id}: ${errorMessage}`];
+                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
                 }
             }
         });
@@ -545,7 +543,7 @@ export class MigrationService {
             } catch (err) {
                 result.errors++;
                 const errorMessage = err instanceof Error ? err.message : String(err);
-                result.errorDetails = [...(result.errorDetails ?? []), `conversation ${conv._id}: ${errorMessage}`];
+                (result.errorDetails ??= []).push(`conversation ${conv._id}: ${errorMessage}`);
             }
         }
     }

@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from "react"
+import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { AppContext } from "../context/AppContext"
 import { assets } from "../assets/assets"
@@ -17,8 +17,22 @@ function computeDayStartTs(baseDate, today) {
 
     let startHour, startMinute
     if (isToday) {
-        startHour = today.getHours() > 10 ? today.getHours() + 1 : 10
-        startMinute = today.getMinutes() > 30 ? 30 : 0
+        // ceil(now + 30min buffer, 30min) para no ofrecer pasado ni saltar 1h
+        const SLOT = 30 * 60 * 1000
+        const buffered = today.getTime() + SLOT
+        const ceiled = Math.ceil(buffered / SLOT) * SLOT
+        const d = new Date(ceiled)
+        // si el ceil cruzó de día, hoy ya no tiene slots
+        if (d.getDate() !== baseDate.getDate()
+            || d.getMonth() !== baseDate.getMonth()
+            || d.getFullYear() !== baseDate.getFullYear()
+        ) {
+            return computeDayEndTs(baseDate) // start == end -> loop vacío
+        }
+        // si cae fuera de horario, start > end y el día queda sin slots (correcto)
+        startHour = d.getHours()
+        startMinute = d.getMinutes() >= 30 ? 30 : 0
+        // alinear: si d es 14:07 -> ceiled 14:30, getMinutes()=30 ok. Si 14:35 -> 15:00 ok.
     } else {
         startHour = 10
         startMinute = 0
@@ -70,7 +84,7 @@ const Appointment = () => {
     const [slotTime, setSlotTime] = useState('')
     const [loadingSlots, setLoadingSlots] = useState(false)
     const [availableSlots, setAvailableSlots] = useState([])
-    const dateRange = generateDateRange(7)
+    const dateRange = useMemo(() => generateDateRange(7), [])
     const { suggestions, isIdeal, reason, loading: loadingSuggestions, fetchSuggestions } = useSlotSuggestions(backendUrl, token)
     const [priorityLevel, setPriorityLevel] = useState('normal')
 
@@ -88,7 +102,12 @@ const Appointment = () => {
                 const dateKey = dateToSlotKey(date)
                 const { data } = await axios.get(`${backendUrl}/api/appointments/available-slots`, { params: { docId, date: dateKey } })
                 if (data.success) setAvailableSlots(data.slots)
-            } catch {
+            } catch (e) {
+                if (e?.response?.status === 401) {
+                    localStorage.removeItem('token')
+                    toast.warn('Session expired, please login again')
+                    return navigate('/login')
+                }
                 toast.error('Could not load available slots')
                 setAvailableSlots([])
             } finally {
@@ -108,11 +127,11 @@ const Appointment = () => {
         if (docInfo) fetchSuggestions(docId, dateRange, priorityLevel)
     }, [priorityLevel])
 
-    const getAvailableSlots = async () => {
-        setDocSlots([])
+    const getAvailableSlotsFallback = () => {
         // getting current date
         const today = new Date()
         const SLOT_INTERVAL_MS = 30 * 60 * 1000
+        const all = []
         for (let i = 0; i < 7; i++) {
             const baseDate = new Date(today)
             baseDate.setDate(today.getDate() + i)
@@ -123,12 +142,13 @@ const Appointment = () => {
                 const slotDate = new Date(ts)
                 const formattedTime = slotDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 const slotKey = `${slotDate.getDate()}/${slotDate.getMonth() + 1}/${slotDate.getFullYear()}`
-                if (!(docInfo.slots_booked[slotKey]?.includes(formattedTime))) {
+                if (!(docInfo.slots_booked?.[slotKey]?.includes(formattedTime))) {
                     timeSlots.push({ datetime: slotDate, time: formattedTime })
                 }
             }
-            setDocSlots(prev => [...prev, timeSlots])
+            all.push(timeSlots)
         }
+        setDocSlots(all)
     }
 
     const bookAppointment = async () => {
@@ -154,13 +174,19 @@ const Appointment = () => {
                 fetchSlots(dateRange[slotIndex])
             }
         } catch (error) {
+            if (error?.response?.status === 401) {
+                localStorage.removeItem('token')
+                toast.warn('Session expired, please login again')
+                return navigate('/login')
+            }
             const msg = error?.response?.data?.message ?? 'Slot not available'
             toast.error(msg)
+            setSlotTime('')
             fetchSlots(dateRange[slotIndex])
         }
     }
 
-    useEffect(() => { getAvailableSlots() }, [docInfo])
+    useEffect(() => { getAvailableSlotsFallback() }, [docInfo])
 
     if (!docInfo) return null
 
@@ -227,9 +253,9 @@ const Appointment = () => {
                             <p className="text-xs text-indigo-500 font-medium">{t('appointment.optimalSlots')}</p>
                         )}
                         <div className="flex gap-2 flex-wrap">
-                            {suggestions.map((s, i) => (
+                            {suggestions.map((s) => (
                                 <button
-                                    key={i}
+                                    key={`${s.slotDate}-${s.slotTime}`}
                                     onClick={() => {
                                         // Sincronizar con el selector manual existente
                                         const idx = dateRange.findIndex(d =>
@@ -267,7 +293,7 @@ const Appointment = () => {
                 <div className="flex gap-3 items-center w-full overflow-x-scroll mt-4">
                     {dateRange.map((date, index) => (
                         <div
-                            key={index}
+                            key={`${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${index}`}
                             onClick={() => setSlotIndex(index)}
                             className={`text-center py-6 min-w-16 rounded-full cursor-pointer ${slotIndex === index ? 'bg-indigo-500 text-white' : 'border border-slate-300'}`}
                         >
@@ -282,9 +308,9 @@ const Appointment = () => {
                     ) : availableSlots.length === 0 ? (
                         <p className="text-sm text-slate-400">{t('appointment.noSlots')}</p>
                     ) : (
-                        availableSlots.map((time, index) => (
+                        availableSlots.map((time) => (
                             <p
-                                key={index}
+                                key={time}
                                 onClick={() => setSlotTime(time)}
                                 className={`text-sm font-light shrink-0 px-5 py-2 rounded-full cursor-pointer ${slotTime === time ? 'bg-indigo-500 text-white' : 'text-slate-500 border border-slate-300'}`}
                             >
