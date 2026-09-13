@@ -6,24 +6,22 @@ import axios from "axios"
 import { toast } from "react-toastify"
 import { useNavigate } from "react-router-dom"
 import ForgotPasswordModal from "../components/ForgotPasswordModal"
+import { sanitizeToken } from "../utils/tokenUtils"
 
-const sanitizeToken = (raw) => {
-    if (typeof raw !== 'string') return ''
-    return /^[\w-]+\.[\w-]+\.[\w-]+$/.test(raw) ? raw : ''
-}
-
-const saveToken = (rawToken, setToken) => {
+const saveToken = (rawToken, setToken, t) => {
     const clean = sanitizeToken(rawToken)
-    if (clean) {
-        localStorage.setItem('token', clean)
-        setToken(clean)
+    if (!clean) {
+        toast.error(t('loginPage.invalidToken'))
+        throw Object.assign(new Error('invalid token from backend'), { handled: true })
     }
+    localStorage.setItem('token', clean)
+    setToken(clean)
 }
 
 const handleLogin = async (backendUrl, email, password, setToken, t) => {
     const { data } = await axios.post(backendUrl + '/api/auth/login', { password, email })
     if (data.success) {
-        saveToken(data.token, setToken)
+        saveToken(data.token, setToken, t)
     } else {
         toast.error(t('loginPage.invalidCredentials'))
     }
@@ -32,7 +30,7 @@ const handleLogin = async (backendUrl, email, password, setToken, t) => {
 const handleRegister = async (backendUrl, name, email, password, setToken, t) => {
     const { data } = await axios.post(backendUrl + '/api/auth/register', { name, password, email })
     if (data.success) {
-        saveToken(data.token, setToken)
+        saveToken(data.token, setToken, t)
     } else {
         toast.error(t('loginPage.errorRegistration'))
     }
@@ -59,7 +57,12 @@ const Login = () => {
                 await handleRegister(backendUrl, name, email, password, setToken, t)
             }
         } catch (error) {
-            toast.error(error.message)
+            if (error?.handled) return
+            const status = error?.response?.status
+            if (status === 401) toast.error(t('loginPage.invalidCredentials'))
+            else if (status === 409) toast.error(t('loginPage.alreadyRegistered'))
+            else toast.error(t('loginPage.genericError'))
+            console.error('[login] failed', status ?? error?.message)
         }
     }
 
@@ -69,7 +72,9 @@ const Login = () => {
             Facebook: '/api/auth/facebook',
         }
         const endpoint = providerMap[providerName]
-        if (endpoint) window.location.href = backendUrl + endpoint
+        if (!backendUrl || !endpoint) return
+        const url = new URL(endpoint, backendUrl)
+        window.location.href = url.toString()
     }
 
     const handleRegisterClick = () => { setIsActive(true); setState('Sign Up') }

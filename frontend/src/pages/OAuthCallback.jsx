@@ -2,6 +2,7 @@ import { useContext, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { AppContext } from "../context/AppContext"
 import { sanitizeToken } from '../utils/tokenUtils'
+import { toast } from "react-toastify"
 
 const OAuthCallback = () => {
     const { setToken } = useContext(AppContext)
@@ -12,14 +13,15 @@ const OAuthCallback = () => {
         const raw = params.get('token')
         const token = sanitizeToken(raw ?? '')
 
-        if (token) {
-            localStorage.setItem('token', token)
-            setToken(token)
-            navigate('/')
-        } else {
-            navigate('/login')
+        if (!token) {
+            toast.error('Invalid login callback')
+            navigate('/login', { replace: true })
+            return
         }
-    }, [])
+        localStorage.setItem('token', token)
+        setToken(token)
+        navigate('/', { replace: true })
+    }, [navigate, setToken])
 
     return (
         <div className="flex items-center justify-center min-h-[60vh]">

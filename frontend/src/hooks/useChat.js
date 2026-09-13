@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { toast } from 'react-toastify'
 
-const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:4000'
+const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:8080'
 
 export function useChat(token, lang = 'en') {
     const [messages, setMessages] = useState([])
@@ -9,6 +10,9 @@ export function useChat(token, lang = 'en') {
     const wsRef = useRef(null)
     const retryRef = useRef(0)
     const mountedRef = useRef(true)
+    const timeoutRef = useRef(null)
+    const convIdRef = useRef(null)
+    const intentionalCloseRef = useRef(false)
 
     const appendMessage = useCallback((msg) => {
         setMessages(prev => [...prev, { ...msg, id: msg.id ?? `${Date.now()}-${Math.random()}` }])
@@ -31,12 +35,14 @@ export function useChat(token, lang = 'en') {
 
         // Construcción segura: la base viene de una variable de entorno,
         // los parámetros se codifican individualmente con URLSearchParams.
-        const base = new URL('/ws/chat', CHAT_URL.replace(/^ws/, 'http'))
+        const httpBase = CHAT_URL.replace(/^ws/, 'http')
+        const base = new URL('/ws/chat', httpBase)
         const params = new URLSearchParams({
             token: String(token),
-            lang: /^[a-z]{2}$/.test(lang) ? lang : 'en',  // whitelist: solo códigos ISO 639-1
+            lang: /^[a-z]{2}$/.test(lang) ? lang : 'en',
         })
-        const safeUrl = `${CHAT_URL.replace(/^http/, 'ws')}/ws/chat?${params.toString()}`
+        base.search = params.toString()
+        const safeUrl = base.toString().replace(/^http/, 'ws')
 
         const ws = new WebSocket(safeUrl)
         wsRef.current = ws
@@ -52,7 +58,10 @@ export function useChat(token, lang = 'en') {
             try {
                 const msg = JSON.parse(event.data)
 
-                if (!convId && msg.conversationId) setConvId(msg.conversationId)
+                if (!convIdRef.current && msg.conversationId) {
+                    convIdRef.current = msg.conversationId
+                    setConvId(msg.conversationId)
+                }
 
                 appendMessage({
                     id: msg.id,
@@ -77,20 +86,32 @@ export function useChat(token, lang = 'en') {
 
         ws.onclose = () => {
             if (!mountedRef.current) return
+            if (wsRef.current !== ws) return // callback obsoleto de un socket ya reemplazado
+            wsRef.current = null
+            if (intentionalCloseRef.current) {
+                intentionalCloseRef.current = false
+                setStatus('closed')
+                return
+            }
             setStatus('closed')
 
             const delay = Math.min(1000 * 2 ** retryRef.current, 30_000)
             retryRef.current += 1
-            setTimeout(connect, delay)
+            clearTimeout(timeoutRef.current)
+            timeoutRef.current = setTimeout(connect, delay)
         }
-    }, [token, lang, convId, appendMessage, handleNavigation])
+    }, [token, lang, appendMessage, handleNavigation])
 
     useEffect(() => {
         mountedRef.current = true
+        intentionalCloseRef.current = false
         if (token) connect()
         return () => {
             mountedRef.current = false
-            wsRef.current?.close()
+            clearTimeout(timeoutRef.current)
+            intentionalCloseRef.current = true
+            try { wsRef.current?.close(1000, 'unmount') } catch { /* noop */ }
+            wsRef.current = null
         }
     }, [token])
 
@@ -110,6 +131,7 @@ export function useChat(token, lang = 'en') {
 
         if (wsRef.current?.readyState !== WebSocket.OPEN) {
             connect()
+            toast.warn('Reconnecting... message not sent, try again')
             return
         }
 
