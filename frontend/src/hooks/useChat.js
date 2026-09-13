@@ -12,6 +12,7 @@ export function useChat(token, lang = 'en') {
     const mountedRef = useRef(true)
     const timeoutRef = useRef(null)
     const convIdRef = useRef(null)
+    const intentionalCloseRef = useRef(false)
 
     const appendMessage = useCallback((msg) => {
         setMessages(prev => [...prev, { ...msg, id: msg.id ?? `${Date.now()}-${Math.random()}` }])
@@ -83,9 +84,15 @@ export function useChat(token, lang = 'en') {
             setStatus('error')
         }
 
-        ws.onclose = (e) => {
+        ws.onclose = () => {
             if (!mountedRef.current) return
-            if (e.code === 1000) return // (logout/unmount)
+            if (wsRef.current !== ws) return // callback obsoleto de un socket ya reemplazado
+            wsRef.current = null
+            if (intentionalCloseRef.current) {
+                intentionalCloseRef.current = false
+                setStatus('closed')
+                return
+            }
             setStatus('closed')
 
             const delay = Math.min(1000 * 2 ** retryRef.current, 30_000)
@@ -97,10 +104,12 @@ export function useChat(token, lang = 'en') {
 
     useEffect(() => {
         mountedRef.current = true
+        intentionalCloseRef.current = false
         if (token) connect()
         return () => {
             mountedRef.current = false
             clearTimeout(timeoutRef.current)
+            intentionalCloseRef.current = true
             try { wsRef.current?.close(1000, 'unmount') } catch { /* noop */ }
             wsRef.current = null
         }

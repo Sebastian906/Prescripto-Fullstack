@@ -17,9 +17,7 @@ const OAuthCallback = () => {
             toast.error('Invalid login callback')
             navigate('/login', { replace: true })
             return
-        } else {
-            navigate('/login')
-        } 
+        }
         localStorage.setItem('token', token)
         setToken(token)
         navigate('/', { replace: true })

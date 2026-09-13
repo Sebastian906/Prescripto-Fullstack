@@ -12,7 +12,7 @@ const saveToken = (rawToken, setToken, t) => {
     const clean = sanitizeToken(rawToken)
     if (!clean) {
         toast.error(t('loginPage.invalidToken'))
-        throw new Error('invalid token from backend')
+        throw Object.assign(new Error('invalid token from backend'), { handled: true })
     }
     localStorage.setItem('token', clean)
     setToken(clean)
@@ -57,6 +57,7 @@ const Login = () => {
                 await handleRegister(backendUrl, name, email, password, setToken, t)
             }
         } catch (error) {
+            if (error?.handled) return
             const status = error?.response?.status
             if (status === 401) toast.error(t('loginPage.invalidCredentials'))
             else if (status === 409) toast.error(t('loginPage.alreadyRegistered'))

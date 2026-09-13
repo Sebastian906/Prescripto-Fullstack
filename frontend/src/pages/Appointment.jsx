@@ -84,7 +84,8 @@ const Appointment = () => {
     const [slotTime, setSlotTime] = useState('')
     const [loadingSlots, setLoadingSlots] = useState(false)
     const [availableSlots, setAvailableSlots] = useState([])
-    const dateRange = useMemo(() => generateDateRange(7), [])
+    const [dayKey, setDayKey] = useState(() => new Date().toDateString())
+    const dateRange = useMemo(() => generateDateRange(7), [dayKey])
     const { suggestions, isIdeal, reason, loading: loadingSuggestions, fetchSuggestions } = useSlotSuggestions(backendUrl, token)
     const [priorityLevel, setPriorityLevel] = useState('normal')
 
@@ -92,6 +93,14 @@ const Appointment = () => {
         const found = doctors.find((d) => d._id === docId)
         setDocInfo(found ?? null)
     }, [doctors, docId])
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            const key = new Date().toDateString()
+            setDayKey((prev) => (prev === key ? prev : key))
+        }, 30_000)
+        return () => clearInterval(id)
+    }, [])
 
     const fetchSlots = useCallback(
         async (date) => {
@@ -164,6 +173,13 @@ const Appointment = () => {
 
         try {
             const slotDate = dateToSlotKey(dateRange[slotIndex])
+            // rechaza fechas obsoletas (p. ej. medianoche) antes de reservar
+            const freshKeys = generateDateRange(7).map(dateToSlotKey)
+            if (!freshKeys.includes(slotDate)) {
+                toast.warn('Selected date expired, please pick another slot')
+                fetchSlots(dateRange[slotIndex])
+                return
+            }
             const { data } = await axios.post(`${backendUrl}/api/appointments/book-appointment`, { docId, slotDate, slotTime }, { headers: { token } })
             if (data.success) {
                 toast.success(data.message)
@@ -186,7 +202,10 @@ const Appointment = () => {
         }
     }
 
-    useEffect(() => { getAvailableSlotsFallback() }, [docInfo])
+    useEffect(() => {
+        if (!docInfo) return
+        getAvailableSlotsFallback()
+    }, [docInfo])
 
     if (!docInfo) return null
 

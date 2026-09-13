@@ -46,8 +46,7 @@ export class SchedulingService {
         const queue = new PriorityQueue<SlotCandidate>();
 
         for (const dateStr of preferredDates) {
-            const stop = this.buildCandidatesForDate(dateStr, doctor, priorityLevel, minGapMinutes, queue);
-            if (stop) break; // poda real a nivel fechas
+            this.buildCandidatesForDate(dateStr, doctor, priorityLevel, minGapMinutes, queue);
         }
 
         const suggestions: SlotCandidate[] = [];
@@ -70,14 +69,14 @@ export class SchedulingService {
         priorityLevel: SchedulingSuggestionRequest['priorityLevel'],
         minGapMinutes: number,
         queue: PriorityQueue<SlotCandidate>,
-    ): boolean {
+    ): void {
         const parts = dateStr.split('/');
-        if (parts.length !== 3) return false;
+        if (parts.length !== 3) return;
         const [d, m, y] = parts.map(Number);
-        if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y)) return false;
+        if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y)) return;
         const date = new Date(y, m - 1, d);
         // round-trip: evita 32/13/2026 -> fecha válida distinta
-        if (date.getDate() !== d || date.getMonth() !== m - 1 || date.getFullYear() !== y) return false;
+        if (date.getDate() !== d || date.getMonth() !== m - 1 || date.getFullYear() !== y) return;
 
         const allSlots = generateDaySlots(date);
 
@@ -87,7 +86,7 @@ export class SchedulingService {
         
         const available = getAvailableSlots(allSlots, booked);
 
-        if (available.length === 0) return false;
+        if (available.length === 0) return;
 
         const dayLoad = booked.length;
 
@@ -98,10 +97,7 @@ export class SchedulingService {
 
             const candidate: SlotCandidate = { slotDate: dateStr, slotTime, doctorLoad: dayLoad, gapMinutes, score };
             queue.insert(candidate, score);
-
-            if (queue.size >= 10 && this.meetsBound(score, priorityLevel)) return true;
         }
-        return false;
     }
 
     private computeScore(

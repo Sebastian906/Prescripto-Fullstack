@@ -218,7 +218,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
+                    (result.errorDetails ??= []).push(`speciality ${doc._id}: ${errorMessage}`);
                 }
             }
         });
@@ -281,7 +281,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
+                    (result.errorDetails ??= []).push(`doctor ${doc._id}: ${errorMessage}`);
                 }
             }
         });
@@ -392,7 +392,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
+                    (result.errorDetails ??= []).push(`appointment ${doc._id}: ${errorMessage}`);
                 }
             }
         });
@@ -447,7 +447,7 @@ export class MigrationService {
             } catch (err) {
                 result.errors++;
                 const errorMessage = err instanceof Error ? err.message : String(err);
-                (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
+                (result.errorDetails ??= []).push(`stats ${doc._id}: ${errorMessage}`);
             }
         }
     }
@@ -462,7 +462,7 @@ export class MigrationService {
                         `INSERT INTO password_reset_tokens
                             (mongo_id, user_id, role, token_hash, expires_at, used)
                          VALUES ($1,$2,$3,$4,$5,$6)
-                         ON CONFLICT (mongo_id) DO UPDATE SET used=EXCLUDED.used`,
+                          ON CONFLICT (mongo_id) DO UPDATE SET used=EXCLUDED.used`,
                         [
                             String(doc._id),
                             doc.userId ?? '',
@@ -476,7 +476,7 @@ export class MigrationService {
                 } catch (err) {
                     result.errors++;
                     const errorMessage = err instanceof Error ? err.message : String(err);
-                    (result.errorDetails ??= []).push(`user ${doc._id}: ${errorMessage}`);
+                    (result.errorDetails ??= []).push(`token ${doc._id}: ${errorMessage}`);
                 }
             }
         });
