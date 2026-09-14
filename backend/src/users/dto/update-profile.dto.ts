@@ -1,21 +1,28 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class UpdateProfileUserDto {
     @ApiProperty({ example: 'John Doe' })
-    name: string;
+    @IsString() @IsNotEmpty()
+    name!: string;
 
     @ApiProperty({ example: '+1 234 567 890' })
-    phone: string;
+    @IsString() @IsNotEmpty()
+    phone!: string;
 
     @ApiProperty({ example: '{"line1":"123 Main St","line2":"Apt 4B, Anytown, USA"}' })
-    address: string; // llega como JSON string desde form-data, se parsea en el service
+    @IsString() @IsNotEmpty()
+    address!: string;
 
     @ApiProperty({ example: '1990-01-01' })
-    dob: string;
+    @IsString() @IsNotEmpty()
+    dob!: string;
 
     @ApiProperty({ example: 'Male' })
-    gender: string;
+    @IsString() @IsNotEmpty()
+    gender!: string;
 
     @ApiProperty({ type: 'string', format: 'binary', required: false })
-    image?: any; // archivo opcional, solo para Swagger
+    @IsOptional()
+    image?: any;
 }
