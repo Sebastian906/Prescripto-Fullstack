@@ -1,33 +1,44 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { IsNotEmpty, IsNumber, IsOptional, IsString, IsEmail, Min } from "class-validator";
 
 export class AddDoctorDto {
     @ApiProperty({ example: 'Dr. John Doe' })
-    name: string;
+    @IsString() @IsNotEmpty()
+    name!: string;
 
     @ApiProperty({ example: 'john.doe@prescripto.com' })
-    email: string;
+    @IsEmail()
+    email!: string;
 
     @ApiProperty({ example: 'Password123' })
-    password: string;
+    @IsString() @IsNotEmpty()
+    password!: string;
 
     @ApiProperty({ example: 'General physician' })
-    speciality: string;
+    @IsString() @IsNotEmpty()
+    speciality!: string;
 
     @ApiProperty({ example: 'MBBS' })
-    degree: string;
+    @IsString() @IsNotEmpty()
+    degree!: string;
 
     @ApiProperty({ example: '4 Years' })
-    experience: string;
+    @IsString() @IsNotEmpty()
+    experience!: string;
 
     @ApiProperty({ example: 'Experienced physician focused on preventive care.' })
-    about: string;
+    @IsString() @IsNotEmpty()
+    about!: string;
 
     @ApiProperty({ example: 50 })
-    fees: number;
+    @IsNumber() @Min(0)
+    fees!: number;
 
     @ApiProperty({ example: '{"line1":"17th Cross, Richmond","line2":"Circle, Ring Road, London"}' })
-    address: string;   // llega como string JSON desde el form-data, se parsea en el service
+    @IsString() @IsNotEmpty()
+    address!: string;
 
     @ApiProperty({ type: 'string', format: 'binary', required: true })
-    image: any;        // el archivo, solo para que Swagger lo muestre
+    @IsOptional()
+    image?: any;
 }
