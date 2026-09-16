@@ -18,32 +18,34 @@ export type MonthlyStatsDocument = HydratedDocument<MonthlyStats>;
 export class MonthlyStats {
     // '__global__' para métricas del sistema; docId real para métricas por doctor 
     @Prop({ required: true })
-    docId: string;
+    docId!: string;
 
     @Prop({ required: true })
-    year: number;
+    year!: number;
 
     @Prop({ required: true })
-    month: number; // 1-12
+    month!: number; // 1-12
 
     @Prop({ default: 0 })
-    totalAppointments: number;
+    totalAppointments!: number;
 
     @Prop({ default: 0 })
-    completedAppointments: number;
+    completedAppointments!: number;
 
     @Prop({ default: 0 })
-    cancelledAppointments: number;
+    cancelledAppointments!: number;
 
     @Prop({ default: 0 })
-    earnings: number;
+    earnings!: number;
 
     // Set serializado como array para evitar subdocumentos variables 
     @Prop({ type: [String], default: [] })
-    uniquePatientIds: string[];
+    uniquePatientIds!: string[];
 
     @Prop({ default: 0 })
-    uniquePatients: number;
+    uniquePatients!: number;
 }
 
 export const MonthlyStatsSchema = SchemaFactory.createForClass(MonthlyStats);
+
+MonthlyStatsSchema.index({ docId: 1, year: 1, month: 1 }, { unique: true });
