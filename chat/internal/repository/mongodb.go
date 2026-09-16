@@ -76,6 +76,14 @@ func New(uri, dbName string) (*Repo, error) {
 		},
 	})
 
+	// Index for FindByStatus: filter by status, sort by updatedAt desc
+	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "status", Value: 1},
+			{Key: "updatedAt", Value: -1},
+		},
+	})
+
 	return &Repo{client: client, col: col}, nil
 }
 

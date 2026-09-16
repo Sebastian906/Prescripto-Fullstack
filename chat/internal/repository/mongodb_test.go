@@ -24,10 +24,9 @@ func testRepo(t *testing.T) (*repository.Repo, func()) {
 		t.Skipf("MongoDB not available at %s: %v", uri, err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	return repo, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		_ = repo.Disconnect(ctx)
 	}
 }
