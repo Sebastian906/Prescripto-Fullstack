@@ -6,46 +6,48 @@ export type DoctorDocument = HydratedDocument<Doctor>;
 @Schema({ minimize: false })
 export class Doctor {
     @Prop({ required: true })
-    name: string;
+    name!: string;
 
     @Prop({ required: true, unique: true })
-    email: string;
+    email!: string;
 
     @Prop({ required: true })
-    password: string;
+    password!: string;
 
     @Prop({ required: true, default: '' })
-    image: string;
+    image!: string;
 
     @Prop({ required: true })
-    speciality: string;
+    speciality!: string;
 
     @Prop({ required: true })
-    degree: string;
+    degree!: string;
 
     @Prop({ required: true })
-    experience: string;
+    experience!: string;
 
     @Prop({ required: true })
-    about: string;
+    about!: string;
 
     @Prop({ default: true })
-    available: boolean;
+    available!: boolean;
 
     @Prop({ required: true })
-    fees: number;
+    fees!: number;
 
     @Prop({ required: true, type: Object })
-    address: {
+    address!: {
         line1: string;
         line2: string;
     };
 
     @Prop({ required: true, default: Date.now })
-    date: number;
+    date!: number;
 
     @Prop({ type: Object, default: {} })
-    slots_booked: Record<string, string[]>;
+    slots_booked!: Record<string, string[]>;
 }
 
 export const DoctorSchema = SchemaFactory.createForClass(Doctor);
+
+DoctorSchema.index({ speciality: 1, available: 1 });

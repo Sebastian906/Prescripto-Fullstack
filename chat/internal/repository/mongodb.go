@@ -66,14 +66,52 @@ func New(uri, dbName string) (*Repo, error) {
 
 	col := client.Database(dbName).Collection("conversations")
 
+	// Idempotent index migration: drop stale userId_1 index, create userID_1
+	dropStaleUserIDIndex(ctx, col)
+
 	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "userId", Value: 1},
+			{Key: "userID", Value: 1},
 			{Key: "status", Value: 1},
 		},
 	})
 
+	// Index for FindByStatus: filter by status, sort by updatedAt desc
+	_, _ = col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "status", Value: 1},
+			{Key: "updatedAt", Value: -1},
+		},
+	})
+
 	return &Repo{client: client, col: col}, nil
+}
+
+// dropStaleUserIDIndex removes the old index with lowercase "userId" field.
+// Ignores errors (index may not exist).
+func dropStaleUserIDIndex(ctx context.Context, col *mongo.Collection) {
+	idxCursor, err := col.Indexes().List(ctx)
+	if err != nil {
+		return
+	}
+
+	for idxCursor.Next(ctx) {
+		var idx bson.M
+		if err := idxCursor.Decode(&idx); err != nil {
+			continue
+		}
+		key, ok := idx["key"].(bson.M)
+		if !ok {
+			continue
+		}
+		// Old index: {userId: 1, status: 1} — lowercase 'd'
+		if _, hasUID := key["userId"]; hasUID {
+			name, _ := idx["name"].(string)
+			if name != "" {
+				_, _ = col.Indexes().DropOne(ctx, name)
+			}
+		}
+	}
 }
 
 func (r *Repo) Disconnect(ctx context.Context) error {
@@ -187,7 +225,10 @@ func (r *Repo) FindByID(ctx context.Context, convID string) (*Conversation, erro
 }
 
 func (r *Repo) FindByStatus(ctx context.Context, status ConversationStatus) ([]Conversation, error) {
-	opts := options.Find().SetSort(bson.D{{Key: "updatedAt", Value: -1}})
+	opts := options.Find().
+		SetSort(bson.D{{Key: "updatedAt", Value: -1}}).
+		SetLimit(50)
+
 	cur, err := r.col.Find(ctx, bson.M{"status": status}, opts)
 	if err != nil {
 		return nil, err
@@ -207,7 +248,7 @@ func (r *Repo) FindOpenByUser(ctx context.Context, userID string) (*Conversation
 
 func (r *Repo) findOpenByUser(ctx context.Context, userID string) (*Conversation, error) {
 	filter := bson.M{
-		"userId": userID,
+		"userID": userID,
 		"status": bson.M{"$nin": []ConversationStatus{StatusClosed}},
 	}
 	opts := options.FindOne().SetSort(bson.D{{Key: "updatedAt", Value: -1}})

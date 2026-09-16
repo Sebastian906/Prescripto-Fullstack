@@ -6,37 +6,41 @@ export type AppointmentDocument = HydratedDocument<Appointment>;
 @Schema({ minimize: false })
 export class Appointment {
     @Prop({ required: true })
-    userId: string;
+    userId!: string;
 
     @Prop({ required: true })
-    docId: string;
+    docId!: string;
 
     @Prop({ required: true })
-    slotDate: string;
+    slotDate!: string;
 
     @Prop({ required: true })
-    slotTime: string;
+    slotTime!: string;
 
     @Prop({ required: true, type: Object })
-    userData: Record<string, any>;
+    userData!: Record<string, any>;
 
     @Prop({ required: true, type: Object })
-    docData: Record<string, any>;
+    docData!: Record<string, any>;
 
     @Prop({ required: true })
-    amount: number;
+    amount!: number;
 
     @Prop({ required: true, default: Date.now })
-    date: number;
+    date!: number;
 
     @Prop({ default: false })
-    cancelled: boolean;
+    cancelled!: boolean;
 
     @Prop({ default: false })
-    payment: boolean;
+    payment!: boolean;
 
     @Prop({ default: false })
-    isCompleted: boolean;
+    isCompleted!: boolean;
 }
 
 export const AppointmentSchema = SchemaFactory.createForClass(Appointment);
+
+AppointmentSchema.index({ userId: 1, date: -1 });
+AppointmentSchema.index({ docId: 1, slotDate: 1 });
+AppointmentSchema.index({ slotDate: 1, slotTime: 1 });
