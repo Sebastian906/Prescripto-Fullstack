@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ThrottlerModule, ThrottlerGuard, ThrottlerStorage } from '@nestjs/throttler';
+import { InjectThrottlerOptions, InjectThrottlerStorage, ThrottlerModule, ThrottlerGuard, ThrottlerStorage } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -10,7 +10,11 @@ import { Reflector } from '@nestjs/core';
 */
 @Injectable()
 export class UserAwareThrottlerGuard extends ThrottlerGuard {
-    constructor(options: any, storageService: ThrottlerStorage, reflector: Reflector) {
+    constructor(
+        @InjectThrottlerOptions() options: any,
+        @InjectThrottlerStorage() storageService: ThrottlerStorage,
+        reflector: Reflector,
+    ) {
         super(options, storageService, reflector);
     }
 

@@ -49,8 +49,26 @@ func main() {
 	}))
 
 	// Rate limiting: WS handshake 10/min/IP, /pending 60/min/admin
-	wsRateLimit := chatMiddleware.RateLimitMiddleware(10.0/60.0, 2)       // 10 req/min = 0.167/sec, burst 2
-	pendingRateLimit := chatMiddleware.RateLimitMiddleware(60.0/60.0, 10) // 60 req/min = 1/sec, burst 10
+	wsRateLimit := chatMiddleware.RateLimitMiddleware(10.0/60.0, 2) // 10 req/min = 0.167/sec, burst 2
+	// /pending is keyed by validated admin ID (IP fallback when unauthenticated),
+	// preserving 60 req/min with burst 10 per admin.
+	pendingByAdmin := chatMiddleware.RateLimitByKeyMiddleware(60.0/60.0, 10, func(c echo.Context) string {
+		atoken := c.Request().Header.Get("atoken")
+		if atoken == "" {
+			atoken = c.Request().Header.Get(echo.HeaderAuthorization)
+		}
+		if atoken == "" {
+			atoken = c.QueryParam("atoken")
+		}
+		if claims, err := jwtValidator.ValidateAdmin(atoken); err == nil && claims.UserID != "" {
+			return "admin:" + claims.UserID
+		}
+		ip := c.RealIP()
+		if ip == "" {
+			ip = c.Request().RemoteAddr
+		}
+		return "ip:" + ip
+	})
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
@@ -69,7 +87,7 @@ func main() {
 
 	e.GET("/api/chat/pending", func(c echo.Context) error {
 		return handlePending(c, repo, jwtValidator)
-	}, pendingRateLimit)
+	}, pendingByAdmin)
 
 	e.GET("/api/chat/history/:conversationId", func(c echo.Context) error {
 		return handleHistory(c, repo, jwtValidator)
