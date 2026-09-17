@@ -285,7 +285,7 @@ Accede a la aplicación en:
 - **API Backend**: http://localhost:3000
 - **Panel Admin**: http://localhost:5174
 - **Documentación de API**: http://localhost:3000/api/docs
-- **Servicio de Chat**: http://localhost:8080
+- **Servicio de Chat**: http://localhost:4000
 
 ### Modo de Producción
 
@@ -450,7 +450,7 @@ ADMIN_URL=http://localhost:5174
 
 ```
 VITE_BACKEND_URL=http://localhost:3000
-VITE_CHAT_SERVICE_URL=ws://localhost:8080
+VITE_CHAT_SERVICE_URL=ws://localhost:4000
 VITE_STRIPE_PUBLIC_KEY=tu_stripe_public_key
 ```
 
@@ -458,13 +458,13 @@ VITE_STRIPE_PUBLIC_KEY=tu_stripe_public_key
 
 ```
 VITE_BACKEND_URL=http://localhost:3000
-VITE_CHAT_SERVICE_URL=ws://localhost:8080
+VITE_CHAT_SERVICE_URL=ws://localhost:4000
 ```
 
 ### Microservicio de Chat (.env)
 
 ```
-PORT=8080
+CHAT_PORT=4000
 MONGODB_URI=mongodb://localhost:27017/prescripto-chat
 JWT_SECRET=tu_clave_secreta_jwt
 NODE_ENV=development

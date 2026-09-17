@@ -37,6 +37,9 @@ func main() {
 	jwtValidator := auth.NewValidator(cfg.JWTSecret)
 	hub := socket.NewHub(repo)
 	go hub.Run()
+	// The WS upgrader allowlist lives in socket (CheckOrigin). Without this
+	// call it would fall back to the local-frontend defaults.
+	socket.SetAllowedOrigins(cfg.AllowedOrigins)
 
 	e := echo.New()
 	e.HideBanner = true
@@ -45,6 +48,8 @@ func main() {
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: cfg.AllowedOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodOptions},
+		// `dtoken` stays allowed but unused: human handoff is admin-only and
+		// no chat handler reads `dtoken` (doctors never chat).
 		AllowHeaders: []string{echo.HeaderAuthorization, echo.HeaderContentType, "token", "atoken", "dtoken"},
 	}))
 

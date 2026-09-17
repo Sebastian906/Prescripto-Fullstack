@@ -547,7 +547,7 @@ Componente A (Frontend)
 ```
 Usuario (Widget Chat Frontend)
     │
-    │ Conectar WebSocket (ws://localhost:8080)
+    │ Conectar WebSocket (ws://localhost:4000)
     ▼
 Microservicio Chat (Go)
     ├─ Autentica usuario
@@ -1079,7 +1079,7 @@ Limitación de Velocidad (implementado):
 Configuración CORS:
 ├─ Frontend: http://localhost:5173
 ├─ Admin: http://localhost:5174
-├─ Chat: ws://localhost:8080
+├─ Chat: ws://localhost:4000
 └─ Producción: dominios exactos
 
 Validación de Entrada:

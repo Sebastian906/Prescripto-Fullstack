@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'react-toastify'
 
-const CHAT_URL = import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:8080'
+const CHAT_URL = import.meta.env.VITE_CHAT_SERVICE_URL ?? import.meta.env.VITE_CHAT_URL ?? 'ws://localhost:4000'
 
 export function useChat(token, lang = 'en') {
     const [messages, setMessages] = useState([])
@@ -9,6 +9,7 @@ export function useChat(token, lang = 'en') {
     const [convId, setConvId] = useState(null)
     const wsRef = useRef(null)
     const retryRef = useRef(0)
+    const seenIdsRef = useRef(new Set())
     const mountedRef = useRef(true)
     const timeoutRef = useRef(null)
     const convIdRef = useRef(null)
@@ -41,6 +42,9 @@ export function useChat(token, lang = 'en') {
             token: String(token),
             lang: /^[a-z]{2}$/.test(lang) ? lang : 'en',
         })
+        // Resume: al reconectar se reusa el conversationId activo; el server lo
+        // valida (propiedad + no cerrado) y no reemite welcome en ese caso.
+        if (convIdRef.current) params.set('conversationId', convIdRef.current)
         base.search = params.toString()
         const safeUrl = base.toString().replace(/^http/, 'ws')
 
@@ -58,11 +62,21 @@ export function useChat(token, lang = 'en') {
             try {
                 const msg = JSON.parse(event.data)
 
+                // Evento de sistema no renderizable: solo sincroniza el id.
+                if (msg.event === 'resumed') {
+                    if (msg.conversationId && !convIdRef.current) {
+                        convIdRef.current = msg.conversationId
+                        setConvId(msg.conversationId)
+                    }
+                    return
+                }
                 if (!convIdRef.current && msg.conversationId) {
                     convIdRef.current = msg.conversationId
                     setConvId(msg.conversationId)
                 }
 
+                if (msg.id && seenIdsRef.current.has(msg.id)) return
+                if (msg.id) seenIdsRef.current.add(msg.id)
                 appendMessage({
                     id: msg.id,
                     sender: msg.sender,
@@ -95,7 +109,8 @@ export function useChat(token, lang = 'en') {
             }
             setStatus('closed')
 
-            const delay = Math.min(1000 * 2 ** retryRef.current, 30_000)
+            // Backoff exponencial con jitter: min(30s, 1s * 2^attempt) * (0.5 + rand*0.5)
+            const delay = Math.min(1000 * 2 ** retryRef.current, 30_000) * (0.5 + Math.random() * 0.5)
             retryRef.current += 1
             clearTimeout(timeoutRef.current)
             timeoutRef.current = setTimeout(connect, delay)
