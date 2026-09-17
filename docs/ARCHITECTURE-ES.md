@@ -1065,10 +1065,16 @@ En Reposo:
 ### Seguridad de API
 
 ```
-Limitación de Velocidad:
-├─ Por IP: 100 solicitudes/minuto
-├─ Por usuario: 1000 solicitudes/hora
-└─ Por endpoint: adaptativo
+Limitación de Velocidad (implementado):
+├─ Backend (NestJS Throttler, in-memory):
+│   ├─ Global por defecto: 100 req/min por IP
+│   ├─ Login/Registro: 5 req/min por IP
+│   ├─ Restablecimiento contraseña: 3 req/min por IP
+│   └─ Suggest-slot: 30 req/min por usuario (JWT sub)
+├─ Chat (golang.org/x/time/rate, in-memory):
+│   ├─ Handshake WS: 10 req/min por IP (antes del upgrade)
+│   └─ /pending: 60 req/min por admin
+└─ Ruta de upgrade: almacenamiento Redis para despliegues multi-replica
 
 Configuración CORS:
 ├─ Frontend: http://localhost:5173

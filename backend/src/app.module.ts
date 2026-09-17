@@ -14,10 +14,12 @@ import { SchedulingModule } from './scheduling/scheduling.module';
 import { ReportsModule } from './reports/reports.module';
 import { MigrationModule } from './migration/migration.module';
 import { PostgresService } from './migration/postgres.service';
+import { ThrottlerConfigModule } from './shared/throttler/throttler.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerConfigModule,
     DatabaseModule,
     CloudinaryModule,
     DoctorsModule,

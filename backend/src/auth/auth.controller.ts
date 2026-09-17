@@ -10,6 +10,7 @@ import { PasswordResetService } from './password-reset.service';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { DirectResetPasswordDto } from './dto/direct-reset-password.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Authentication -- OAuth 2.0')
 @Controller('api/auth')
@@ -28,12 +29,14 @@ export class AuthController {
 
     @Post('register')
     @ApiOperation({ summary: 'Register a new user' })
+    @Throttle({default: { limit: 5, ttl: 60000 }}) // Limit to 5 requests per minute per IP
     async register(@Body() dto: RegisterUserDto) {
         return this.usersService.register(dto);
     }
 
     @Post('login')
     @ApiOperation({ summary: 'Login with email and password' })
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
     async login(@Body() dto: LoginUserDto) {
         return this.usersService.login(dto);
     }
@@ -92,12 +95,14 @@ export class AuthController {
 
     @Post('request-password-reset')
     @ApiOperation({ summary: 'Request a password reset email' })
+    @Throttle({ default: { limit: 3, ttl: 60000 } })
     async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
         return this.passwordResetService.requestReset(dto);
     }
 
     @Post('reset-password')
     @ApiOperation({ summary: 'Confirm password reset using token from email' })
+    @Throttle({ default: { limit: 3, ttl: 60000 } })
     async resetPassword(@Body() dto: ResetPasswordDto) {
         return this.passwordResetService.resetPassword(dto);
     }
