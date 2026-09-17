@@ -11,6 +11,7 @@ import (
 
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/auth"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/config"
+	chatMiddleware "github.com/Sebastian906/Prescripto-Fullstack/chat/internal/middleware"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/repository"
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/socket"
 
@@ -19,17 +20,6 @@ import (
 
 	_ "github.com/Sebastian906/Prescripto-Fullstack/chat/docs"
 )
-
-var svcHub *socket.Hub
-var svcValidator *auth.Validator
-
-func userWS(c echo.Context) error {
-	return svcHub.HandleUserWS(c, svcValidator)
-}
-
-func adminWS(c echo.Context) error {
-	return svcHub.HandleAdminWS(c, svcValidator)
-}
 
 func main() {
 	cfg := config.Load()
@@ -58,6 +48,10 @@ func main() {
 		AllowHeaders: []string{echo.HeaderAuthorization, echo.HeaderContentType, "token", "atoken", "dtoken"},
 	}))
 
+	// Rate limiting: WS handshake 10/min/IP, /pending 60/min/admin
+	wsRateLimit := chatMiddleware.RateLimitMiddleware(10.0/60.0, 2)       // 10 req/min = 0.167/sec, burst 2
+	pendingRateLimit := chatMiddleware.RateLimitMiddleware(60.0/60.0, 10) // 60 req/min = 1/sec, burst 10
+
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -67,15 +61,15 @@ func main() {
 
 	e.GET("/ws/chat", func(c echo.Context) error {
 		return hub.HandleUserWS(c, jwtValidator)
-	})
+	}, wsRateLimit)
 
 	e.GET("/ws/admin/:conversationId", func(c echo.Context) error {
 		return hub.HandleAdminWS(c, jwtValidator)
-	})
+	}, wsRateLimit)
 
 	e.GET("/api/chat/pending", func(c echo.Context) error {
 		return handlePending(c, repo, jwtValidator)
-	})
+	}, pendingRateLimit)
 
 	e.GET("/api/chat/history/:conversationId", func(c echo.Context) error {
 		return handleHistory(c, repo, jwtValidator)

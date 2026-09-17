@@ -1064,10 +1064,16 @@ At Rest:
 ### API Security
 
 ```
-Rate Limiting:
-├─ Per IP: 100 requests/minute
-├─ Per user: 1000 requests/hour
-└─ Per endpoint: adaptive
+Rate Limiting (implemented):
+├─ Backend (NestJS Throttler, in-memory):
+│   ├─ Global default: 100 req/min per IP
+│   ├─ Login/Register: 5 req/min per IP
+│   ├─ Password reset: 3 req/min per IP
+│   └─ Suggest-slot: 30 req/min per user (JWT sub)
+├─ Chat (golang.org/x/time/rate, in-memory):
+│   ├─ WS handshake: 10 req/min per IP (before upgrade)
+│   └─ /pending: 60 req/min per admin
+└─ Upgrade path: Redis-backed storage for multi-replica deployments
 
 CORS Configuration:
 ├─ Frontend: http://localhost:5173
