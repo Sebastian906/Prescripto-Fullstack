@@ -1076,11 +1076,16 @@ Limitación de Velocidad (implementado):
 │   └─ /pending: 60 req/min por admin
 └─ Ruta de upgrade: almacenamiento Redis para despliegues multi-replica
 
-Configuración CORS:
+Configuración CORS (solo orígenes del navegador):
 ├─ Frontend: http://localhost:5173
 ├─ Admin: http://localhost:5174
 ├─ Chat: ws://localhost:4000
 └─ Producción: dominios exactos
+
+Enpoints del servicio de Chat (no es parte de la lista de acceso de CORS):
+├─ WS (paciente): ws://localhost:4000/ws/chat
+├─ WS (admin): ws://localhost:4000/ws/admin/:conversationId
+└─ REST: http://localhost:4000/api/chat/*
 
 Validación de Entrada:
 ├─ Validación DTO

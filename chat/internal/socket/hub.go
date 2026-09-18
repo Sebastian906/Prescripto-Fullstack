@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // allowedOrigins is the WS handshake truth. Set once from main.go via
@@ -380,10 +381,12 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 
 	// Resume: ?conversationId= is honored only when it belongs to the caller
 	// and is still open. Otherwise fall back to CreateConversation (which
-	// itself reuses the user's open conversation, if any).
+	// itself reuses the user's open conversation, if any), in which case the
+	// client is re-synced to the actual conversation ID below.
 	var conv *repository.Conversation
-	if resumeID := c.QueryParam("conversationId"); resumeID != "" {
-		if existing, err := h.repo.FindByID(ctx, resumeID); err == nil &&
+	suppliedID := c.QueryParam("conversationId")
+	if suppliedID != "" {
+		if existing, err := h.repo.FindByID(ctx, suppliedID); err == nil &&
 			existing.UserID == claims.UserID &&
 			existing.Status != repository.StatusClosed {
 			conv = existing
@@ -417,9 +420,11 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 	// Only a brand-new conversation gets a bot welcome. On resume the client
 	// keeps its messages (plus GET /api/chat/history/:conversationId), so
 	// emitting anything renderable here would duplicate the welcome.
-	if !resumed && len(conv.Messages) == 0 {
+	isNew := !resumed && len(conv.Messages) == 0
+	if isNew {
 		welcomeResp := cl.engine.Process("hello", "start")
 		welcome := OutboundMessage{
+			ID:             primitive.NewObjectID().Hex(),
 			ConversationID: conv.ID.Hex(),
 			Sender:         "bot",
 			SenderID:       "bot",
@@ -431,10 +436,16 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 		data, _ := json.Marshal(welcome)
 		cl.send <- data
 		_ = h.repo.UpdateBotState(ctx, conv.ID.Hex(), welcomeResp.NextState)
-	} else if resumed {
+	}
+	// Sync the client whenever the fallback selected a conversation other
+	// than the requested one (stale/closed/foreign ID, or implicit reuse of
+	// the user's open conversation). The frontend replaces its stored ID on
+	// this event and never renders it.
+	if resumed || (suppliedID != "" && suppliedID != conv.ID.Hex()) {
 		// Non-renderable sync event: lets the client confirm conversationId
 		// without painting a second welcome. The frontend ignores it.
 		resumedMsg := OutboundMessage{
+			ID:             primitive.NewObjectID().Hex(),
 			ConversationID: conv.ID.Hex(),
 			Sender:         "bot",
 			SenderID:       "bot",

@@ -1126,7 +1126,7 @@ VITE_CHAT_SERVICE_URL=ws://localhost:4000
 ### Chat Microservice Environment Variables
 
 ```env
-PORT=4000
+CHAT_PORT=4000
 MONGODB_URI=mongodb://localhost:27017/prescripto-chat
 JWT_SECRET=your_jwt_secret
 NODE_ENV=development

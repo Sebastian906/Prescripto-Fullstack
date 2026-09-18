@@ -15,8 +15,10 @@ export function useChat(token, lang = 'en') {
     const convIdRef = useRef(null)
     const intentionalCloseRef = useRef(false)
 
+    // `||` en vez de `??`: el server serializa `"id":""` en broadcasts sin ID
+    // (campo sin `omitempty`) y "" debe reemplazarse para que seenIdsRef dedupee.
     const appendMessage = useCallback((msg) => {
-        setMessages(prev => [...prev, { ...msg, id: msg.id ?? `${Date.now()}-${Math.random()}` }])
+        setMessages(prev => [...prev, { ...msg, id: msg.id || `${Date.now()}-${Math.random()}` }])
     }, [])
 
     const handleNavigation = useCallback((metadata) => {
@@ -62,9 +64,11 @@ export function useChat(token, lang = 'en') {
             try {
                 const msg = JSON.parse(event.data)
 
-                // Evento de sistema no renderizable: solo sincroniza el id.
+                // Evento de sistema no renderizable: sincroniza el id real.
+                // Reemplaza siempre que difiera (el server re-sincroniza cuando
+                // el fallback elige una conversación distinta a la pedida).
                 if (msg.event === 'resumed') {
-                    if (msg.conversationId && !convIdRef.current) {
+                    if (msg.conversationId && msg.conversationId !== convIdRef.current) {
                         convIdRef.current = msg.conversationId
                         setConvId(msg.conversationId)
                     }
