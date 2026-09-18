@@ -1105,14 +1105,14 @@ STRIPE_SECRET_KEY=sk_test_...
 # URLs del Frontend
 FRONTEND_URL=http://localhost:5173
 ADMIN_URL=http://localhost:5174
-CHAT_URL=http://localhost:8080
+CHAT_URL=http://localhost:4000
 ```
 
 ### Variables de Entorno del Frontend
 
 ```env
 VITE_BACKEND_URL=http://localhost:3000
-VITE_CHAT_SERVICE_URL=ws://localhost:8080
+VITE_CHAT_SERVICE_URL=ws://localhost:4000
 VITE_STRIPE_PUBLIC_KEY=pk_test_...
 ```
 
@@ -1120,13 +1120,13 @@ VITE_STRIPE_PUBLIC_KEY=pk_test_...
 
 ```env
 VITE_BACKEND_URL=http://localhost:3000
-VITE_CHAT_SERVICE_URL=ws://localhost:8080
+VITE_CHAT_SERVICE_URL=ws://localhost:4000
 ```
 
 ### Variables de Entorno del Microservicio de Chat
 
 ```env
-PORT=8080
+CHAT_PORT=4000
 MONGODB_URI=mongodb://localhost:27017/prescripto-chat
 JWT_SECRET=tu_clave_secreta_jwt
 NODE_ENV=development

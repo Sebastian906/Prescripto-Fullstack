@@ -546,7 +546,7 @@ Component A (Frontend)
 ```
 User (Frontend Chat Widget)
     │
-    │ WebSocket Connect (ws://localhost:8080)
+    │ WebSocket Connect (ws://localhost:4000)
     ▼
 Chat Microservice (Go)
     ├─ Authenticate user
@@ -1075,11 +1075,15 @@ Rate Limiting (implemented):
 │   └─ /pending: 60 req/min per admin
 └─ Upgrade path: Redis-backed storage for multi-replica deployments
 
-CORS Configuration:
+CORS Configuration (browser origins only):
 ├─ Frontend: http://localhost:5173
 ├─ Admin: http://localhost:5174
-├─ Chat: ws://localhost:8080
 └─ Production: specify exact domains
+
+Chat Service Endpoints (not part of the CORS allowlist):
+├─ WS (patient): ws://localhost:4000/ws/chat
+├─ WS (admin): ws://localhost:4000/ws/admin/:conversationId
+└─ REST: http://localhost:4000/api/chat/*
 
 Input Validation:
 ├─ DTO validation

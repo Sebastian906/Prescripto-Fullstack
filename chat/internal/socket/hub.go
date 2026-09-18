@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,12 +15,61 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+// allowedOrigins is the WS handshake truth. Set once from main.go via
+// SetAllowedOrigins(cfg.AllowedOrigins). Defaults match local frontends.
+var allowedOrigins = []string{"http://localhost:5173", "http://localhost:5174"}
+
+// SetAllowedOrigins sets the allowlist used by CheckOrigin. Call once in main.
+func SetAllowedOrigins(origins []string) {
+	if len(origins) > 0 {
+		allowedOrigins = origins
+	}
+}
+
+// isOriginAllowed allows requests without an Origin header (curl, tests,
+// non-browser clients). A present Origin must be allowlisted.
+func isOriginAllowed(origin string, allowlist []string) bool {
+	if origin == "" {
+		return true
+	}
+	for _, o := range allowlist {
+		if strings.TrimSpace(o) == origin {
+			return true
+		}
+	}
+	return false
+}
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		return isOriginAllowed(r.Header.Get("Origin"), allowedOrigins)
+	},
+}
+
+// firstNonEmpty returns the first non-blank value.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// extractUserToken order: ?token= -> `token` header -> `Authorization: Bearer`.
+// The raw value is passed through; auth.Validator strips the Bearer prefix.
+func extractUserToken(queryToken, headerToken, authHeader string) string {
+	return firstNonEmpty(queryToken, headerToken, authHeader)
+}
+
+// extractAdminToken order: ?atoken= -> `atoken` header -> `Authorization: Bearer`.
+func extractAdminToken(queryAtoken, headerAtoken, authHeader string) string {
+	return firstNonEmpty(queryAtoken, headerAtoken, authHeader)
 }
 
 type Option struct {
@@ -303,7 +353,15 @@ func (h *Hub) broadcast(conversationID string, msg OutboundMessage) {
 }
 
 func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
-	tokenStr := c.QueryParam("token")
+	if !isOriginAllowed(c.Request().Header.Get("Origin"), allowedOrigins) {
+		return c.JSON(http.StatusForbidden, map[string]string{"message": "origin not allowed"})
+	}
+	// Order: ?token= -> `token` header -> `Authorization: Bearer <jwt>`.
+	tokenStr := extractUserToken(
+		c.QueryParam("token"),
+		c.Request().Header.Get("token"),
+		c.Request().Header.Get(echo.HeaderAuthorization),
+	)
 	lang := c.QueryParam("lang")
 	if lang == "" {
 		lang = "en"
@@ -321,10 +379,27 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	conv, err := h.repo.CreateConversation(ctx, claims.UserID)
-	if err != nil {
-		conn.Close()
-		return err
+	// Resume: ?conversationId= is honored only when it belongs to the caller
+	// and is still open. Otherwise fall back to CreateConversation (which
+	// itself reuses the user's open conversation, if any), in which case the
+	// client is re-synced to the actual conversation ID below.
+	var conv *repository.Conversation
+	suppliedID := c.QueryParam("conversationId")
+	if suppliedID != "" {
+		if existing, err := h.repo.FindByID(ctx, suppliedID); err == nil &&
+			existing.UserID == claims.UserID &&
+			existing.Status != repository.StatusClosed {
+			conv = existing
+		}
+	}
+	resumed := conv != nil
+	if !resumed {
+		var err error
+		conv, err = h.repo.CreateConversation(ctx, claims.UserID)
+		if err != nil {
+			conn.Close()
+			return err
+		}
 	}
 
 	cl := &client{
@@ -342,9 +417,14 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 	go cl.writePump()
 	go cl.readPump()
 
-	if len(conv.Messages) == 0 {
+	// Only a brand-new conversation gets a bot welcome. On resume the client
+	// keeps its messages (plus GET /api/chat/history/:conversationId), so
+	// emitting anything renderable here would duplicate the welcome.
+	isNew := !resumed && len(conv.Messages) == 0
+	if isNew {
 		welcomeResp := cl.engine.Process("hello", "start")
 		welcome := OutboundMessage{
+			ID:             primitive.NewObjectID().Hex(),
 			ConversationID: conv.ID.Hex(),
 			Sender:         "bot",
 			SenderID:       "bot",
@@ -356,18 +436,24 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 		data, _ := json.Marshal(welcome)
 		cl.send <- data
 		_ = h.repo.UpdateBotState(ctx, conv.ID.Hex(), welcomeResp.NextState)
-	} else {
-		trans := bot.GetTranslation(lang)
-		histMsg := OutboundMessage{
+	}
+	// Sync the client whenever the fallback selected a conversation other
+	// than the requested one (stale/closed/foreign ID, or implicit reuse of
+	// the user's open conversation). The frontend replaces its stored ID on
+	// this event and never renders it.
+	if resumed || (suppliedID != "" && suppliedID != conv.ID.Hex()) {
+		// Non-renderable sync event: lets the client confirm conversationId
+		// without painting a second welcome. The frontend ignores it.
+		resumedMsg := OutboundMessage{
+			ID:             primitive.NewObjectID().Hex(),
 			ConversationID: conv.ID.Hex(),
 			Sender:         "bot",
 			SenderID:       "bot",
-			Content:        "Welcome back! How can I continue helping you?",
-			Options:        []Option{{Label: trans.MainMenuBtn, Value: "main_menu"}},
-			Metadata:       repository.BotMetadata{Intent: "resume"},
+			Content:        "",
+			Event:          "resumed",
 			CreatedAt:      time.Now(),
 		}
-		data, _ := json.Marshal(histMsg)
+		data, _ := json.Marshal(resumedMsg)
 		cl.send <- data
 	}
 
@@ -375,13 +461,17 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 }
 
 func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
-	atoken := c.QueryParam("atoken")
-	if atoken == "" {
-		atoken = c.Request().Header.Get("atoken")
+	if !isOriginAllowed(c.Request().Header.Get("Origin"), allowedOrigins) {
+		return c.JSON(http.StatusForbidden, map[string]string{"message": "origin not allowed"})
 	}
-	if atoken == "" {
-		atoken = c.Request().Header.Get(echo.HeaderAuthorization)
-	}
+	// Human handoff is admin-only. `dtoken` (doctors) stays allowed in CORS
+	// but is NEVER read here: doctors never chat. Order: ?atoken= ->
+	// `atoken` header -> `Authorization: Bearer <jwt>` (stripped in Validator).
+	atoken := extractAdminToken(
+		c.QueryParam("atoken"),
+		c.Request().Header.Get("atoken"),
+		c.Request().Header.Get(echo.HeaderAuthorization),
+	)
 
 	masked := atoken
 	if len(masked) > 12 {

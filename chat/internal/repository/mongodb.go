@@ -146,7 +146,10 @@ func (r *Repo) AppendMessage(ctx context.Context, convID string, msg Message) er
 		return err
 	}
 
-	msg.ID = primitive.NewObjectID()
+	if msg.ID.IsZero() {
+		msg.ID = primitive.NewObjectID()
+	}
+
 	if msg.CreatedAt.IsZero() {
 		msg.CreatedAt = time.Now()
 	}
