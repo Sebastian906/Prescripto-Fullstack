@@ -28,6 +28,11 @@ func TestDualAcceptWindow(t *testing.T) {
 	if _, err := past.Validate(oldTok); err == nil {
 		t.Fatal("old token must be rejected post-deadline")
 	}
+	// Fail closed: previous without a valid deadline is rejected.
+	noDeadline := NewValidatorWithRotation("new-secret", "old-secret", time.Time{})
+	if _, err := noDeadline.Validate(oldTok); err == nil {
+		t.Fatal("old token must be rejected without a rotation deadline")
+	}
 	if _, err := v.Validate(signForTest(t, "new-secret", "u1")); err != nil {
 		t.Fatalf("current token must always validate: %v", err)
 	}

@@ -31,7 +31,7 @@ func NewValidator(secret string) *Validator {
 }
 
 // NewValidatorWithRotation accepts current + previous until deadline (dual-accept window).
-// Zero deadline + non-empty previous = accept previous indefinitely (warns in config).
+// Fail closed: a configured previous secret without a valid deadline is rejected.
 func NewValidatorWithRotation(current, previous string, deadline time.Time) *Validator {
 	v := &Validator{current: []byte(current), previous: []byte(previous)}
 	if previous != "" && !deadline.IsZero() {
@@ -46,7 +46,7 @@ func (v *Validator) previousAccepted() bool {
 		return false
 	}
 	if v.deadline == nil {
-		return true
+		return false
 	}
 	return !time.Now().After(*v.deadline)
 }

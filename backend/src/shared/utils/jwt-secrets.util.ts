@@ -19,9 +19,10 @@ export function getJwtSecrets(config: Getter): JwtSecrets {
     return { current, previous, deadline };
 }
 
-// Previous secret is accepted only while configured and (no deadline || now <= deadline).
+// Fail closed: previous is accepted only with a valid deadline and now <= deadline.
+// Absent or malformed deadlines reject the previous secret (never accept indefinitely).
 export function isPreviousAccepted(s: JwtSecrets, now = new Date()): boolean {
     if (!s.previous) return false;
-    if (!s.deadline) return true;
+    if (!s.deadline) return false;
     return now.getTime() <= s.deadline.getTime();
 }

@@ -15,16 +15,8 @@ func TestAllowedOriginsDefault(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret")
 	t.Setenv("CHAT_ALLOWED_ORIGINS", "")
 	cfg := Load()
-	want := map[string]bool{
-		"http://localhost:5173": true,
-		"http://localhost:5174": true,
-	}
-	if len(cfg.AllowedOrigins) != 2 {
-		t.Fatalf("AllowedOrigins = %v, want 2 entries", cfg.AllowedOrigins)
-	}
-	for _, o := range cfg.AllowedOrigins {
-		if !want[o] {
-			t.Errorf("unexpected origin %q", o)
-		}
+	// Fail closed: no configured origins means no cross-origin request is allowed.
+	if len(cfg.AllowedOrigins) != 0 {
+		t.Fatalf("AllowedOrigins = %v, want empty (fail closed)", cfg.AllowedOrigins)
 	}
 }

@@ -15,13 +15,13 @@ describe('jwt-secrets.util', () => {
         expect(isPreviousAccepted(s, new Date('2026-09-18T00:00:00.000Z'))).toBe(true);
         expect(isPreviousAccepted(s, new Date('2026-09-20T00:00:00.000Z'))).toBe(false);
     });
-    it('rejects previous when unconfigured; accepts when no deadline', () => {
+    it('rejects previous when unconfigured or deadline absent (fail closed)', () => {
         expect(isPreviousAccepted(getJwtSecrets(cfg({ JWT_SECRET: 'x' })))).toBe(false);
-        expect(isPreviousAccepted(getJwtSecrets(cfg({ JWT_SECRET: 'x', JWT_SECRET_PREVIOUS: 'o' })))).toBe(true);
+        expect(isPreviousAccepted(getJwtSecrets(cfg({ JWT_SECRET: 'x', JWT_SECRET_PREVIOUS: 'o' })))).toBe(false);
     });
-    it('ignores malformed deadline', () => {
+    it('rejects previous on malformed deadline (fail closed)', () => {
         const s = getJwtSecrets(cfg({ JWT_SECRET: 'x', JWT_SECRET_PREVIOUS: 'o', JWT_ROTATION_DEADLINE: 'nope' }));
         expect(s.deadline).toBeUndefined();
-        expect(isPreviousAccepted(s)).toBe(true);
+        expect(isPreviousAccepted(s)).toBe(false);
     });
 });

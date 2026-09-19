@@ -21,7 +21,7 @@ export class DoctorsService {
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
         private readonly reportsService: ReportsService,
-        private readonly auditService?: AuditService,
+        private readonly auditService: AuditService,
     ) { }
 
     async getAllDoctors() {

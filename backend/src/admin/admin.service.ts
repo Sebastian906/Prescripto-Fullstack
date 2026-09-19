@@ -25,7 +25,7 @@ export class AdminService {
         private readonly cloudinaryService: CloudinaryService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
-        private readonly auditService?: AuditService,
+        private readonly auditService: AuditService,
     ) { }
 
     async addDoctor(body: any, imageFile: Parameters<CloudinaryService['uploadImage']>[0]) {

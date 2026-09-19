@@ -23,10 +23,10 @@ import (
 var allowedOrigins = []string{"http://localhost:5173", "http://localhost:5174"}
 
 // SetAllowedOrigins sets the allowlist used by CheckOrigin. Call once in main.
+// An empty list denies every cross-origin request (fail closed); requests
+// without an Origin header (curl, tests, non-browser clients) still pass.
 func SetAllowedOrigins(origins []string) {
-	if len(origins) > 0 {
-		allowedOrigins = origins
-	}
+	allowedOrigins = origins
 }
 
 // isOriginAllowed allows requests without an Origin header (curl, tests,

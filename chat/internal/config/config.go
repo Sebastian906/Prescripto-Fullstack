@@ -37,7 +37,7 @@ func Load() *Config {
 		JWTRotationDeadline: getEnv("JWT_ROTATION_DEADLINE", ""),
 		AdminEmail:          getEnv("ADMIN_EMAIL", ""),
 		AdminPassword:       getEnv("ADMIN_PASSWORD", ""),
-		AllowedOrigins:      normalizeOrigins(getEnv("CHAT_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174")),
+		AllowedOrigins:      normalizeOrigins(getEnv("CHAT_ALLOWED_ORIGINS", "")),
 	}
 
 	if cfg.JWTSecret == "" {

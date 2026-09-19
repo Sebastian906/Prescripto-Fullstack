@@ -15,11 +15,7 @@ import { ReportsModule } from './reports/reports.module';
 import { MigrationModule } from './migration/migration.module';
 import { PostgresService } from './migration/postgres.service';
 import { ThrottlerConfigModule } from './shared/throttler/throttler.module';
-import { AuditService } from './audit/audit.service';
-import { AuditController } from './audit/audit.controller';
 import { AuditModule } from './audit/audit.module';
-import { ConsentService } from './consent/consent.service';
-import { ConsentController } from './consent/consent.controller';
 import { ConsentModule } from './consent/consent.module';
 
 @Module({
@@ -40,7 +36,7 @@ import { ConsentModule } from './consent/consent.module';
     AuditModule,
     ConsentModule,
   ],
-  controllers: [AppController, AuditController, ConsentController],
-  providers: [AppService, PostgresService, AuditService, ConsentService],
+  controllers: [AppController],
+  providers: [AppService, PostgresService],
 })
 export class AppModule {}
