@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
 import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
 import { ReportsService } from 'src/reports/reports.service';
+import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class DoctorsService {
@@ -20,6 +21,7 @@ export class DoctorsService {
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
         private readonly reportsService: ReportsService,
+        private readonly auditService?: AuditService,
     ) { }
 
     async getAllDoctors() {
@@ -48,7 +50,7 @@ export class DoctorsService {
             const doctors = await this.doctorModel.find({}).select(['-password', '-email'])
             return { success: true, doctors };
 
-        } catch (error) {
+        } catch (error: any) {
 
             console.log(error);
             return { success: false, message: error.message };
@@ -114,6 +116,13 @@ export class DoctorsService {
             new Date(appt.date),
         );
 
+        try {
+            await this.auditService?.record({
+                actorId: docId, role: 'doctor', action: 'appointment.complete',
+                entityId: appointmentId, at: new Date(),
+            });
+        } catch (e) { console.log('audit record failed:', e); }
+
         return { success: true, message: 'Appointment Completed' };
     }
 
@@ -151,6 +160,13 @@ export class DoctorsService {
             appointment.docId,
             new Date(appointment.date),
         );
+
+        try {
+            await this.auditService?.record({
+                actorId: docId, role: 'doctor', action: 'appointment.cancel',
+                entityId: appointmentId, at: new Date(),
+            });
+        } catch (e) { console.log('audit record failed:', e); }
 
         return { success: true, message: 'Appointment Cancelled' };
     }

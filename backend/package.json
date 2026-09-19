@@ -88,6 +88,7 @@
       "ts"
     ],
     "rootDir": "src",
+    "moduleNameMapper": { "^src/(.*)$": "<rootDir>/$1" },
     "testMatch": [
       "**/*.spec.ts"
     ],

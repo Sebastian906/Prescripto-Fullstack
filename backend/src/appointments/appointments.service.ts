@@ -13,6 +13,7 @@ import Stripe from 'stripe';
 import { binarySearch, getAvailableSlots } from 'src/shared/utils/binary-search.util';
 import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
 import { ReportsService } from 'src/reports/reports.service';
+import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -23,6 +24,7 @@ export class AppointmentsService {
         @InjectConnection() private readonly connection: Connection,
         private readonly configService: ConfigService,
         private readonly reportsService: ReportsService,
+        private readonly auditService?: AuditService,
     ) { }
 
     async bookAppointment(
@@ -165,6 +167,14 @@ export class AppointmentsService {
             });
 
             await this.reportsService.onAppointmentCancelled(cancelledDocId, cancelledDate);
+
+            // Exactly one audit entry per user cancel (best-effort: never breaks the cancel).
+            try {
+                await this.auditService?.record({
+                    actorId: userId, role: 'user', action: 'appointment.cancel',
+                    entityId: appointmentId, at: new Date(),
+                });
+            } catch (e) { console.error('audit record failed:', e); }
 
             return result!;
         } catch (error) {
