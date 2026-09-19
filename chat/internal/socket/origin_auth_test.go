@@ -51,11 +51,17 @@ func TestExtractAdminToken_Order(t *testing.T) {
 	}
 }
 
-func TestSetAllowedOrigins_EmptyKeepsPrevious(t *testing.T) {
+func TestSetAllowedOrigins_EmptyDeniesAll(t *testing.T) {
 	prev := allowedOrigins
 	SetAllowedOrigins([]string{})
-	if len(allowedOrigins) != len(prev) {
-		t.Errorf("empty call must not wipe allowlist")
+	if len(allowedOrigins) != 0 {
+		t.Fatalf("empty call must clear allowlist (fail closed), got %v", allowedOrigins)
+	}
+	if isOriginAllowed("http://localhost:5173", allowedOrigins) {
+		t.Errorf("no origin may validate against an empty allowlist")
+	}
+	if !isOriginAllowed("", allowedOrigins) {
+		t.Errorf("empty origin (curl/tests) must still pass")
 	}
 	SetAllowedOrigins([]string{"http://localhost:5173"})
 	if !isOriginAllowed("http://localhost:5173", allowedOrigins) {

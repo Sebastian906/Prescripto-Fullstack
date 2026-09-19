@@ -8,6 +8,7 @@ import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
 import { ConfigModule } from '@nestjs/config';
 import { AuthDoctorModule } from 'src/shared/guards/auth-doctor.module';
 import { ReportsModule } from 'src/reports/reports.module';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ReportsModule } from 'src/reports/reports.module';
     AuthDoctorModule,
     ConfigModule,
     ReportsModule,
+    AuditModule,
   ],
   controllers: [DoctorsController],
   providers: [DoctorsService],

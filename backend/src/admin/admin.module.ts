@@ -10,6 +10,7 @@ import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
 import { Appointment, AppointmentSchema } from 'src/appointments/schemas/appointment.schema';
 import { User, UserSchema } from 'src/users/schemas/user.schema';
 import { Speciality, SpecialitySchema } from 'src/specialities/schemas/speciality.schema';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
   imports: [
@@ -23,8 +24,8 @@ import { Speciality, SpecialitySchema } from 'src/specialities/schemas/specialit
     ConfigModule,
     AuthAdminModule,
     DoctorsModule,
-  ],
-  providers: [AdminService],
+    AuditModule,
+  ],  providers: [AdminService],
   controllers: [AdminController],
 })
 export class AdminModule { }

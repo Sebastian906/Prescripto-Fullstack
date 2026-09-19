@@ -35,6 +35,14 @@ func main() {
 	}()
 
 	jwtValidator := auth.NewValidator(cfg.JWTSecret)
+	if cfg.JWTSecretPrevious != "" {
+		// Dual-accept window: previous accepted only with a valid deadline (fail closed otherwise).
+		if deadline, err := time.Parse(time.RFC3339, cfg.JWTRotationDeadline); err == nil {
+			jwtValidator = auth.NewValidatorWithRotation(cfg.JWTSecret, cfg.JWTSecretPrevious, deadline)
+		} else {
+			log.Printf("config: invalid JWT_ROTATION_DEADLINE %q, previous secret rejected", cfg.JWTRotationDeadline)
+		}
+	}
 	hub := socket.NewHub(repo)
 	go hub.Run()
 	// The WS upgrader allowlist lives in socket (CheckOrigin). Without this

@@ -12,6 +12,7 @@ import { DoctorsService } from 'src/doctors/doctors.service';
 import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
 import { Speciality, SpecialityDocument } from 'src/specialities/schemas/speciality.schema';
+import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class AdminService {
@@ -24,9 +25,10 @@ export class AdminService {
         private readonly cloudinaryService: CloudinaryService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
+        private readonly auditService: AuditService,
     ) { }
-    
-    async addDoctor(body: any, imageFile: Express.Multer.File) {
+
+    async addDoctor(body: any, imageFile: Parameters<CloudinaryService['uploadImage']>[0]) {
         const { name, email, password, speciality, degree, experience, about, fees, address } = body;
 
         if (!name || !email || !password || !speciality || !degree || !experience || !about || !fees || !address) {
@@ -68,8 +70,8 @@ export class AdminService {
             degree,
             experience,
             about,
-            fees: Number(fees),       
-            address: JSON.parse(address),  
+            fees: Number(fees),
+            address: JSON.parse(address),
         });
 
         await newDoctor.save();
@@ -134,6 +136,14 @@ export class AdminService {
 
             await this.doctorModel.findByIdAndUpdate(docId, { slots_booked: slotsBooked });
         }
+
+        // AuthAdminGuard sets no actor id (contract intact) → literal 'admin'.
+        try {
+            await this.auditService?.record({
+                actorId: 'admin', role: 'admin', action: 'appointment.cancel',
+                entityId: appointmentId, at: new Date(),
+            });
+        } catch (e) { console.log('audit record failed:', e); }
 
         return { success: true, message: 'Appointment Cancelled' };
     }

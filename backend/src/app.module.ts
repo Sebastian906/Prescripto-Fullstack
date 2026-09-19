@@ -15,6 +15,8 @@ import { ReportsModule } from './reports/reports.module';
 import { MigrationModule } from './migration/migration.module';
 import { PostgresService } from './migration/postgres.service';
 import { ThrottlerConfigModule } from './shared/throttler/throttler.module';
+import { AuditModule } from './audit/audit.module';
+import { ConsentModule } from './consent/consent.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { ThrottlerConfigModule } from './shared/throttler/throttler.module';
     SchedulingModule,
     ReportsModule,
     MigrationModule,
+    AuditModule,
+    ConsentModule,
   ],
   controllers: [AppController],
   providers: [AppService, PostgresService],

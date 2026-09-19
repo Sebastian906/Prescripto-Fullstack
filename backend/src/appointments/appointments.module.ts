@@ -8,6 +8,7 @@ import { User, UserSchema } from 'src/users/schemas/user.schema';
 import { AuthUserModule } from 'src/shared/guards/auth-user.module';
 import { ConfigModule } from '@nestjs/config';
 import { ReportsModule } from 'src/reports/reports.module';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ReportsModule } from 'src/reports/reports.module';
     AuthUserModule,
     ConfigModule, 
     ReportsModule,
+    AuditModule,
 ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -18,22 +19,45 @@ type Claims struct {
 }
 
 type Validator struct {
-	secret        []byte
+	current       []byte
+	previous      []byte
+	deadline      *time.Time
 	adminEmail    string
 	adminPassword string
 }
 
 func NewValidator(secret string) *Validator {
-	return &Validator{secret: []byte(secret)}
+	return &Validator{current: []byte(secret)}
 }
 
-func NewValidatorWithAdmin(secret, adminEmail, adminPassword string) *Validator {
-	return &Validator{
-		secret:        []byte(secret),
-		adminEmail:    adminEmail,
-		adminPassword: adminPassword,
+// NewValidatorWithRotation accepts current + previous until deadline (dual-accept window).
+// Fail closed: a configured previous secret without a valid deadline is rejected.
+func NewValidatorWithRotation(current, previous string, deadline time.Time) *Validator {
+	v := &Validator{current: []byte(current), previous: []byte(previous)}
+	if previous != "" && !deadline.IsZero() {
+		d := deadline
+		v.deadline = &d
 	}
+	return v
 }
+
+func (v *Validator) previousAccepted() bool {
+	if len(v.previous) == 0 {
+		return false
+	}
+	if v.deadline == nil {
+		return false
+	}
+	return !time.Now().After(*v.deadline)
+}
+
+// func NewValidatorWithAdmin(secret, adminEmail, adminPassword string) *Validator {
+// 	return &Validator{
+// 		secret:        []byte(secret),
+// 		adminEmail:    adminEmail,
+// 		adminPassword: adminPassword,
+// 	}
+// }
 
 func (v *Validator) Validate(tokenStr string) (*Claims, error) {
 	tokenStr = stripBearer(tokenStr)
@@ -41,28 +65,29 @@ func (v *Validator) Validate(tokenStr string) (*Claims, error) {
 		return nil, errors.New("empty token")
 	}
 
-	var mapClaims jwt.MapClaims
-	token, err := jwt.ParseWithClaims(tokenStr, &mapClaims, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+	var lastErr error
+	for _, secret := range v.candidates() {
+		var mapClaims jwt.MapClaims
+		token, err := jwt.ParseWithClaims(tokenStr, &mapClaims, func(t *jwt.Token) (any, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
+			return secret, nil
+		})
+		if err == nil && token.Valid {
+			userID, _ := mapClaims["id"].(string)
+			if userID == "" {
+				return nil, errors.New("token missing 'id' field")
+			}
+			role := "user"
+			if r, ok := mapClaims["role"].(string); ok && r != "" {
+				role = r
+			}
+			return &Claims{UserID: userID, Role: role}, nil
 		}
-		return v.secret, nil
-	})
-	if err != nil || !token.Valid {
-		return nil, fmt.Errorf("invalid token: %w", err)
+		lastErr = err
 	}
-
-	userID, _ := mapClaims["id"].(string)
-	if userID == "" {
-		return nil, errors.New("token missing 'id' field")
-	}
-
-	role := "user"
-	if r, ok := mapClaims["role"].(string); ok && r != "" {
-		role = r
-	}
-
-	return &Claims{UserID: userID, Role: role}, nil
+	return nil, fmt.Errorf("invalid token: %w", lastErr)
 }
 
 func (v *Validator) ValidateAdmin(tokenStr string) (*Claims, error) {
@@ -71,23 +96,25 @@ func (v *Validator) ValidateAdmin(tokenStr string) (*Claims, error) {
 		return nil, errors.New("empty admin token")
 	}
 	// Try parsing as a standard JWT first (handles tokens created by jwt libraries)
-	var mapClaims jwt.MapClaims
-	token, err := jwt.ParseWithClaims(tokenStr, &mapClaims, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+	for _, secret := range v.candidates() {
+		var mapClaims jwt.MapClaims
+		token, err := jwt.ParseWithClaims(tokenStr, &mapClaims, func(t *jwt.Token) (any, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
+			return secret, nil
+		})
+		if err == nil && token.Valid {
+			userID, _ := mapClaims["id"].(string)
+			role := "admin"
+			if r, ok := mapClaims["role"].(string); ok && r != "" {
+				role = r
+			}
+			if userID == "" {
+				userID = "admin"
+			}
+			return &Claims{UserID: userID, Role: role}, nil
 		}
-		return v.secret, nil
-	})
-	if err == nil && token.Valid {
-		userID, _ := mapClaims["id"].(string)
-		role := "admin"
-		if r, ok := mapClaims["role"].(string); ok && r != "" {
-			role = r
-		}
-		if userID == "" {
-			userID = "admin"
-		}
-		return &Claims{UserID: userID, Role: role}, nil
 	}
 
 	// Fallback to legacy HMAC verification (keeps compatibility with older tokens)
@@ -101,13 +128,20 @@ func (v *Validator) ValidateAdmin(tokenStr string) (*Claims, error) {
 	signature := parts[2]
 
 	message := header + "." + payload
-	expectedSig := calculateHMAC(message, v.secret)
-
-	if signature != expectedSig {
-		return nil, errors.New("invalid token signature")
+	for _, secret := range v.candidates() {
+		if signature == calculateHMAC(message, secret) {
+			return &Claims{UserID: "admin", Role: "admin"}, nil
+		}
 	}
 
-	return &Claims{UserID: "admin", Role: "admin"}, nil
+	return nil, errors.New("invalid token signature")
+}
+
+func (v *Validator) candidates() [][]byte {
+	if v.previousAccepted() {
+		return [][]byte{v.current, v.previous}
+	}
+	return [][]byte{v.current}
 }
 
 func calculateHMAC(message string, secret []byte) string {

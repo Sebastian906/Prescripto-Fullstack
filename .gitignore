@@ -1,0 +1,29 @@
+# Root — secrets first
+.env
+.env.*
+!**/.env.example
+*.pem
+*.key
+
+# Deps / build
+node_modules/
+dist/
+build/
+bin/
+coverage/
+.nyc_output/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Logs / temp
+*.log
+logs/
+.temp/
+.tmp/
