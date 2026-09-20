@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+
+jobs:
+  guard-pnpm:
+    name: guard / pnpm-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail if npm/yarn lockfiles appear
+        run: |
+          found=0
+          for f in backend/package-lock.json frontend/package-lock.json admin/package-lock.json backend/yarn.lock frontend/yarn.lock admin/yarn.lock; do
+            if [ -f "$f" ]; then echo "::error file=$f::pnpm-only: $f must not exist"; found=1; fi
+          done
+          if [ "$found" = "1" ]; then exit 1; fi
+          echo "pnpm-only guard OK (no package-lock.json / yarn.lock)"
+
+  secrets:
+    name: secrets / gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: guard-pnpm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  backend:
+    name: backend / lint+jest+build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # Mismo glob que backend/package.json:15 pero SIN --fix para no mutar en CI
+      - name: lint (no-fix)
+        run: pnpm exec eslint "{src,apps,libs,test}/**/*.ts"
+      - name: jest (A-01 validation pipe exercised)
+        run: pnpm test -- --runInBand
+      - run: pnpm build
+
+  frontend:
+    name: frontend / lint+build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+
+  admin:
+    name: admin / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: admin/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  chat:
+    name: chat / vet+test
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: chat
+    env:
+      JWT_SECRET: dummy-ci-secret
+      CHAT_PORT: "4000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - run: go vet ./...
+      # Unitarios sin infra externa. Si mongodb_test.go requiriera Mongo vivo,
+      # este scope sigue verde y el e2e queda fuera de CI (<8min).
+      - run: go test ./internal/bot/... ./internal/auth/... ./internal/config/... ./internal/socket/... -count=1
+
+  botcheck:
+    name: botcheck / golden-intent A-03
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: chat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - run: go run ./cmd/botcheck
+      - run: go test ./internal/bot/ -run TestGoldenIntents -count=1 -v
