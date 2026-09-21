@@ -6,17 +6,21 @@ export type ConsentStatus = 'pending' | 'granted' | 'denied' | 'revoked';
 
 @Schema({ collection: 'consents', timestamps: true })
 export class Consent {
-    @Prop({ required: true })
-    userId!: string;
+  @Prop({ required: true })
+  userId!: string;
 
-    @Prop({ required: true })
-    scope!: string;
+  @Prop({ required: true })
+  scope!: string;
 
-    @Prop({ required: true })
-    version!: string;
+  @Prop({ required: true })
+  version!: string;
 
-    @Prop({ required: true, enum: ['pending', 'granted', 'denied', 'revoked'], default: 'pending' })
-    status!: ConsentStatus;
+  @Prop({
+    required: true,
+    enum: ['pending', 'granted', 'denied', 'revoked'],
+    default: 'pending',
+  })
+  status!: ConsentStatus;
 }
 
 export const ConsentSchema = SchemaFactory.createForClass(Consent);

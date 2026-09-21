@@ -5,23 +5,23 @@ export type AuditLogDocument = HydratedDocument<AuditLog>;
 
 @Schema({ collection: 'auditlogs' })
 export class AuditLog {
-    @Prop({ required: true })
-    actorId!: string;
+  @Prop({ required: true })
+  actorId!: string;
 
-    @Prop({ required: true })
-    role!: string;
+  @Prop({ required: true })
+  role!: string;
 
-    @Prop({ required: true })
-    action!: string;
+  @Prop({ required: true })
+  action!: string;
 
-    @Prop({ required: true })
-    entityId!: string;
+  @Prop({ required: true })
+  entityId!: string;
 
-    @Prop({ required: true, default: Date.now })
-    at!: Date;
+  @Prop({ required: true, default: Date.now })
+  at!: Date;
 
-    @Prop({ type: Object })
-    meta?: Record<string, any>;
+  @Prop({ type: Object })
+  meta?: Record<string, any>;
 }
 
 export const AuditLogSchema = SchemaFactory.createForClass(AuditLog);

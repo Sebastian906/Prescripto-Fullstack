@@ -6,10 +6,22 @@ import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Doctor, DoctorSchema } from 'src/doctors/schemas/doctor.schema';
 import { User, UserSchema } from 'src/users/schemas/user.schema';
-import { Appointment, AppointmentSchema } from 'src/appointments/schemas/appointment.schema';
-import { Speciality, SpecialitySchema } from 'src/specialities/schemas/speciality.schema';
-import { MonthlyStats, MonthlyStatsSchema } from 'src/reports/schemas/monthly-stats.schema';
-import { PasswordResetToken, PasswordResetTokenSchema } from 'src/auth/password-reset-token.schema';
+import {
+  Appointment,
+  AppointmentSchema,
+} from 'src/appointments/schemas/appointment.schema';
+import {
+  Speciality,
+  SpecialitySchema,
+} from 'src/specialities/schemas/speciality.schema';
+import {
+  MonthlyStats,
+  MonthlyStatsSchema,
+} from 'src/reports/schemas/monthly-stats.schema';
+import {
+  PasswordResetToken,
+  PasswordResetTokenSchema,
+} from 'src/auth/password-reset-token.schema';
 import { PostgresService } from './postgres.service';
 
 @Module({
@@ -29,4 +41,4 @@ import { PostgresService } from './postgres.service';
   providers: [MigrationService, PostgresService],
   exports: [PostgresService],
 })
-export class MigrationModule { }
+export class MigrationModule {}

@@ -1,14 +1,14 @@
 export interface SpecialityNode {
-    id: string;
-    name: string;
-    slug: string;          // "general-physician"
-    parentId: string | null;
-    children: SpecialityNode[];
-    metadata?: {
-        iconUrl?: string;
-        description?: string;
-        doctorCount?: number;  // se puebla dinámicamente
-    };
+  id: string;
+  name: string;
+  slug: string; // "general-physician"
+  parentId: string | null;
+  children: SpecialityNode[];
+  metadata?: {
+    iconUrl?: string;
+    description?: string;
+    doctorCount?: number; // se puebla dinámicamente
+  };
 }
 
 /**
@@ -20,36 +20,41 @@ export interface SpecialityNode {
  * delega el ensamblaje a attachChildren (recursivo).
  */
 export function buildSpecialityTree(
-    flatList: Array<{ id: string; name: string; parentId: string | null; slug: string }>,
+  flatList: Array<{
+    id: string;
+    name: string;
+    parentId: string | null;
+    slug: string;
+  }>,
 ): SpecialityNode[] {
-    // Paso 1: Construir índice O(n)
-    const nodeMap = new Map<string, SpecialityNode>();
+  // Paso 1: Construir índice O(n)
+  const nodeMap = new Map<string, SpecialityNode>();
 
-    for (const item of flatList) {
-        nodeMap.set(item.id, {
-            id: item.id,
-            name: item.name,
-            slug: item.slug,
-            parentId: item.parentId,
-            children: [],
-        });
+  for (const item of flatList) {
+    nodeMap.set(item.id, {
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+      parentId: item.parentId,
+      children: [],
+    });
+  }
+
+  // Paso 2: Enlazar hijos — O(n), sin recursión explícita en este paso
+  const roots: SpecialityNode[] = [];
+
+  for (const node of nodeMap.values()) {
+    if (node.parentId === null) {
+      roots.push(node);
+    } else {
+      const parent = nodeMap.get(node.parentId);
+      if (parent) {
+        parent.children.push(node);
+      }
     }
+  }
 
-    // Paso 2: Enlazar hijos — O(n), sin recursión explícita en este paso
-    const roots: SpecialityNode[] = [];
-
-    for (const node of nodeMap.values()) {
-        if (node.parentId === null) {
-            roots.push(node);
-        } else {
-            const parent = nodeMap.get(node.parentId);
-            if (parent) {
-                parent.children.push(node);
-            }
-        }
-    }
-
-    return roots;
+  return roots;
 }
 
 /**
@@ -58,18 +63,18 @@ export function buildSpecialityTree(
  * Usa DFS (pila implícita del call stack).
  */
 export function findNodeBySlug(
-    nodes: SpecialityNode[],
-    slug: string,
+  nodes: SpecialityNode[],
+  slug: string,
 ): SpecialityNode | null {
-    for (const node of nodes) {
-        if (node.slug === slug) return node;
+  for (const node of nodes) {
+    if (node.slug === slug) return node;
 
-        if (node.children.length > 0) {
-            const found = findNodeBySlug(node.children, slug);
-            if (found) return found;
-        }
+    if (node.children.length > 0) {
+      const found = findNodeBySlug(node.children, slug);
+      if (found) return found;
     }
-    return null;
+  }
+  return null;
 }
 
 /**
@@ -79,11 +84,11 @@ export function findNodeBySlug(
  * Recursión de cola optimizable — O(n) donde n = tamaño de la rama.
  */
 export function collectDescendantSlugs(node: SpecialityNode): string[] {
-    const slugs: string[] = [node.slug];
+  const slugs: string[] = [node.slug];
 
-    for (const child of node.children) {
-        slugs.push(...collectDescendantSlugs(child));
-    }
+  for (const child of node.children) {
+    slugs.push(...collectDescendantSlugs(child));
+  }
 
-    return slugs;
+  return slugs;
 }

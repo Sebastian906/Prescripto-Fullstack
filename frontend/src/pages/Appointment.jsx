@@ -79,14 +79,14 @@ const Appointment = () => {
     const navigate = useNavigate()
     const { t } = useTranslation()
     const [docInfo, setDocInfo] = useState(null)
-    const [docSlots, setDocSlots] = useState([])
+    const [, setDocSlots] = useState([])
     const [slotIndex, setSlotIndex] = useState(0)
     const [slotTime, setSlotTime] = useState('')
     const [loadingSlots, setLoadingSlots] = useState(false)
     const [availableSlots, setAvailableSlots] = useState([])
     const [dayKey, setDayKey] = useState(() => new Date().toDateString())
     const dateRange = useMemo(() => generateDateRange(7), [dayKey])
-    const { suggestions, isIdeal, reason, loading: loadingSuggestions, fetchSuggestions } = useSlotSuggestions(backendUrl, token)
+    const { suggestions, isIdeal, loading: loadingSuggestions, fetchSuggestions } = useSlotSuggestions(backendUrl, token)
     const [priorityLevel, setPriorityLevel] = useState('normal')
 
     useEffect(() => {

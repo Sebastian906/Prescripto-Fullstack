@@ -17,10 +17,10 @@ export type SortKey = 'name' | 'fees' | 'speciality' | 'speciality-group';
 
 // Subconjunto de propiedades que usa el algoritmo de ordenamiento
 export interface SortableDoctor {
-    name?: string | null;
-    fees?: number | null;
-    speciality?: string | null;
-    [key: string]: unknown;
+  name?: string | null;
+  fees?: number | null;
+  speciality?: string | null;
+  [key: string]: unknown;
 }
 
 /**
@@ -30,64 +30,64 @@ export interface SortableDoctor {
  * para evitar NaN o errores de comparación.
  */
 function getValue(doctor: SortableDoctor, key: SortKey): string | number {
-    switch (key) {
-        case 'name':
-            return (doctor.name ?? '').toLowerCase();
+  switch (key) {
+    case 'name':
+      return (doctor.name ?? '').toLowerCase();
 
-        case 'fees':
-            return typeof doctor.fees === 'number' ? doctor.fees : 0;
+    case 'fees':
+      return typeof doctor.fees === 'number' ? doctor.fees : 0;
 
-        case 'speciality':
-        case 'speciality-group':
-            return (doctor.speciality ?? '').toLowerCase();
-    }
+    case 'speciality':
+    case 'speciality-group':
+      return (doctor.speciality ?? '').toLowerCase();
+  }
 }
 
 // Comparador genérico.  Retorna < 0, 0 o > 0 igual que Array#sort.
 function compare(
-    a: SortableDoctor,
-    b: SortableDoctor,
-    key: SortKey,
-    order: SortOrder,
+  a: SortableDoctor,
+  b: SortableDoctor,
+  key: SortKey,
+  order: SortOrder,
 ): number {
-    const va = getValue(a, key);
-    const vb = getValue(b, key);
+  const va = getValue(a, key);
+  const vb = getValue(b, key);
 
-    let result: number;
+  let result: number;
 
-    if (typeof va === 'number' && typeof vb === 'number') {
-        result = va - vb;
-    } else {
-        result = String(va).localeCompare(String(vb));
-    }
+  if (typeof va === 'number' && typeof vb === 'number') {
+    result = va - vb;
+  } else {
+    result = String(va).localeCompare(String(vb));
+  }
 
-    return order === 'asc' ? result : -result;
+  return order === 'asc' ? result : -result;
 }
 
 // Paso de fusión (merge).  Combina dos mitades ya ordenadas en un único
 // arreglo ordenado.  O(n) tiempo y espacio auxiliar por nivel.
 function merge<T extends SortableDoctor>(
-    left: T[],
-    right: T[],
-    key: SortKey,
-    order: SortOrder,
+  left: T[],
+  right: T[],
+  key: SortKey,
+  order: SortOrder,
 ): T[] {
-    const result: T[] = [];
-    let i = 0;
-    let j = 0;
+  const result: T[] = [];
+  let i = 0;
+  let j = 0;
 
-    while (i < left.length && j < right.length) {
-        if (compare(left[i], right[j], key, order) <= 0) {
-            result.push(left[i++]);
-        } else {
-            result.push(right[j++]);
-        }
+  while (i < left.length && j < right.length) {
+    if (compare(left[i], right[j], key, order) <= 0) {
+      result.push(left[i++]);
+    } else {
+      result.push(right[j++]);
     }
+  }
 
-    while (i < left.length) result.push(left[i++]);
-    while (j < right.length) result.push(right[j++]);
+  while (i < left.length) result.push(left[i++]);
+  while (j < right.length) result.push(right[j++]);
 
-    return result;
+  return result;
 }
 
 /**
@@ -99,18 +99,18 @@ function merge<T extends SortableDoctor>(
  * @returns      Nuevo arreglo ordenado.
  */
 export function mergeSort<T extends SortableDoctor>(
-    array: T[],
-    key: SortKey,
-    order: SortOrder,
+  array: T[],
+  key: SortKey,
+  order: SortOrder,
 ): T[] {
-    if (array.length <= 1) return array;
+  if (array.length <= 1) return array;
 
-    const mid = Math.floor(array.length / 2);
+  const mid = Math.floor(array.length / 2);
 
-    const left = mergeSort(array.slice(0, mid), key, order);
-    const right = mergeSort(array.slice(mid), key, order);
+  const left = mergeSort(array.slice(0, mid), key, order);
+  const right = mergeSort(array.slice(mid), key, order);
 
-    return merge(left, right, key, order);
+  return merge(left, right, key, order);
 }
 
 /**
@@ -131,35 +131,35 @@ export function mergeSort<T extends SortableDoctor>(
  * @param order    'asc' ordena especialidades A→Z; 'desc' Z→A.
  */
 export function sortBySpecialityGroup<T extends SortableDoctor>(
-    doctors: T[],
-    order: SortOrder,
+  doctors: T[],
+  order: SortOrder,
 ): T[] {
-    if (doctors.length <= 1) return doctors;
+  if (doctors.length <= 1) return doctors;
 
-    const uniqueSpecialities = [
-        ...new Set(doctors.map((d) => (d.speciality ?? '').toLowerCase())),
-    ];
+  const uniqueSpecialities = [
+    ...new Set(doctors.map((d) => (d.speciality ?? '').toLowerCase())),
+  ];
 
-    const sortedSpecialities = mergeSort(
-        uniqueSpecialities.map((s) => ({ speciality: s })),
-        'speciality',
-        order,
-    ).map((item) => item.speciality as string);
+  const sortedSpecialities = mergeSort(
+    uniqueSpecialities.map((s) => ({ speciality: s })),
+    'speciality',
+    order,
+  ).map((item) => item.speciality);
 
-    const groups = new Map<string, T[]>();
-    for (const spec of sortedSpecialities) {
-        groups.set(spec, []);
-    }
+  const groups = new Map<string, T[]>();
+  for (const spec of sortedSpecialities) {
+    groups.set(spec, []);
+  }
 
-    for (const doctor of doctors) {
-        const key = (doctor.speciality ?? '').toLowerCase();
-        groups.get(key)?.push(doctor);
-    }
+  for (const doctor of doctors) {
+    const key = (doctor.speciality ?? '').toLowerCase();
+    groups.get(key)?.push(doctor);
+  }
 
-    const result: T[] = [];
-    for (const spec of sortedSpecialities) {
-        result.push(...(groups.get(spec) ?? []));
-    }
+  const result: T[] = [];
+  for (const spec of sortedSpecialities) {
+    result.push(...(groups.get(spec) ?? []));
+  }
 
-    return result;
+  return result;
 }
