@@ -1,5 +1,10 @@
 # Prescripto - Sistema de Reserva de Citas Médicas
 
+[![CI](https://github.com/SEBASTIAN906/Prescripto-Fullstack/actions/workflows/ci.yml/badge.svg)](https://github.com/SEBASTIAN906/Prescripto-Fullstack/actions/workflows/ci.yml)
+[![Gitleaks](https://github.com/SEBASTIAN906/Prescripto-Fullstack/actions/workflows/ci.yml/badge.svg?job=secrets%20%2F%20gitleaks)](https://github.com/SEBASTIAN906/Prescripto-Fullstack/actions/workflows/ci.yml)
+
+> Runtime: `backend :3000` · `frontend :5173` · `admin :5174` · `chat :4000`. CI corre en GitHub Actions (Ubuntu, Node 20 + pnpm 9, Go 1.25) en <8 min; no incluye deploy (H-03 diferido). Detalle: `docs/ARCHITECTURE.md`.
+
 ## Tabla de Contenidos
 
 - [Descripción General](#descripción-general)

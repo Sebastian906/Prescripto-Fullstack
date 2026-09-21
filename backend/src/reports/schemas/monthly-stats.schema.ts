@@ -16,34 +16,34 @@ export type MonthlyStatsDocument = HydratedDocument<MonthlyStats>;
  */
 @Schema({ timestamps: true })
 export class MonthlyStats {
-    // '__global__' para métricas del sistema; docId real para métricas por doctor 
-    @Prop({ required: true })
-    docId!: string;
+  // '__global__' para métricas del sistema; docId real para métricas por doctor
+  @Prop({ required: true })
+  docId!: string;
 
-    @Prop({ required: true })
-    year!: number;
+  @Prop({ required: true })
+  year!: number;
 
-    @Prop({ required: true })
-    month!: number; // 1-12
+  @Prop({ required: true })
+  month!: number; // 1-12
 
-    @Prop({ default: 0 })
-    totalAppointments!: number;
+  @Prop({ default: 0 })
+  totalAppointments!: number;
 
-    @Prop({ default: 0 })
-    completedAppointments!: number;
+  @Prop({ default: 0 })
+  completedAppointments!: number;
 
-    @Prop({ default: 0 })
-    cancelledAppointments!: number;
+  @Prop({ default: 0 })
+  cancelledAppointments!: number;
 
-    @Prop({ default: 0 })
-    earnings!: number;
+  @Prop({ default: 0 })
+  earnings!: number;
 
-    // Set serializado como array para evitar subdocumentos variables 
-    @Prop({ type: [String], default: [] })
-    uniquePatientIds!: string[];
+  // Set serializado como array para evitar subdocumentos variables
+  @Prop({ type: [String], default: [] })
+  uniquePatientIds!: string[];
 
-    @Prop({ default: 0 })
-    uniquePatients!: number;
+  @Prop({ default: 0 })
+  uniquePatients!: number;
 }
 
 export const MonthlyStatsSchema = SchemaFactory.createForClass(MonthlyStats);

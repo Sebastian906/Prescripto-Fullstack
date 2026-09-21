@@ -10,7 +10,10 @@ import { FacebookStrategy } from './strategies/facebook.strategy';
 import { PasswordResetService } from './password-reset.service';
 import { DoctorsModule } from 'src/doctors/doctors.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { PasswordResetToken, PasswordResetTokenSchema } from './password-reset-token.schema';
+import {
+  PasswordResetToken,
+  PasswordResetTokenSchema,
+} from './password-reset-token.schema';
 import { User, UserSchema } from 'src/users/schemas/user.schema';
 import { Doctor, DoctorSchema } from 'src/doctors/schemas/doctor.schema';
 
@@ -33,6 +36,6 @@ import { Doctor, DoctorSchema } from 'src/doctors/schemas/doctor.schema';
     PasswordResetService,
     //    MicrosoftStrategy,
     //    TwitterStrategy,
-  ]
+  ],
 })
-export class AuthModule { }
+export class AuthModule {}

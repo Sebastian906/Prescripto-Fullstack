@@ -5,18 +5,18 @@ import { AuthAdminGuard } from './auth-admin.guard';
 import { AuthDoctorModule } from './auth-doctor.module';
 
 @Module({
-    imports: [
-        ConfigModule,
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET'),
-            }),
-            inject: [ConfigService],
-        }),
-        AuthDoctorModule,
-    ],
-    providers: [AuthAdminGuard],
-    exports: [AuthAdminGuard, JwtModule],
+  imports: [
+    ConfigModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+      }),
+      inject: [ConfigService],
+    }),
+    AuthDoctorModule,
+  ],
+  providers: [AuthAdminGuard],
+  exports: [AuthAdminGuard, JwtModule],
 })
-export class AuthAdminModule { }
+export class AuthAdminModule {}

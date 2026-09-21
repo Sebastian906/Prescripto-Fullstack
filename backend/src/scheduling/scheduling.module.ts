@@ -3,7 +3,10 @@ import { SchedulingService } from './scheduling.service';
 import { SchedulingController } from './scheduling.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Doctor, DoctorSchema } from 'src/doctors/schemas/doctor.schema';
-import { Appointment, AppointmentSchema } from '../appointments/schemas/appointment.schema';
+import {
+  Appointment,
+  AppointmentSchema,
+} from '../appointments/schemas/appointment.schema';
 import { AuthUserModule } from 'src/shared/guards/auth-user.module';
 import { ConfigModule } from '@nestjs/config';
 
@@ -17,6 +20,6 @@ import { ConfigModule } from '@nestjs/config';
     ConfigModule,
   ],
   providers: [SchedulingService],
-  controllers: [SchedulingController]
+  controllers: [SchedulingController],
 })
 export class SchedulingModule {}

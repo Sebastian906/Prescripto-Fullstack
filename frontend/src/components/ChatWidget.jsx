@@ -8,12 +8,6 @@ import adminIcon from '../assets/chat_admin_icon.svg'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
-function formatOptionLabel(tag) {
-    return tag
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (l) => l.toUpperCase())
-}
-
 function formatTime(iso) {
     if (!iso) return ''
     try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
@@ -24,12 +18,6 @@ function senderIcon(sender) {
     if (sender === 'admin') return adminIcon
     return userIcon
 }
-function senderLabel(sender) {
-    if (sender === 'bot') return 'Bot'
-    if (sender === 'admin') return 'Admin'
-    return 'You'
-}
-
 const ChatWidget = () => {
     const { token } = useContext(AppContext)
     const { t, i18n } = useTranslation()
@@ -134,7 +122,6 @@ const ChatWidget = () => {
                     )}
                     {messages.map((msg) => {
                         const isUser = msg.sender === 'user'
-                        const isBot = msg.sender === 'bot'
                         const isAdmin = msg.sender === 'admin'
                         return (
                             <div key={msg.id} className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>

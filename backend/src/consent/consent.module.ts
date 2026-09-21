@@ -5,9 +5,11 @@ import { ConsentService } from './consent.service';
 import { ConsentController } from './consent.controller';
 
 @Module({
-    imports: [MongooseModule.forFeature([{ name: Consent.name, schema: ConsentSchema }])],
-    controllers: [ConsentController],
-    providers: [ConsentService],
-    exports: [ConsentService],
+  imports: [
+    MongooseModule.forFeature([{ name: Consent.name, schema: ConsentSchema }]),
+  ],
+  controllers: [ConsentController],
+  providers: [ConsentService],
+  exports: [ConsentService],
 })
-export class ConsentModule { }
+export class ConsentModule {}

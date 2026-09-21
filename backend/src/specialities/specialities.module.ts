@@ -16,4 +16,4 @@ import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
   controllers: [SpecialitiesController],
   exports: [SpecialitiesService],
 })
-export class SpecialitiesModule { }
+export class SpecialitiesModule {}

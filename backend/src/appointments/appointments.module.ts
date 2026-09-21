@@ -12,16 +12,16 @@ import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
   imports: [
-  MongooseModule.forFeature([
-    { name: Appointment.name, schema: AppointmentSchema },
-    { name: Doctor.name, schema: DoctorSchema },
-    { name: User.name, schema: UserSchema },
-  ]),
+    MongooseModule.forFeature([
+      { name: Appointment.name, schema: AppointmentSchema },
+      { name: Doctor.name, schema: DoctorSchema },
+      { name: User.name, schema: UserSchema },
+    ]),
     AuthUserModule,
-    ConfigModule, 
+    ConfigModule,
     ReportsModule,
     AuditModule,
-],
+  ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],
   exports: [AppointmentsService],

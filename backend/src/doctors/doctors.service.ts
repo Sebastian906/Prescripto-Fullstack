@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Doctor, DoctorDocument } from './schemas/doctor.schema';
@@ -6,226 +11,245 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { LoginDoctorDto } from './dto/login-doctor.dto';
 import * as bcrypt from 'bcrypt';
-import { Appointment, AppointmentDocument } from 'src/appointments/schemas/appointment.schema';
+import {
+  Appointment,
+  AppointmentDocument,
+} from 'src/appointments/schemas/appointment.schema';
 import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
 import { ReportsService } from 'src/reports/reports.service';
 import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class DoctorsService {
-    constructor(
-        @InjectModel(Doctor.name)
-        private readonly doctorModel: Model<DoctorDocument>,
-        @InjectModel(Appointment.name)
-        private readonly appointmentModel: Model<AppointmentDocument>,
-        private readonly jwtService: JwtService,
-        private readonly configService: ConfigService,
-        private readonly reportsService: ReportsService,
-        private readonly auditService: AuditService,
-    ) { }
+  constructor(
+    @InjectModel(Doctor.name)
+    private readonly doctorModel: Model<DoctorDocument>,
+    @InjectModel(Appointment.name)
+    private readonly appointmentModel: Model<AppointmentDocument>,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly reportsService: ReportsService,
+    private readonly auditService: AuditService,
+  ) {}
 
-    async getAllDoctors() {
-        const doctors = await this.doctorModel.find({}).select('-password');
-        return { success: true, doctors };
+  async getAllDoctors() {
+    const doctors = await this.doctorModel.find({}).select('-password');
+    return { success: true, doctors };
+  }
+
+  async changeAvailability(docId: string) {
+    const doctor = await this.doctorModel.findById(docId);
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
     }
 
-    async changeAvailability(docId: string) {
-        const doctor = await this.doctorModel.findById(docId);
+    await this.doctorModel.findByIdAndUpdate(docId, {
+      available: !doctor.available,
+    });
 
-        if (!doctor) {
-            throw new NotFoundException('Doctor not found');
-        }
+    return { success: true, message: 'Availability changed' };
+  }
 
-        await this.doctorModel.findByIdAndUpdate(docId, {
-            available: !doctor.available,
-        });
+  async doctorList() {
+    try {
+      const doctors = await this.doctorModel
+        .find({})
+        .select(['-password', '-email']);
+      return { success: true, doctors };
+    } catch (error: any) {
+      console.log(error);
+      return { success: false, message: error.message };
+    }
+  }
 
-        return { success: true, message: 'Availability changed' };
+  async loginDoctor(
+    dto: LoginDoctorDto,
+  ): Promise<{ success: boolean; token: string }> {
+    const { email, password } = dto;
+
+    const doctor = await this.doctorModel.findOne({ email });
+
+    if (!doctor) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    async doctorList() {
+    const isMatch = await bcrypt.compare(password, doctor.password);
 
-        try {
-
-            const doctors = await this.doctorModel.find({}).select(['-password', '-email'])
-            return { success: true, doctors };
-
-        } catch (error: any) {
-
-            console.log(error);
-            return { success: false, message: error.message };
-
-        }
+    if (!isMatch) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    async loginDoctor(dto: LoginDoctorDto): Promise<{ success: boolean; token: string }> {
-        const { email, password } = dto;
+    const token = this.jwtService.sign(
+      { id: doctor._id },
+      { secret: this.configService.get<string>('JWT_SECRET') },
+    );
 
-        const doctor = await this.doctorModel.findOne({ email });
+    return { success: true, token };
+  }
 
-        if (!doctor) {
-            throw new UnauthorizedException('Invalid credentials');
-        }
+  async getDoctorAppointments(
+    docId: string,
+  ): Promise<{ success: boolean; appointments: AppointmentDocument[] }> {
+    const appointments = await this.appointmentModel.find({ docId });
+    return { success: true, appointments };
+  }
 
-        const isMatch = await bcrypt.compare(password, doctor.password);
+  async completeAppointment(
+    docId: string,
+    appointmentId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const appointment = await this.appointmentModel.findById(appointmentId);
 
-        if (!isMatch) {
-            throw new UnauthorizedException('Invalid credentials');
-        }
+    if (!appointment || appointment.docId !== docId) {
+      throw new UnauthorizedException('Mark failed');
+    }
 
-        const token = this.jwtService.sign(
-            { id: doctor._id },
-            { secret: this.configService.get<string>('JWT_SECRET') },
+    if (appointment.isCompleted) {
+      throw new BadRequestException('Appointment is already completed');
+    }
+
+    await this.appointmentModel.findByIdAndUpdate(appointmentId, {
+      isCompleted: true,
+    });
+
+    const appt = await this.appointmentModel.findById(appointmentId).lean();
+    if (!appt) {
+      throw new NotFoundException('Appointment not found');
+    }
+
+    await this.reportsService.onAppointmentCompleted(
+      docId,
+      appt.userId,
+      appt.amount,
+      new Date(appt.date),
+    );
+
+    try {
+      await this.auditService?.record({
+        actorId: docId,
+        role: 'doctor',
+        action: 'appointment.complete',
+        entityId: appointmentId,
+        at: new Date(),
+      });
+    } catch (e) {
+      console.log('audit record failed:', e);
+    }
+
+    return { success: true, message: 'Appointment Completed' };
+  }
+
+  async cancelAppointmentDoctor(
+    docId: string,
+    appointmentId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const appointment = await this.appointmentModel.findById(appointmentId);
+
+    if (!appointment || appointment.docId !== docId) {
+      throw new UnauthorizedException('Cancellation failed');
+    }
+
+    if (appointment.cancelled) {
+      throw new BadRequestException('Appointment is already cancelled');
+    }
+
+    await this.appointmentModel.findByIdAndUpdate(appointmentId, {
+      cancelled: true,
+    });
+
+    const doctor = await this.doctorModel.findById(docId);
+    if (doctor) {
+      const slotsBooked = doctor.slots_booked ?? {};
+      const { slotDate, slotTime } = appointment;
+
+      if (slotsBooked[slotDate]) {
+        slotsBooked[slotDate] = slotsBooked[slotDate].filter(
+          (slot) => slot !== slotTime,
         );
+      }
 
-        return { success: true, token };
+      await this.doctorModel.findByIdAndUpdate(docId, {
+        slots_booked: slotsBooked,
+      });
     }
 
-    async getDoctorAppointments(
-        docId: string,
-    ): Promise<{ success: boolean; appointments: AppointmentDocument[] }> {
-        const appointments = await this.appointmentModel.find({ docId });
-        return { success: true, appointments };
+    await this.reportsService.onAppointmentCancelled(
+      appointment.docId,
+      new Date(appointment.date),
+    );
+
+    try {
+      await this.auditService?.record({
+        actorId: docId,
+        role: 'doctor',
+        action: 'appointment.cancel',
+        entityId: appointmentId,
+        at: new Date(),
+      });
+    } catch (e) {
+      console.log('audit record failed:', e);
     }
 
-    async completeAppointment(
-        docId: string,
-        appointmentId: string,
-    ): Promise<{ success: boolean; message: string }> {
-        const appointment = await this.appointmentModel.findById(appointmentId);
+    return { success: true, message: 'Appointment Cancelled' };
+  }
 
-        if (!appointment || appointment.docId !== docId) {
-            throw new UnauthorizedException('Mark failed');
-        }
+  async getDoctorDashboard(docId: string): Promise<{
+    success: boolean;
+    dashData: {
+      earnings: number;
+      appointments: number;
+      patients: number;
+      latestAppointments: AppointmentDocument[];
+    };
+  }> {
+    const appointments = await this.appointmentModel.find({ docId });
 
-        if (appointment.isCompleted) {
-            throw new BadRequestException('Appointment is already completed');
-        }
+    const earnings = appointments.reduce((sum, item) => {
+      return item.isCompleted || item.payment ? sum + item.amount : sum;
+    }, 0);
 
-        await this.appointmentModel.findByIdAndUpdate(appointmentId, { isCompleted: true });
+    const patients = [...new Set(appointments.map((item) => item.userId))]
+      .length;
 
-        const appt = await this.appointmentModel.findById(appointmentId).lean();
-        if (!appt) {
-            throw new NotFoundException('Appointment not found');
-        }
+    const latestAppointments = [...appointments].reverse().slice(0, 5);
 
-        await this.reportsService.onAppointmentCompleted(
-            docId,
-            appt.userId,
-            appt.amount,
-            new Date(appt.date),
-        );
+    const dashData = {
+      earnings,
+      appointments: appointments.length,
+      patients,
+      latestAppointments,
+    };
 
-        try {
-            await this.auditService?.record({
-                actorId: docId, role: 'doctor', action: 'appointment.complete',
-                entityId: appointmentId, at: new Date(),
-            });
-        } catch (e) { console.log('audit record failed:', e); }
+    return { success: true, dashData };
+  }
 
-        return { success: true, message: 'Appointment Completed' };
+  async getDoctorProfile(
+    docId: string,
+  ): Promise<{ success: boolean; profileData: DoctorDocument }> {
+    const profileData = await this.doctorModel
+      .findById(docId)
+      .select('-password');
+
+    if (!profileData) {
+      throw new NotFoundException('Doctor not found');
     }
 
-    async cancelAppointmentDoctor(
-        docId: string,
-        appointmentId: string,
-    ): Promise<{ success: boolean; message: string }> {
-        const appointment = await this.appointmentModel.findById(appointmentId);
+    return { success: true, profileData };
+  }
 
-        if (!appointment || appointment.docId !== docId) {
-            throw new UnauthorizedException('Cancellation failed');
-        }
+  async updateDoctorProfile(
+    docId: string,
+    dto: UpdateDoctorProfileDto,
+  ): Promise<{ success: boolean; message: string }> {
+    const { fees, address, available } = dto;
 
-        if (appointment.cancelled) {
-            throw new BadRequestException('Appointment is already cancelled');
-        }
+    await this.doctorModel.findByIdAndUpdate(docId, {
+      fees: Number(fees),
+      address: typeof address === 'string' ? JSON.parse(address) : address,
+      available,
+    });
 
-        await this.appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true });
-
-        const doctor = await this.doctorModel.findById(docId);
-        if (doctor) {
-            const slotsBooked = doctor.slots_booked ?? {};
-            const { slotDate, slotTime } = appointment;
-
-            if (slotsBooked[slotDate]) {
-                slotsBooked[slotDate] = slotsBooked[slotDate].filter(
-                    (slot) => slot !== slotTime,
-                );
-            }
-
-            await this.doctorModel.findByIdAndUpdate(docId, { slots_booked: slotsBooked });
-        }
-
-        await this.reportsService.onAppointmentCancelled(
-            appointment.docId,
-            new Date(appointment.date),
-        );
-
-        try {
-            await this.auditService?.record({
-                actorId: docId, role: 'doctor', action: 'appointment.cancel',
-                entityId: appointmentId, at: new Date(),
-            });
-        } catch (e) { console.log('audit record failed:', e); }
-
-        return { success: true, message: 'Appointment Cancelled' };
-    }
-
-    async getDoctorDashboard(docId: string): Promise<{
-        success: boolean;
-        dashData: {
-            earnings: number;
-            appointments: number;
-            patients: number;
-            latestAppointments: AppointmentDocument[];
-        };
-    }> {
-        const appointments = await this.appointmentModel.find({ docId });
-
-        const earnings = appointments.reduce((sum, item) => {
-            return item.isCompleted || item.payment ? sum + item.amount : sum;
-        }, 0);
-
-        const patients = [...new Set(appointments.map((item) => item.userId))].length;
-
-        const latestAppointments = [...appointments].reverse().slice(0, 5);
-
-        const dashData = {
-            earnings,
-            appointments: appointments.length,
-            patients,
-            latestAppointments,
-        };
-
-        return { success: true, dashData };
-    }
-
-    async getDoctorProfile(
-        docId: string,
-    ): Promise<{ success: boolean; profileData: DoctorDocument }> {
-        const profileData = await this.doctorModel
-            .findById(docId)
-            .select('-password');
-
-        if (!profileData) {
-            throw new NotFoundException('Doctor not found');
-        }
-
-        return { success: true, profileData };
-    }
-
-    async updateDoctorProfile(
-        docId: string,
-        dto: UpdateDoctorProfileDto,
-    ): Promise<{ success: boolean; message: string }> {
-        const { fees, address, available } = dto;
-
-        await this.doctorModel.findByIdAndUpdate(docId, {
-            fees: Number(fees),
-            address: typeof address === 'string' ? JSON.parse(address) : address,
-            available,
-        });
-
-        return { success: true, message: 'Profile Updated' };
-    }
+    return { success: true, message: 'Profile Updated' };
+  }
 }

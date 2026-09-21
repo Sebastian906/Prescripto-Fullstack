@@ -4,17 +4,17 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthDoctorGuard } from './auth-doctor.guard';
 
 @Module({
-    imports: [
-        ConfigModule,
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET'),
-            }),
-            inject: [ConfigService],
-        }),
-    ],
-    providers: [AuthDoctorGuard],
-    exports: [AuthDoctorGuard, JwtModule],
+  imports: [
+    ConfigModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+  providers: [AuthDoctorGuard],
+  exports: [AuthDoctorGuard, JwtModule],
 })
 export class AuthDoctorModule {}

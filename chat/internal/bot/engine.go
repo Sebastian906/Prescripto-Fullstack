@@ -219,10 +219,6 @@ func classify(msg, state string) Intent {
 		return IntentContactAdmin
 	}
 
-	if isOrientationQuery(raw) {
-		return IntentGreeting
-	}
-
 	switch {
 	// Más específicos primero: cancelar, ver citas
 	case containsAny(raw,
@@ -242,12 +238,6 @@ func classify(msg, state string) Intent {
 		return IntentHowToBook
 
 	case containsAny(raw,
-		"find", "doctor", "medico", "specialist", "especialista",
-		"physician", "surgeon", "who", "which doctor", "que medico",
-		"list", "lista", "browse", "search"):
-		return IntentPickDoctor
-
-	case containsAny(raw,
 		"slot", "time", "horario", "available", "disponible", "when", "cuando",
 		"what time", "que hora", "fecha", "date"):
 		return IntentSlotSelection
@@ -265,6 +255,12 @@ func classify(msg, state string) Intent {
 		return IntentDoctorProfile
 
 	case containsAny(raw,
+		"find", "doctor", "medico", "specialist", "especialista",
+		"physician", "surgeon", "who", "which doctor", "que medico",
+		"list", "lista", "browse", "search"):
+		return IntentPickDoctor
+
+	case containsAny(raw,
 		"admin", "human", "person", "persona", "help me", "ayudame",
 		"support", "soporte", "agent", "agente", "talk", "hablar",
 		"necesito ayuda", "i need help", "real person", "persona real"):
@@ -272,6 +268,10 @@ func classify(msg, state string) Intent {
 
 	case containsAny(raw,
 		"hi", "hello", "hey", "hola", "good", "greet", "welcome"):
+		return IntentGreeting
+	}
+
+	if isOrientationQuery(raw) {
 		return IntentGreeting
 	}
 
@@ -325,11 +325,6 @@ func normalize(msg string) string {
 
 	for _, r := range strings.ToLower(msg) {
 		switch {
-		case unicode.IsLetter(r) || unicode.IsNumber(r):
-			b.WriteRune(r)
-		case unicode.IsSpace(r), r == '-', r == '_':
-			// Convert hyphens and underscores to spaces for proper word splitting
-			b.WriteRune(' ')
 		case r == 'á' || r == 'à' || r == 'ä' || r == 'â':
 			b.WriteRune('a')
 		case r == 'é' || r == 'è' || r == 'ë' || r == 'ê':
@@ -342,6 +337,11 @@ func normalize(msg string) string {
 			b.WriteRune('u')
 		case r == 'ñ':
 			b.WriteRune('n')
+		case unicode.IsLetter(r) || unicode.IsNumber(r):
+			b.WriteRune(r)
+		case unicode.IsSpace(r), r == '-', r == '_':
+			// Convert hyphens and underscores to spaces for proper word splitting
+			b.WriteRune(' ')
 		}
 	}
 

@@ -1,5 +1,10 @@
 # Prescripto - Medical Appointment Reservation System
 
+[![CI](https://github.com/SEBASTIAN906/Prescripto-Fullstack/actions/workflows/ci.yml/badge.svg)](https://github.com/SEBASTIAN906/Prescripto-Fullstack/actions/workflows/ci.yml)
+[![Gitleaks](https://github.com/SEBASTIAN906/Prescripto-Fullstack/actions/workflows/ci.yml/badge.svg?job=secrets%20%2F%20gitleaks)](https://github.com/SEBASTIAN906/Prescripto-Fullstack/actions/workflows/ci.yml)
+
+> Runtime: `backend :3000` · `frontend :5173` · `admin :5174` · `chat :4000`. CI runs on GitHub Actions (Ubuntu, Node 20 + pnpm 9, Go 1.25) in <8 min; doesn't include deploy (H-03 deferred). Details: `docs/ARCHITECTURE.md`.
+
 ## Table of Contents
 
 - [Overview](#overview)

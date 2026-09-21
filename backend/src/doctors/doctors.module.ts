@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Doctor, DoctorSchema } from './schemas/doctor.schema';
-import { Appointment, AppointmentSchema } from 'src/appointments/schemas/appointment.schema';
+import {
+  Appointment,
+  AppointmentSchema,
+} from 'src/appointments/schemas/appointment.schema';
 import { DoctorsController } from './doctors.controller';
 import { DoctorsService } from './doctors.service';
 import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
@@ -26,4 +29,4 @@ import { AuditModule } from 'src/audit/audit.module';
   providers: [DoctorsService],
   exports: [DoctorsService],
 })
-export class DoctorsModule { }
+export class DoctorsModule {}
