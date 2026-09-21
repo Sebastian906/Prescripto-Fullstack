@@ -219,10 +219,6 @@ func classify(msg, state string) Intent {
 		return IntentContactAdmin
 	}
 
-	if isOrientationQuery(raw) {
-		return IntentGreeting
-	}
-
 	switch {
 	// Más específicos primero: cancelar, ver citas
 	case containsAny(raw,
@@ -240,6 +236,12 @@ func classify(msg, state string) Intent {
 		"book", "appointment", "schedule", "reserve", "reservar", "agendar",
 		"quiero una cita", "necesito cita", "necesito una", "how do i", "como hago"):
 		return IntentHowToBook
+
+	case containsAny(raw,
+		"profile", "perfil", "info", "information", "informacion",
+ 		"experience", "experiencia", "about doctor", "about the doctor",
+ 		"sobre el medico", "credentials", "degree", "titulo"):
+ 		return IntentDoctorProfile
 
 	case containsAny(raw,
 		"find", "doctor", "medico", "specialist", "especialista",
@@ -272,6 +274,10 @@ func classify(msg, state string) Intent {
 
 	case containsAny(raw,
 		"hi", "hello", "hey", "hola", "good", "greet", "welcome"):
+		return IntentGreeting
+	}
+
+	if isOrientationQuery(raw) {
 		return IntentGreeting
 	}
 

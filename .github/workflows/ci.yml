@@ -67,7 +67,7 @@ jobs:
       - name: lint (no-fix)
         run: pnpm exec eslint "{src,apps,libs,test}/**/*.ts"
       - name: jest (A-01 validation pipe exercised)
-        run: pnpm test -- --runInBand
+        run: pnpm exec jest --runInBand
       - run: pnpm build
 
   frontend:
