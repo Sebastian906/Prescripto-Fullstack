@@ -1,5 +1,6 @@
 <script setup>
 import { useReportExport } from '../composables/useReportExport.js'
+import { useToast } from 'vue-toastification'
 
 const props = defineProps({
     rows: { type: Array, default: () => [] },
@@ -10,9 +11,13 @@ const props = defineProps({
     currency: { type: String, default: '$' },
     doctor: { type: String, default: null },
     disabled: { type: Boolean, default: false },
+    backendUrl: { type: String, default: '' },
+    atoken: { type: String, default: '' },
+    docId: { type: String, default: null },
 })
 
-const { exportPDF, exportExcel, exporting } = useReportExport()
+const toast = useToast()
+const { exportPDF, exportExcel, exportCSV, exporting } = useReportExport()
 
 const payload = () => ({
     rows: props.rows,
@@ -26,6 +31,17 @@ const payload = () => ({
 
 const handlePDF = () => exportPDF(payload())
 const handleExcel = () => exportExcel(payload())
+const handleCSV = async () => {
+    if (!props.backendUrl || !props.atoken) {
+        toast.error('Missing backendUrl/atoken for CSV export')
+        return
+    }
+    try {
+        await exportCSV({ year: props.year, docId: props.docId, backendUrl: props.backendUrl, aToken: props.atoken })
+    } catch (e) {
+        toast.error(e.message)
+    }
+}
 </script>
 
 <template>
@@ -82,6 +98,33 @@ const handleExcel = () => exportExcel(payload())
 
             <span v-if="exporting"
                 class="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-green-500 animate-ping opacity-75" />
+        </button>
+
+        <button @click="handleCSV" :disabled="disabled || exporting"
+            :title="exporting ? 'Generating…' : 'Download CSV (server-generated, Excel-ready)'" class="group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium
+                    border border-indigo-200 text-indigo-600 bg-white
+                    hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-700
+                    active:scale-95
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    transition-all duration-150 shadow-sm cursor-pointer
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+            <svg v-if="exporting" class="w-4 h-4 animate-spin text-indigo-500" xmlns="http://www.w3.org/2000/svg"
+                fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+
+            <svg v-else class="w-4 h-4 text-indigo-500 group-hover:text-indigo-600 transition-colors"
+                xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 18H17V16H7v2zm10-8H14V6h-4v4H7l5 5 5-5z" />
+                <path fill-rule="evenodd" clip-rule="evenodd"
+                    d="M4 2a2 2 0 00-2 2v16a2 2 0 002 2h16a2 2 0 002-2V8l-6-6H4zm0 2h10v5h5v11H4V4z" />
+            </svg>
+
+            <span>CSV</span>
+
+            <span v-if="exporting"
+                class="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-indigo-500 animate-ping opacity-75" />
         </button>
     </div>
 </template>

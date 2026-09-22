@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import axios from 'axios'
 
 export function useReportExport() {
     const exporting = ref(false)
@@ -30,13 +31,13 @@ export function useReportExport() {
 
             const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
-            const INDIGO     = [99, 102, 241]   // indigo-500  #6366f1
-            const INDIGO_LIGHT = [224, 231, 255] // indigo-100  #e0e7ff
-            const SLATE_700  = [51, 65, 85]
-            const SLATE_500  = [100, 116, 139]
-            const WHITE      = [255, 255, 255]
-            const GREEN      = [22, 163, 74]
-            const RED        = [220, 38, 38]
+            const INDIGO = [99, 102, 241]
+            const INDIGO_LIGHT = [224, 231, 255]
+            const SLATE_700 = [51, 65, 85]
+            const SLATE_500 = [100, 116, 139]
+            const WHITE = [255, 255, 255]
+            const GREEN = [22, 163, 74]
+            const RED = [220, 38, 38]
 
             const PAGE_W = doc.internal.pageSize.getWidth()
             const PAGE_H = doc.internal.pageSize.getHeight()
@@ -62,9 +63,9 @@ export function useReportExport() {
 
             const kpis = [
                 { label: 'Total Appointments', value: num(totals.totalAppointments) },
-                { label: 'Completed',           value: num(totals.completedAppointments), color: GREEN },
-                { label: 'Cancelled',            value: num(totals.cancelledAppointments), color: RED },
-                { label: 'Total Earnings',       value: fmt(totals.totalEarnings, currency), color: INDIGO },
+                { label: 'Completed', value: num(totals.completedAppointments), color: GREEN },
+                { label: 'Cancelled', value: num(totals.cancelledAppointments), color: RED },
+                { label: 'Total Earnings', value: fmt(totals.totalEarnings, currency), color: INDIGO },
             ]
 
             const cardW = (PAGE_W - 28 - 9) / 4
@@ -312,5 +313,35 @@ export function useReportExport() {
             exporting.value = false
         }
     }
-    return { exportPDF, exportExcel, exporting }
+
+    async function exportCSV({ year, docId = null, backendUrl, aToken }) {
+        exporting.value = true
+        try {
+            const { data, headers } = await axios.get(`${backendUrl}/api/reports/annual`, {
+                headers: { atoken: aToken },
+                params: { year, ...(docId ? { docId } : {}), format: 'csv' },
+                responseType: 'blob',
+            })
+            const blob = new Blob([data], { type: 'text/csv;charset=utf-8' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `annual-report-${year}.csv`
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            URL.revokeObjectURL(url)
+            return headers?.['x-request-id']
+        } catch (error) {
+            const requestId =
+                error?.response?.data?.requestId ??
+                error?.response?.headers?.['x-request-id'] ??
+                'unknown'
+            throw new Error(`CSV export failed (requestId: ${requestId}): ${error.message}`)
+        } finally {
+            exporting.value = false
+        }
+    }
+
+    return { exportPDF, exportExcel, exportCSV, exporting }
 }

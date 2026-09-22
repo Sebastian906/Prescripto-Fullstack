@@ -1029,6 +1029,13 @@ Canales de Alerta:
 └─ SMS (crítica + on-call)
 ```
 
+### Registro de solicitudes (sin ELK)
+
+- `RequestIdMiddleware` asigna `req.requestId` (`crypto.randomUUID()`, respeta `x-request-id` entrante) y devuelve `X-Request-Id` en cada respuesta. Se registra en `AppModule.configure()` para `*`.
+- `LoggingInterceptor` (global `APP_INTERCEPTOR`) escribe una línea JSON por request: `{"method","path","status","ms","requestId"}`. Los errores también se registran con su estado vía `catchError`.
+- `HttpRequestIdFilter` (global `APP_FILTER`) propaga el id a los errores visibles: cuerpo `{statusCode, message, requestId}` + cabecera `X-Request-Id`. El 429 mantiene `Retry-After` vía `ThrottlerExceptionFilter` parcheado con el mismo `requestId`.
+- CORS expone `X-Request-Id` (`exposedHeaders`) para que el panel admin lo lea con axios y lo muestre en los toasts.
+
 ## Arquitectura de Seguridad
 
 ### Autenticación y Autorización
@@ -1219,6 +1226,6 @@ Fase 4 (18+ meses): Características Avanzadas
 ---
 
 **Versión del Documento**: 1.0.0  
-**Última Actualización**: Abril 2026  
+**Última Actualización**: Septiembre 2026  
 **Madurez de Arquitectura**: Listo para Producción  
 **Cumplimiento de SOA**: Alto

@@ -5,7 +5,7 @@ import { useAdminContext } from '../../context/AdminContext'
 import { useAppContext } from '../../context/AppContext'
 import ReportExportButtons from '../../components/ReportExportButtons.vue'
 
-const { aToken, annualReport, monthlyTrend, getAnnualReport, getMonthlyTrend } = useAdminContext()
+const { aToken, backendUrl, annualReport, monthlyTrend, getAnnualReport, getMonthlyTrend } = useAdminContext()
 const { currency } = useAppContext()
 const { t } = useI18n()
 
@@ -58,7 +58,7 @@ onMounted(() => {
                     {{ t('adminReports.refresh') }}
                 </button>
                 <ReportExportButtons :rows="reportRows" :totals="totals" :trend="monthlyTrend" :year="selectedYear"
-                    :title="t('adminReports.title')" :currency="currency"
+                    :title="t('adminReports.title')" :currency="currency" :backend-url="backendUrl" :atoken="aToken"
                     :disabled="loading || reportRows.length === 0" />
             </div>
         </div>

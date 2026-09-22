@@ -40,6 +40,7 @@ async function bootstrap() {
       'dtoken',
       'stripe-signature',
     ],
+    exposedHeaders: ['X-Request-Id', 'Retry-After'],
   });
 
   // Swagger config
