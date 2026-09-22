@@ -17,13 +17,13 @@ export class LoggingInterceptor implements NestInterceptor {
     const req = context.switchToHttp().getRequest<RequestWithId & Request>();
     const res = context.switchToHttp().getResponse<Response>();
     const requestId = req.requestId ?? 'unknown';
-    const { method, originalUrl } = req;
+    const { method, path } = req;
     const started = Date.now();
     const log = (status: number) =>
       this.logger.log(
         JSON.stringify({
           method,
-          path: originalUrl,
+          path,
           status,
           ms: Date.now() - started,
           requestId,
