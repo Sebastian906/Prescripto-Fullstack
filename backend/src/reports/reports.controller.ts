@@ -1,8 +1,10 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ReportsService, GLOBAL_DOC_ID } from './reports.service';
 import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
 import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
+import { annualReportToCsv } from './utils/annual-report-csv.util';
 
 @ApiTags('Reports')
 @Controller('api/reports')
@@ -12,6 +14,7 @@ export class ReportsController {
   /**
    * Reporte anual — Admin: puede consultar cualquier doctor o el sistema global.
    * O(1): lee máximo 12 documentos de MonthlyStats, sin tocar Appointments.
+   * ?format=csv devuelve CSV normalizado (agregados, sin uniquePatientIds).
    */
   @Get('annual')
   @ApiOperation({
@@ -20,15 +23,30 @@ export class ReportsController {
   @ApiHeader({ name: 'atoken', required: true })
   @ApiQuery({ name: 'year', required: true })
   @ApiQuery({ name: 'docId', required: false })
+  @ApiQuery({ name: 'format', required: false, enum: ['csv', 'json'] })
   @UseGuards(AuthAdminGuard)
   async getAnnualAdmin(
     @Query('year') year: string,
     @Query('docId') docId?: string,
+    @Query('format') format?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
-    return this.reportsService.getAnnualReport(
+    const data = await this.reportsService.getAnnualReport(
       docId ?? GLOBAL_DOC_ID,
       Number(year),
     );
+    if ((format ?? '').toLowerCase() === 'csv') {
+      if (!res) return data;
+      const csv = annualReportToCsv(data.report);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="annual-report-${Number(year)}.csv"`,
+      );
+      res.send(csv);
+      return;
+    }
+    return data;
   }
 
   // Reporte anual — Doctor: sólo sus propias métricas.

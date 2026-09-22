@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
@@ -17,6 +18,9 @@ import { PostgresService } from './migration/postgres.service';
 import { ThrottlerConfigModule } from './shared/throttler/throttler.module';
 import { AuditModule } from './audit/audit.module';
 import { ConsentModule } from './consent/consent.module';
+import { RequestIdMiddleware } from './shared/middleware/request-id.middleware';
+import { LoggingInterceptor } from './shared/interceptors/logging.interceptor';
+import { HttpRequestIdFilter } from './shared/filters/http-request-id.filter';
 
 @Module({
   imports: [
@@ -37,6 +41,15 @@ import { ConsentModule } from './consent/consent.module';
     ConsentModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PostgresService],
+  providers: [
+    AppService,
+    PostgresService,
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    { provide: APP_FILTER, useClass: HttpRequestIdFilter },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}
