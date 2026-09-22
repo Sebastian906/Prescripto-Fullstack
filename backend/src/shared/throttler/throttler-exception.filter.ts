@@ -25,9 +25,7 @@ export class ThrottlerExceptionFilter implements ExceptionFilter {
     // ttl from the throttler config (default 60s)
     const retryAfter = 60;
     const requestId =
-      req?.requestId ??
-      (req?.headers?.['x-request-id'] as string) ??
-      'unknown';
+      req?.requestId ?? (req?.headers?.['x-request-id'] as string) ?? 'unknown';
     const body = exception.getResponse();
     const payload =
       typeof body === 'object' && body !== null

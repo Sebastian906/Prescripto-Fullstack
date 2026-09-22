@@ -20,8 +20,8 @@ async function bootstrap() {
   const rawList = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
     : ([process.env.FRONTEND_URL, process.env.ADMIN_URL].filter(
-      Boolean,
-    ) as string[]);
+        Boolean,
+      ) as string[]);
   const allowlist = rawList.map((o) => o.trim()).filter(Boolean);
   app.enableCors({
     origin: (
