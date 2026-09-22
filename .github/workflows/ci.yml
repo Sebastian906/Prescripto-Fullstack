@@ -159,5 +159,6 @@ jobs:
         with:
           go-version: "1.25"
           cache: true
-      - run: go run ./cmd/botcheck
+      - run: go run ./cmd/botcheck --json
+      - run: go run ./cmd/botcheck --lang es --json
       - run: go test ./internal/bot/ -run TestGoldenIntents -count=1 -v
