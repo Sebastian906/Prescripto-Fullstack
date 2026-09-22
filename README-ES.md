@@ -158,8 +158,7 @@ Medical-Reservation/
 ├── chat/                        # Microservicio de chat con Go
 │   ├── cmd/
 │   │   ├── server/             # Servidor principal
-│   │   ├── debug-chatbot/      # Herramienta de depuración
-│   │   └── diagnose/           # Herramienta de diagnóstico
+│   │   └── botcheck/           # Verificador golden-intent para CI (--lang en|es --json)
 │   ├── internal/
 │   │   ├── auth/               # Autenticación
 │   │   ├── bot/                # Lógica del chatbot

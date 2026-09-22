@@ -409,9 +409,7 @@ chat/
 ├── cmd/                         # Aplicaciones de línea de comandos
 │   ├── server/                  # Servidor de chat
 │   │   └── main.go
-│   ├── debug-chatbot/           # Herramienta de depuración
-│   │   └── main.go
-│   └── diagnose/                # Herramienta de diagnóstico
+│   └── botcheck/                # Verificador golden-intent para CI
 │       └── main.go
 │
 ├── internal/                    # Paquetes internos (privados)

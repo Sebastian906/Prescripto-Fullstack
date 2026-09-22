@@ -1,0 +1,173 @@
+[
+  {
+    "input": "hello",
+    "lang": "en",
+    "state": "",
+    "wantIntent": "greeting"
+  },
+  {
+    "input": "hola",
+    "lang": "es",
+    "state": "",
+    "wantIntent": "greeting"
+  },
+  {
+    "input": "how do i book",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "how_to_book"
+  },
+  {
+    "input": "como reservo",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "how_to_book"
+  },
+  {
+    "input": "doctors",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "pick_doctor"
+  },
+  {
+    "input": "medicos",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "pick_doctor"
+  },
+  {
+    "input": "slots",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "slot_selection"
+  },
+  {
+    "input": "horarios",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "slot_selection"
+  },
+  {
+    "input": "how much does it cost",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "payment"
+  },
+  {
+    "input": "cuanto cuesta pagar con tarjeta",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "payment"
+  },
+  {
+    "input": "cancel my appointment",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "cancel_appointment"
+  },
+  {
+    "input": "quiero cancelar mi cita",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "cancel_appointment"
+  },
+  {
+    "input": "view my appointments",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "view_appointments"
+  },
+  {
+    "input": "mis citas",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "view_appointments"
+  },
+  {
+    "input": "tell me about the doctor experience",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "doctor_profile"
+  },
+  {
+    "input": "perfil",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "doctor_profile"
+  },
+  {
+    "input": "talk to a human",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "contact_admin"
+  },
+  {
+    "input": "hablar con alguien",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "contact_admin"
+  },
+  {
+    "input": "asdfgh qwerty zzz",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "didn't quite catch"
+  },
+  {
+    "input": "asdfgh qwerty zzz",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "No estoy seguro"
+  },
+  {
+    "input": "is it expensive here",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "Wondering about costs"
+  },
+  {
+    "input": "es muy caro, hay algo barato",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "costos"
+  },
+  {
+    "input": "reserva",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "reservar una cita"
+  },
+  {
+    "input": "help",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "Happy to help"
+  },
+  {
+    "input": "ayuda",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "Con gusto te ayudo"
+  },
+  {
+    "input": "there is an error it fails to load",
+    "lang": "en",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "Sorry to hear"
+  },
+  {
+    "input": "hay un problema con la pagina",
+    "lang": "es",
+    "state": "awaiting_topic",
+    "wantIntent": "fallback",
+    "wantContains": "Lamento que"
+  }
+]
