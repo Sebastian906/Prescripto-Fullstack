@@ -97,6 +97,7 @@ function merge<T extends SortableDoctor>(
  * @param key    Propiedad por la que ordenar.
  * @param order  'asc' | 'desc'
  * @returns      Nuevo arreglo ordenado.
+ * @complexity O(n log n) tiempo, O(n) espacio auxiliar.
  */
 export function mergeSort<T extends SortableDoctor>(
   array: T[],
@@ -129,6 +130,8 @@ export function mergeSort<T extends SortableDoctor>(
  *
  * @param doctors  Lista completa de doctores.
  * @param order    'asc' ordena especialidades A→Z; 'desc' Z→A.
+ * @returns Doctores reagrupados por especialidad contigua.
+ * @complexity O(n log n + e log e) — e = especialidades únicas.
  */
 export function sortBySpecialityGroup<T extends SortableDoctor>(
   doctors: T[],

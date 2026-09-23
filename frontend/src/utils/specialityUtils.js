@@ -44,3 +44,25 @@ export function dbValueFromUrlParam(urlParam) {
     const entry = SPECIALITY_MAP.find(s => s.urlParam === urlParam)
     return entry ? entry.db : null
 }
+
+// canonical — mirrored in admin/src/utils/specialityUtils.js (keep identical)
+// mirror of frontend/src/utils/specialityUtils.js — keep identical
+/**
+ * Normaliza texto para búsqueda insensible a mayúsculas, tildes y espacios.
+ * Espejo semántico de `normalize()` en Go (chat/internal/bot/engine.go).
+ * @param {*} value - Valor a normalizar (null/undefined devuelven '').
+ * @returns {string} Texto en minúsculas, sin diacríticos, sin puntuación, con espacios colapsados.
+ * @complexity O(n) — pasadas lineales sobre la cadena.
+ */
+export function normalizeSearch(value) {
+    if (value == null) return ''
+    return String(value)
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/[^\p{L}\p{N} ]+/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+}

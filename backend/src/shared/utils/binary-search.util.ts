@@ -1,7 +1,10 @@
 /**
  * Busca un valor en un arreglo ordenado ascendentemente.
  * Retorna el índice si existe, -1 si no.
- * O(log n) tiempo, O(1) espacio.
+ * @param sortedArr - Arreglo ordenado ascendentemente (criterio localeCompare); debe venir ordenado.
+ * @param target - Valor exacto a localizar.
+ * @returns Índice del valor si existe; -1 si no.
+ * @complexity O(log n) tiempo, O(1) espacio.
  */
 export function binarySearch(sortedArr: string[], target: string): number {
   let low = 0;
@@ -23,7 +26,10 @@ export function binarySearch(sortedArr: string[], target: string): number {
  * Retorna el índice del primer elemento >= target.
  * Útil para encontrar el primer slot disponible en una franja horaria.
  * Ej: buscar primer slot >= "14:00" para citas de tarde.
- * O(log n) tiempo, O(1) espacio.
+ * @param sortedArr - Arreglo ordenado ascendentemente.
+ * @param target - Cota inferior a buscar.
+ * @returns Índice del primer elemento >= target; sortedArr.length si todos son < target.
+ * @complexity O(log n) tiempo, O(1) espacio.
  */
 export function lowerBound(sortedArr: string[], target: string): number {
   let low = 0;
@@ -44,6 +50,10 @@ export function lowerBound(sortedArr: string[], target: string): number {
 /**
  * Dado un arreglo de slots posibles y un arreglo de slots ocupados (ambos ordenados),
  * retorna los slots disponibles usando merge-scan O(n+m) en lugar de O(n*m).
+ * @param allSlots - Todos los slots posibles, ordenados ascendentemente.
+ * @param bookedSlots - Slots ocupados, ordenados ascendentemente.
+ * @returns Slots de allSlots ausentes en bookedSlots, en orden.
+ * @complexity O(n+m) tiempo, O(n) espacio.
  */
 export function getAvailableSlots(
   allSlots: string[],
