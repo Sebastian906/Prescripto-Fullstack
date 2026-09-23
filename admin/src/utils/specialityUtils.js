@@ -38,3 +38,23 @@ export function translateAbout(dbValue, t) {
     // Si no existe, devuelve el valor original como fallback
     return t(dbValue, { defaultValue: dbValue })
 }
+
+// mirror of frontend/src/utils/specialityUtils.js — keep identical
+/**
+ * Normaliza texto para búsqueda insensible a mayúsculas, tildes y espacios.
+ * Espejo semántico de `normalize()` en Go (chat/internal/bot/engine.go).
+ * @param {*} value - Valor a normalizar (null/undefined devuelven '').
+ * @returns {string} Texto en minúsculas, sin diacríticos, sin puntuación, con espacios colapsados.
+ * @complexity O(n) — pasadas lineales sobre la cadena.
+ */
+export function normalizeSearch(value) {
+    if (value == null) return ''
+    return String(value)
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .replace(/[-_]+/g, ' ')
+        .replace(/[^\p{L}\p{N} ]+/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+}

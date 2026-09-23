@@ -119,7 +119,7 @@ func (e *Engine) Process(userMessage, state string) Response {
 				{Label: trans.GoToMyApptsBtn, Value: "navigate_appointments"},
 				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
-			Metadata:  Metadata{Action: "navigate", Route: routeMyAppointments, Intent: string(IntentCancelAppt)},
+			Metadata:  Metadata{Intent: string(IntentCancelAppt)},
 			NextState: "awaiting_topic",
 		}
 
@@ -130,7 +130,7 @@ func (e *Engine) Process(userMessage, state string) Response {
 				{Label: trans.OpenMyApptsBtn, Value: "navigate_appointments"},
 				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
-			Metadata:  Metadata{Action: "navigate", Route: routeMyAppointments, Intent: string(IntentViewAppts)},
+			Metadata:  Metadata{Intent: string(IntentViewAppts)},
 			NextState: "awaiting_topic",
 		}
 
@@ -319,6 +319,13 @@ func isOrientationQuery(raw string) bool {
 	return false
 }
 
+// normalize lowercases s, folds Spanish diacritics (á→a, é→e, í→i,
+// ó→o, ú→u, ñ→n), maps spaces, hyphens and underscores to a single
+// space and drops every other punctuation mark. The result is trimmed
+// with collapsed inner whitespace and feeds intent matching.
+// Mirrored by normalizeSearch() in frontend/src/utils/specialityUtils.js
+// and admin/src/utils/specialityUtils.js — keep the three in sync.
+// Complexity O(n) in the length of s.
 func normalize(msg string) string {
 	var b strings.Builder
 	b.Grow(len(msg))

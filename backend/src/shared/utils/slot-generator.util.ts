@@ -1,7 +1,12 @@
 /**
  * Genera todos los slots posibles de un día dado.
  * Retorna arreglo ORDENADO ascendentemente (invariante requerido por binary search).
- * O(s) donde s = número de slots por día (constante ~22 slots para 10:00-21:00 c/30min)
+ * @param date - Día base (solo se usa la fecha).
+ * @param startHour - Hora de inicio en 24h (defecto 10).
+ * @param endHour - Hora de fin en 24h, exclusiva (defecto 21).
+ * @param intervalMinutes - Paso en minutos (defecto 30).
+ * @returns Slots ordenados ["10:00 AM", "10:30 AM", ..., "08:30 PM"].
+ * @complexity O(s) — s = slots por día (constante ~22 con defaults).
  */
 export function generateDaySlots(
   date: Date,
@@ -35,6 +40,9 @@ export function generateDaySlots(
 
 /**
  * Convierte fecha a clave de slot: "15/7/2025"
+ * @param date - Fecha a convertir.
+ * @returns Clave "día/mes/año" sin zero-pad (ej. "15/7/2025").
+ * @complexity O(1).
  */
 export function dateToSlotKey(date: Date): string {
   return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
