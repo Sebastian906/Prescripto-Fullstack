@@ -130,7 +130,7 @@ func (e *Engine) Process(userMessage, state string) Response {
 				{Label: trans.OpenMyApptsBtn, Value: "navigate_appointments"},
 				{Label: trans.MainMenuBtn, Value: "main_menu"},
 			},
-			Metadata:  Metadata{Intent: string(IntentViewAppts)},
+			Metadata:  Metadata{Action: "navigate", Route: routeMyAppointments, Intent: string(IntentViewAppts)},
 			NextState: "awaiting_topic",
 		}
 
@@ -209,7 +209,7 @@ func classify(msg, state string) Intent {
 		return IntentPayment
 	case "cancel_appointment", "cancel", "cancelar", "cancelar cita":
 		return IntentCancelAppt
-	case "view_appointments", "navigate_appointments", "my appointments",
+	case "view_appointments", "navigate_appointments", "navigate appointments", "my appointments",
 		"appointments", "mis citas", "citas":
 		return IntentViewAppts
 	case "doctor_profile", "profile", "perfil":

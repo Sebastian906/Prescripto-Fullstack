@@ -61,6 +61,7 @@ export function normalizeSearch(value) {
         .replace(/\p{Diacritic}/gu, '')
         .toLowerCase()
         .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
         .replace(/[^\p{L}\p{N} ]+/gu, '')
         .replace(/\s+/g, ' ')
         .trim()

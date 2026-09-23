@@ -66,7 +66,7 @@ export function buildSpecialityTree(
  * @param nodes - Raíces donde iniciar la búsqueda.
  * @param slug - Slug exacto a localizar (case-sensitive).
  * @returns El nodo si existe; null si no se encuentra.
- * @complexity O(n) worst-case — O(log n) en árbol balanceado.
+ * @complexity O(n) worst-case — el DFS puede visitar cada nodo aunque el árbol esté balanceado.
  */
 export function findNodeBySlug(
   nodes: SpecialityNode[],
@@ -87,10 +87,10 @@ export function findNodeBySlug(
  * Recolecta TODOS los slugs de una rama (nodo + descendientes).
  * Usado para filtrar doctores: si seleccionas "Surgeon",
  * incluye "Orthopedic Surgeon", "Neurosurgeon", etc.
- * Recursión de cola optimizable — O(n) donde n = tamaño de la rama.
+ * Cada nivel copia los slugs del subárbol vía spread: cada slug se copia una vez por ancestro.
  * @param node - Raíz de la rama a recolectar.
  * @returns Slugs de la rama (nodo primero, luego descendientes en DFS).
- * @complexity O(n) — n = tamaño de la rama.
+ * @complexity O(n·h) — n = tamaño de la rama, h = altura; O(n²) en cadena.
  */
 export function collectDescendantSlugs(node: SpecialityNode): string[] {
   const slugs: string[] = [node.slug];
