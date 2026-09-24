@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import {
+  MAX_INLINE_PATIENT_IDS,
   MonthlyStats,
   MonthlyStatsDocument,
 } from './schemas/monthly-stats.schema';
+import {
+  MonthlyStatsPatient,
+  MonthlyStatsPatientDocument,
+} from './schemas/monthly-stats-patient.schema';
 import { Model } from 'mongoose';
 
 // Constante para métricas globales del sistema
@@ -14,13 +19,18 @@ export const GLOBAL_DOC_ID = '__global__';
  * Cualquier servicio que altere el estado de una cita llama a estos métodos.
  * La tabla dp[docId][year][month] se actualiza con $inc atómico en MongoDB,
  * lo que garantiza correctitud incluso bajo concurrencia (no necesita lock).
+ * Higiene: uniquePatientIds capa en 5000 inline; excedente en
+ * MonthlyStatsPatient. uniquePatients se mantiene con $inc +1 solo ante
+ * paciente nuevo (filtro $ne / catch E11000), sin traer arrays completos.
  */
 @Injectable()
 export class ReportsService {
   constructor(
     @InjectModel(MonthlyStats.name)
     private readonly statsModel: Model<MonthlyStatsDocument>,
-  ) {}
+    @InjectModel(MonthlyStatsPatient.name)
+    private readonly spillModel: Model<MonthlyStatsPatientDocument>,
+  ) { }
 
   /**
    * Registra una nueva cita en la tabla DP.
@@ -88,12 +98,12 @@ export class ReportsService {
 
   /**
    * Reporte anual completo para un doctor o el sistema global.
-   *
+
    * Programación Dinámica — Tabulación bottom-up:
    * 1. Recupera los 12 subproblemas ya resueltos: O(12) = O(1)
    * 2. Construye la tabla de acumulados mes a mes: O(12) = O(1)
    * 3. El resultado es un array de 12 filas con running totals
-   *
+
    * Sin DP: habría que hacer find() sobre todas las citas del año → O(n)
    */
   async getAnnualReport(
@@ -201,8 +211,8 @@ export class ReportsService {
         completionRate: row
           ? row.totalAppointments > 0
             ? Math.round(
-                (row.completedAppointments / row.totalAppointments) * 100,
-              )
+              (row.completedAppointments / row.totalAppointments) * 100,
+            )
             : 0
           : 0,
       };
@@ -211,10 +221,51 @@ export class ReportsService {
     return { success: true, trend };
   }
 
+  // Conteo de pacientes en spill para un (docId, year, month).
+  async countSpillPatients(
+    docId: string,
+    year: number,
+    month: number,
+  ): Promise<number> {
+    return this.spillModel.countDocuments({ docId, year, month }).exec();
+  }
+
   /**
-   * Upsert atómico con $inc — el corazón del O(1) amortizado.
-   * addToSet para uniquePatientIds garantiza cardinalidad correcta
-   * sin traer el documento completo a memoria.
+   * Lista paginada de patientIds (inline primero, luego spill).
+   * Útil para auditoría sin cargar 6000 IDs de golpe.
+   */
+  async getUniquePatientIds(
+    docId: string,
+    year: number,
+    month: number,
+    page = 1,
+    pageSize = 500,
+  ): Promise<{ ids: string[]; total: number }> {
+    const safePage = Math.max(1, Math.floor(page));
+    const safeSize = Math.min(1000, Math.max(1, Math.floor(pageSize)));
+    const doc = await this.statsModel
+      .findOne({ docId, year, month })
+      .select('uniquePatientIds uniquePatients')
+      .lean();
+    const inline: string[] = doc?.uniquePatientIds ?? [];
+    const spillDocs = await this.spillModel
+      .find({ docId, year, month })
+      .select('patientId')
+      .lean();
+    const all = [...inline, ...spillDocs.map((s) => s.patientId)];
+    const total =
+      typeof doc?.uniquePatients === 'number' ? doc.uniquePatients : all.length;
+    const start = (safePage - 1) * safeSize;
+    return { ids: all.slice(start, start + safeSize), total };
+  }
+
+  /**
+   * Upsert atómico con $inc + cap de uniquePatientIds en 5000.
+   * - Sin patientId: un solo upsert $inc (path complete/cancel).
+   * - Con patientId nuevo e inline con hueco: updateOne con filtro
+   *   $ne + $addToSet + $inc uniquePatients:1 (atómico por documento).
+   * - Con inline lleno: insert en spill (índice único) + $inc uniquePatients:1;
+   *   duplicado concurrente (E11000) → solo $inc de contadores.
    */
   private async incrementStats(
     docId: string,
@@ -230,37 +281,124 @@ export class ReportsService {
   ): Promise<void> {
     const { patientId, ...numericDeltas } = delta;
 
-    const incOp: Record<string, number> = {};
+    const incCounters: Record<string, number> = {};
     for (const [key, val] of Object.entries(numericDeltas)) {
-      if (val !== undefined) incOp[key] = val;
+      if (val !== undefined) incCounters[key] = val;
     }
 
-    const updateOp: Record<string, any> = {};
-    if (Object.keys(incOp).length > 0) updateOp['$inc'] = incOp;
-
-    if (patientId) {
-      // $addToSet es idempotente — garantiza unicidad sin duplicados
-      updateOp['$addToSet'] = { uniquePatientIds: patientId };
+    // Path sin paciente: contadores puros, un solo upsert.
+    if (!patientId) {
+      const updateOp: Record<string, unknown> = {};
+      if (Object.keys(incCounters).length > 0)
+        updateOp['$inc'] = incCounters;
+      if (Object.keys(updateOp).length === 0) return;
+      await this.statsModel.updateOne(
+        { docId, year, month },
+        updateOp,
+        { upsert: true },
+      );
+      return;
     }
 
-    const updated = await this.statsModel.findOneAndUpdate(
-      { docId, year, month },
-      updateOp,
-      { upsert: true, new: true },
-    );
+    // Path con paciente: leer cabecera acotada (sin traer 5000 IDs salvo el doc).
+    const existing = await this.statsModel
+      .findOne({ docId, year, month })
+      .select('uniquePatientIds')
+      .lean();
 
-    // Si se añadió un nuevo paciente, recalcular el count.
-    // Evitar pasar un array de pipeline a `updateOne` (causa del error).
-    // En su lugar, calculamos el tamaño cliente-lado y actualizamos con $set.
-    if (patientId) {
-      const uniqueCount = Array.isArray(updated?.uniquePatientIds)
-        ? updated.uniquePatientIds.length
-        : 0;
+    // Documento inexistente: crearlo con el primer paciente inline.
+    if (!existing) {
+      await this.statsModel.updateOne(
+        { docId, year, month },
+        {
+          $setOnInsert: {
+            docId,
+            year,
+            month,
+            completedAppointments: 0,
+            cancelledAppointments: 0,
+            totalAppointments: 0,
+            earnings: 0,
+          },
+          $inc: { ...incCounters, uniquePatients: 1 },
+          $addToSet: { uniquePatientIds: patientId },
+        },
+        { upsert: true },
+      );
+      return;
+    }
 
-      if (uniqueCount !== updated?.uniquePatients) {
+    const inline: string[] = Array.isArray(existing.uniquePatientIds)
+      ? (existing.uniquePatientIds as string[])
+      : [];
+
+    // Ya inline → solo contadores.
+    if (inline.includes(patientId)) {
+      if (Object.keys(incCounters).length === 0) return;
+      await this.statsModel.updateOne(
+        { docId, year, month },
+        { $inc: incCounters },
+      );
+      return;
+    }
+
+    // ¿Ya en spill? → solo contadores.
+    const inSpill = await this.spillModel
+      .exists({ docId, year, month, patientId })
+      .exec();
+    if (inSpill) {
+      if (Object.keys(incCounters).length === 0) return;
+      await this.statsModel.updateOne(
+        { docId, year, month },
+        { $inc: incCounters },
+      );
+      return;
+    }
+
+    // Hueco inline → intento atómico (filtro $ne evita doble $inc en carrera).
+    if (inline.length < MAX_INLINE_PATIENT_IDS) {
+      const res = await this.statsModel.updateOne(
+        { docId, year, month, uniquePatientIds: { $ne: patientId } },
+        {
+          ...(Object.keys(incCounters).length > 0
+            ? { $inc: { ...incCounters, uniquePatients: 1 } }
+            : { $inc: { uniquePatients: 1 } }),
+          $addToSet: { uniquePatientIds: patientId },
+        },
+      );
+      // Carrera perdida (otro writer lo insertó): solo contadores.
+      if ((res.modifiedCount ?? 0) === 0) {
+        if (Object.keys(incCounters).length > 0) {
+          await this.statsModel.updateOne(
+            { docId, year, month },
+            { $inc: incCounters },
+          );
+        }
+      }
+      return;
+    }
+
+    // Inline lleno → spill.
+    try {
+      await this.spillModel.create({ docId, year, month, patientId });
+      await this.statsModel.updateOne(
+        { docId, year, month },
+        {
+          ...(Object.keys(incCounters).length > 0
+            ? { $inc: { ...incCounters, uniquePatients: 1 } }
+            : { $inc: { uniquePatients: 1 } }),
+        },
+      );
+    } catch (err) {
+      // Duplicado concurrente en spill (E11000): no contar dos veces.
+      const msg = err instanceof Error ? err.message : String(err);
+      const isDup =
+        (err as { code?: number }).code === 11000 || /duplicate/i.test(msg);
+      if (!isDup) throw err;
+      if (Object.keys(incCounters).length > 0) {
         await this.statsModel.updateOne(
           { docId, year, month },
-          { $set: { uniquePatients: uniqueCount } },
+          { $inc: incCounters },
         );
       }
     }

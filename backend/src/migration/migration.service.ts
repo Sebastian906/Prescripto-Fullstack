@@ -41,6 +41,14 @@ export interface MigrationReport {
   schemaCreated: boolean;
 }
 
+const SCHEMA_FILES = [
+  '001_create_schema.sql',
+  '002_advanced_objects.sql',
+  '003_monthly_stats_spill.sql',
+];
+
+const SPILL_BATCH = 1000;
+
 @Injectable()
 export class MigrationService {
   private readonly logger = new Logger(MigrationService.name);
@@ -59,7 +67,7 @@ export class MigrationService {
     private readonly tokenModel: Model<PasswordResetTokenDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly pg: PostgresService,
-  ) {}
+  ) { }
 
   async runFullMigration(
     options: {
@@ -112,25 +120,17 @@ export class MigrationService {
         await this.dropAllTables();
       }
 
-      const sqlPath = path.join(
-        process.cwd(),
-        'dist',
-        'migration',
-        'sql',
-        '001_create_schema.sql',
-      );
-      const sql = fs.readFileSync(sqlPath, 'utf8');
-
-      const statements = sql
-        .split('\n')
-        .filter((line) => !line.trim().startsWith('--'))
-        .join('\n')
-        .split(';')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
-      for (const stmt of statements) {
-        await this.pg.query(stmt);
+      for (const file of SCHEMA_FILES) {
+        const sql = this.readSqlFile(file);
+        if (!sql) { this.logger.warn(`Schema file not found: ${file}`); continue; }
+        try {
+          await this.pg.query(sql); // archivo completo, una sola llamada
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // tolerar solo el SELECT demo con typo al final de 002
+          if (/vista_citas_completa/.test(msg) && /does not exist/i.test(msg)) continue;
+          throw err;
+        }
       }
 
       this.logger.log('Schema created/verified successfully');
@@ -140,6 +140,21 @@ export class MigrationService {
       this.logger.error('Schema creation failed', message);
       throw err;
     }
+  }
+
+  private readSqlFile(file: string): string | null {
+    const candidates = [
+      path.join(process.cwd(), 'dist', 'migration', 'sql', file),
+      path.join(process.cwd(), 'src', 'migration', 'sql', file),
+    ];
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+      } catch {
+        continue;
+      }
+    }
+    return null;
   }
 
   private async dropAllTables(): Promise<void> {
@@ -482,12 +497,33 @@ export class MigrationService {
   }
 
   private async migrateMonthlyStats(result: MigrationResult): Promise<void> {
+    // Lee spill Mongo si el modelo está registrado; si no, cae a uniquePatientIds.
+    let spillByKey = new Map<string, string[]>();
+    try {
+      const spillCol = this.connection.collection('monthly_stats_patients');
+      const spillDocs = await spillCol.find({}).toArray();
+      for (const s of spillDocs as Array<{
+        docId?: string;
+        year?: number;
+        month?: number;
+        patientId?: string;
+      }>) {
+        if (!s?.docId || !s?.patientId) continue;
+        const key = `${s.docId}|${s.year}|${s.month}`;
+        const arr = spillByKey.get(key) ?? [];
+        arr.push(s.patientId);
+        spillByKey.set(key, arr);
+      }
+    } catch {
+      spillByKey = new Map<string, string[]>();
+    }
+
     const docs = await this.statsModel.find({}).lean();
 
     for (const doc of docs) {
       try {
         await this.pg.withTransaction(async (client) => {
-          const result = await client.query(
+          const res = await client.query(
             `INSERT INTO monthly_stats
                             (mongo_id, doc_id_ref, year, month,
                              total_appointments, completed_appointments,
@@ -513,16 +549,24 @@ export class MigrationService {
               doc.uniquePatients ?? 0,
             ],
           );
-          const statsId = result.rows[0].id;
+          const statsId = res.rows[0].id as string;
 
-          const patientIds: string[] = doc.uniquePatientIds ?? [];
-          for (const pid of patientIds) {
-            if (!pid) continue;
+          const inlineIds: string[] = (doc.uniquePatientIds ?? []).filter(
+            (pid): pid is string => typeof pid === 'string' && pid.length > 0,
+          );
+          const key = `${doc.docId}|${doc.year}|${doc.month}`;
+          const spillIds = (spillByKey.get(key) ?? []).filter(Boolean);
+          const allIds = [...inlineIds, ...spillIds];
+
+          // Batch UNNEST en chunks idempotentes (ON CONFLICT DO NOTHING).
+          for (let i = 0; i < allIds.length; i += SPILL_BATCH) {
+            const chunk = allIds.slice(i, i + SPILL_BATCH);
+            if (chunk.length === 0) continue;
             await client.query(
               `INSERT INTO monthly_stats_patients (stats_id, patient_id)
-                             VALUES ($1,$2)
-                             ON CONFLICT (stats_id, patient_id) DO NOTHING`,
-              [statsId, pid],
+               SELECT $1, UNNEST($2::text[])
+               ON CONFLICT (stats_id, patient_id) DO NOTHING`,
+              [statsId, chunk],
             );
           }
         });

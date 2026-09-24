@@ -1140,6 +1140,14 @@ Patrones de Consulta:
 └─ Agregación en reportes
 ```
 
+### Tope de MonthlyStats y paginación del historial del chat
+
+- `MonthlyStats.uniquePatientIds` se capa en **5000 IDs inline** (`MAX_INLINE_PATIENT_IDS`). El excedente va a la colección Mongo `monthly_stats_patients` (`MonthlyStatsPatient`: `{docId, year, month, patientId}`, único) y a la tabla PG del mismo nombre.
+- `uniquePatients` = inline + spill, exacto vía `$inc` condicional (filtro `$ne` / catch `E11000`); nunca se carga el array completo para contar.
+- `migrateMonthlyStats` es idempotente (upsert de cabecera + batches `UNNEST` de 1000 + `ON CONFLICT DO NOTHING`). `001` crea la tabla en PG, `003_monthly_stats_spill.sql` la endurece (`IF NOT EXISTS`).
+- `GET /api/chat/history/:id` sin query params devuelve la conversación completa (legacy). Con `?limit=&before=`: `limit` 1–100 (defecto 50, si no 400), `before` ISO-8601 o epoch ms (si no 400). Orden determinístico: `messages.createdAt` desc + `messages._id` desc; la respuesta incluye `{messages, pagination:{limit, before, nextBefore, hasMore, total}}`.
+- Ruta de mejora (sin sharding): superados ~10k mensajes por conversación, migrar a colección separada `chat_messages` con clave `{conversationId, createdAt}`; el contrato `before/limit` no cambia.
+
 ### Optimización Frontend
 
 ```

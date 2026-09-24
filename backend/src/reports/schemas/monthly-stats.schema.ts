@@ -3,6 +3,9 @@ import { HydratedDocument } from 'mongoose';
 
 export type MonthlyStatsDocument = HydratedDocument<MonthlyStats>;
 
+// Umbral de higiene: máximo de IDs inline antes de hacer spill. Ver MonthlyStatsPatient.
+export const MAX_INLINE_PATIENT_IDS = 5000;
+
 /**
  * Tabla de tabulación DP.
  * Cada documento representa un subproblema ya resuelto: las métricas
@@ -13,6 +16,11 @@ export type MonthlyStatsDocument = HydratedDocument<MonthlyStats>;
 
  * Al agregar/cancelar/completar una cita se hace un upsert atómico
  * con $inc, lo que garantiza consistencia sin transacciones extra.
+
+ * Higiene 16MB: `uniquePatientIds` se capa en MAX_INLINE_PATIENT_IDS (5000).
+ * Los IDs excedentes viven en la colección `monthly_stats_patients`
+ * (schema MonthlyStatsPatient). `uniquePatients` = inline + spill y se
+ * mantiene exacto vía $inc condicional (ver ReportsService.incrementStats).
  */
 @Schema({ timestamps: true })
 export class MonthlyStats {
@@ -38,7 +46,7 @@ export class MonthlyStats {
   @Prop({ default: 0 })
   earnings!: number;
 
-  // Set serializado como array para evitar subdocumentos variables
+  // Set serializado como array, CAPADO en MAX_INLINE_PATIENT_IDS (ver spill).
   @Prop({ type: [String], default: [] })
   uniquePatientIds!: string[];
 
