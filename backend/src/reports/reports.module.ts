@@ -26,4 +26,4 @@ import { AuthDoctorModule } from 'src/shared/guards/auth-doctor.module';
   controllers: [ReportsController],
   exports: [ReportsService],
 })
-export class ReportsModule { }
+export class ReportsModule {}

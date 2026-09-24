@@ -1,8 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type MonthlyStatsPatientDocument =
-    HydratedDocument<MonthlyStatsPatient>;
+export type MonthlyStatsPatientDocument = HydratedDocument<MonthlyStatsPatient>;
 
 /**
  * Spill de `MonthlyStats.uniquePatientIds` más allá de 5000.
@@ -11,25 +10,25 @@ export type MonthlyStatsPatientDocument =
  */
 @Schema({ collection: 'monthly_stats_patients', timestamps: true })
 export class MonthlyStatsPatient {
-    @Prop({ required: true })
-    docId!: string;
+  @Prop({ required: true })
+  docId!: string;
 
-    @Prop({ required: true })
-    year!: number;
+  @Prop({ required: true })
+  year!: number;
 
-    @Prop({ required: true })
-    month!: number;
+  @Prop({ required: true })
+  month!: number;
 
-    @Prop({ required: true })
-    patientId!: string;
+  @Prop({ required: true })
+  patientId!: string;
 }
 
 export const MonthlyStatsPatientSchema =
-    SchemaFactory.createForClass(MonthlyStatsPatient);
+  SchemaFactory.createForClass(MonthlyStatsPatient);
 
 MonthlyStatsPatientSchema.index(
-    { docId: 1, year: 1, month: 1, patientId: 1 },
-    { unique: true },
+  { docId: 1, year: 1, month: 1, patientId: 1 },
+  { unique: true },
 );
 
 MonthlyStatsPatientSchema.index({ docId: 1, year: 1, month: 1 });

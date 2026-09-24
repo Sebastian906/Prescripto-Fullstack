@@ -67,7 +67,7 @@ export class MigrationService {
     private readonly tokenModel: Model<PasswordResetTokenDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly pg: PostgresService,
-  ) { }
+  ) {}
 
   async runFullMigration(
     options: {
@@ -122,13 +122,17 @@ export class MigrationService {
 
       for (const file of SCHEMA_FILES) {
         const sql = this.readSqlFile(file);
-        if (!sql) { this.logger.warn(`Schema file not found: ${file}`); continue; }
+        if (!sql) {
+          this.logger.warn(`Schema file not found: ${file}`);
+          continue;
+        }
         try {
           await this.pg.query(sql); // archivo completo, una sola llamada
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           // tolerar solo el SELECT demo con typo al final de 002
-          if (/vista_citas_completa/.test(msg) && /does not exist/i.test(msg)) continue;
+          if (/vista_citas_completa/.test(msg) && /does not exist/i.test(msg))
+            continue;
           throw err;
         }
       }

@@ -30,7 +30,7 @@ export class ReportsService {
     private readonly statsModel: Model<MonthlyStatsDocument>,
     @InjectModel(MonthlyStatsPatient.name)
     private readonly spillModel: Model<MonthlyStatsPatientDocument>,
-  ) { }
+  ) {}
 
   /**
    * Registra una nueva cita en la tabla DP.
@@ -211,8 +211,8 @@ export class ReportsService {
         completionRate: row
           ? row.totalAppointments > 0
             ? Math.round(
-              (row.completedAppointments / row.totalAppointments) * 100,
-            )
+                (row.completedAppointments / row.totalAppointments) * 100,
+              )
             : 0
           : 0,
       };
@@ -289,14 +289,11 @@ export class ReportsService {
     // Path sin paciente: contadores puros, un solo upsert.
     if (!patientId) {
       const updateOp: Record<string, unknown> = {};
-      if (Object.keys(incCounters).length > 0)
-        updateOp['$inc'] = incCounters;
+      if (Object.keys(incCounters).length > 0) updateOp['$inc'] = incCounters;
       if (Object.keys(updateOp).length === 0) return;
-      await this.statsModel.updateOne(
-        { docId, year, month },
-        updateOp,
-        { upsert: true },
-      );
+      await this.statsModel.updateOne({ docId, year, month }, updateOp, {
+        upsert: true,
+      });
       return;
     }
 
@@ -329,7 +326,7 @@ export class ReportsService {
     }
 
     const inline: string[] = Array.isArray(existing.uniquePatientIds)
-      ? (existing.uniquePatientIds as string[])
+      ? existing.uniquePatientIds
       : [];
 
     // Ya inline → solo contadores.

@@ -13,11 +13,20 @@ describe('ReportsService', () => {
         ReportsService,
         {
           provide: getModelToken(MonthlyStats.name),
-          useValue: { find: jest.fn(), findOne: jest.fn(), updateOne: jest.fn() },
+          useValue: {
+            find: jest.fn(),
+            findOne: jest.fn(),
+            updateOne: jest.fn(),
+          },
         },
         {
           provide: getModelToken(MonthlyStatsPatient.name),
-          useValue: { exists: jest.fn(), create: jest.fn(), countDocuments: jest.fn(), find: jest.fn() },
+          useValue: {
+            exists: jest.fn(),
+            create: jest.fn(),
+            countDocuments: jest.fn(),
+            find: jest.fn(),
+          },
         },
       ],
     }).compile();
