@@ -1138,6 +1138,14 @@ Query Patterns:
 └─ Aggregate queries on reporting
 ```
 
+### MonthlyStats Cap and Chat History Pagination
+
+- `MonthlyStats.uniquePatientIds` is capped at **5000 inline IDs** (`MAX_INLINE_PATIENT_IDS`). Overflow goes to the `monthly_stats_patients` Mongo collection (`MonthlyStatsPatient`: `{docId, year, month, patientId}`, unique) and the PG table of the same name.
+- `uniquePatients` = inline + spill, kept exact via conditional `$inc` (`$ne` filter / `E11000` catch); the full array is never loaded for counting.
+- `migrateMonthlyStats` is idempotent (header upsert + `UNNEST` batches of 1000 + `ON CONFLICT DO NOTHING`). PG `001` creates the table, `003_monthly_stats_spill.sql` hardens it (`IF NOT EXISTS`).
+- `GET /api/chat/history/:id` without query params returns the full conversation (legacy). With `?limit=&before=`: `limit` 1–100 (default 50, else 400), `before` ISO-8601 or epoch ms (else 400). Deterministic order: `messages.createdAt` desc + `messages._id` desc; response carries `{messages, pagination:{limit, before, nextBefore, hasMore, total}}`.
+- Upgrade path (no sharding): past ~10k messages per conversation, move to a separate `chat_messages` collection keyed by `{conversationId, createdAt}`; the `before/limit` contract stays unchanged.
+
 ### Frontend Optimization
 
 ```

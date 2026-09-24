@@ -6,6 +6,10 @@ import {
   MonthlyStats,
   MonthlyStatsSchema,
 } from './schemas/monthly-stats.schema';
+import {
+  MonthlyStatsPatient,
+  MonthlyStatsPatientSchema,
+} from './schemas/monthly-stats-patient.schema';
 import { AuthAdminModule } from 'src/shared/guards/auth-admin.module';
 import { AuthDoctorModule } from 'src/shared/guards/auth-doctor.module';
 
@@ -13,6 +17,7 @@ import { AuthDoctorModule } from 'src/shared/guards/auth-doctor.module';
   imports: [
     MongooseModule.forFeature([
       { name: MonthlyStats.name, schema: MonthlyStatsSchema },
+      { name: MonthlyStatsPatient.name, schema: MonthlyStatsPatientSchema },
     ]),
     AuthAdminModule,
     AuthDoctorModule,

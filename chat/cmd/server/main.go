@@ -182,19 +182,66 @@ func handleHistory(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 	}
 
 	convID := c.Param("conversationId")
+	limitRaw := c.QueryParam("limit")
+	beforeRaw := c.QueryParam("before")
+
+	// Back-compat: sin query params → conversación completa (contrato legacy).
+	if limitRaw == "" && beforeRaw == "" {
+		ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+		defer cancel()
+
+		conv, err := repo.FindByID(ctx, convID)
+		if err != nil {
+			return c.JSON(http.StatusNotFound, map[string]string{"message": "not found"})
+		}
+
+		if claims != nil && conv.UserID != claims.UserID {
+			return c.JSON(http.StatusForbidden, map[string]string{"message": "forbidden"})
+		}
+
+		return c.JSON(http.StatusOK, map[string]any{"success": true, "conversation": conv})
+	}
+
+	// Rama paginada: validar params a nivel handler (sin pipe global).
+	limit, err := repository.ParseHistoryLimit(limitRaw)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"message": "invalid limit: must be 1-100"})
+	}
+	before, hasBefore, err := repository.ParseHistoryBefore(beforeRaw)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"message": "invalid before: use ISO-8601 or epoch ms"})
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
 
-	conv, err := repo.FindByID(ctx, convID)
+	page, meta, err := repo.GetHistoryPage(ctx, convID, before, hasBefore, limit)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"message": "not found"})
 	}
 
-	if claims != nil && conv.UserID != claims.UserID {
+	if claims != nil && meta.UserID != claims.UserID {
 		return c.JSON(http.StatusForbidden, map[string]string{"message": "forbidden"})
 	}
 
-	return c.JSON(http.StatusOK, map[string]any{"success": true, "conversation": conv})
+	effectiveBefore := beforeRaw
+	if !hasBefore {
+		effectiveBefore = ""
+	}
+	return c.JSON(http.StatusOK, map[string]any{
+		"success":        true,
+		"conversationId": convID,
+		"userID":         meta.UserID,
+		"status":         meta.Status,
+		"messages":       page.Messages,
+		"pagination": map[string]any{
+			"limit":      limit,
+			"before":     effectiveBefore,
+			"nextBefore": page.NextBefore,
+			"hasMore":    page.HasMore,
+			"total":      page.Total,
+		},
+	})
 }
 
 func handleClose(c echo.Context, repo *repository.Repo, v *auth.Validator) error {

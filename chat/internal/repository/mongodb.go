@@ -3,6 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,6 +22,13 @@ const (
 	StatusWaitingAdmin ConversationStatus = "waiting_admin"
 	StatusWithAdmin    ConversationStatus = "with_admin"
 	StatusClosed       ConversationStatus = "closed"
+)
+
+// History pagination bounds. Contract: limit 1-100, default 50.
+const (
+	DefaultHistoryLimit = 50
+	MaxHistoryLimit     = 100
+	MinHistoryLimit     = 1
 )
 
 type Message struct {
@@ -44,6 +55,14 @@ type Conversation struct {
 	Messages  []Message          `bson:"messages"          json:"messages"`
 	CreatedAt time.Time          `bson:"createdAt"         json:"createdAt"`
 	UpdatedAt time.Time          `bson:"updatedAt"         json:"updatedAt"`
+}
+
+// HistoryPage is one deterministic page of messages, newest first.
+type HistoryPage struct {
+	Messages   []Message `json:"messages"`
+	Total      int       `json:"total"`
+	HasMore    bool      `json:"hasMore"`
+	NextBefore string    `json:"nextBefore,omitempty"`
 }
 
 type Repo struct {
@@ -83,6 +102,9 @@ func New(uri, dbName string) (*Repo, error) {
 			{Key: "updatedAt", Value: -1},
 		},
 	})
+
+	// Sin índice multikey en messages.createdAt: el sort post-$unwind del
+	// pipeline de historial no puede usarlo; solo sumaría costo de escritura.
 
 	return &Repo{client: client, col: col}, nil
 }
@@ -262,6 +284,288 @@ func (r *Repo) findOpenByUser(ctx context.Context, userID string) (*Conversation
 		return nil, err
 	}
 	return &conv, err
+}
+
+// ParseHistoryLimit validates ?limit=. Empty -> default 50. Out of 1-100 -> error (handler maps to 400).
+func ParseHistoryLimit(raw string) (int, error) {
+	if raw == "" {
+		return DefaultHistoryLimit, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid limit %q: %w", raw, err)
+	}
+	if n < MinHistoryLimit || n > MaxHistoryLimit {
+		return 0, fmt.Errorf("limit %d out of range [%d,%d]", n, MinHistoryLimit, MaxHistoryLimit)
+	}
+	return n, nil
+}
+
+// ClampHistoryLimit is the internal safety net (never fails).
+func ClampHistoryLimit(n int) int {
+	if n < MinHistoryLimit {
+		return MinHistoryLimit
+	}
+	if n > MaxHistoryLimit {
+		return MaxHistoryLimit
+	}
+	return n
+}
+
+// ParseHistoryBefore validates ?before=. Empty -> (zero,false,nil) meaning "now".
+// Accepts epoch milliseconds ("1716540000000") or ISO-8601/RFC3339 ("2024-05-24T12:00:00Z"),
+// optionally suffixed with a compound cursor "|<msgID hex>" as produced in NextBefore.
+// Timestamp-only input keeps working; the id suffix is ignored here (see ParseHistoryCursor).
+func ParseHistoryBefore(raw string) (time.Time, bool, error) {
+	t, _, has, err := ParseHistoryCursor(raw)
+	return t, has, err
+}
+
+// ParseHistoryCursor splits a compound "time|id" cursor into its parts.
+// Legacy timestamp-only input returns ("", empty id) and keeps working.
+func ParseHistoryCursor(raw string) (time.Time, string, bool, error) {
+	if raw == "" {
+		return time.Time{}, "", false, nil
+	}
+	tsPart := raw
+	idPart := ""
+	if i := strings.LastIndex(raw, "|"); i >= 0 {
+		tsPart = raw[:i]
+		idPart = raw[i+1:]
+		if idPart != "" {
+			if _, err := primitive.ObjectIDFromHex(idPart); err != nil {
+				return time.Time{}, "", false, fmt.Errorf("invalid cursor id %q", idPart)
+			}
+		}
+	}
+	t, has, err := parseHistoryTime(tsPart)
+	if err != nil {
+		return time.Time{}, "", false, err
+	}
+	if !has && idPart != "" {
+		return time.Time{}, "", false, fmt.Errorf("invalid cursor %q: missing timestamp", raw)
+	}
+	return t, idPart, has, nil
+}
+
+func parseHistoryTime(raw string) (time.Time, bool, error) {
+	if raw == "" {
+		return time.Time{}, false, nil
+	}
+	if ms, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		if ms < 0 {
+			return time.Time{}, false, fmt.Errorf("negative before %q", raw)
+		}
+		return time.UnixMilli(ms).UTC(), true, nil
+	}
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02T15:04:05", "2006-01-02"} {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t.UTC(), true, nil
+		}
+	}
+	return time.Time{}, false, fmt.Errorf("invalid before %q: use ISO-8601 or epoch ms", raw)
+}
+
+// formatCursor builds the compound NextBefore cursor for a page tail.
+func formatCursor(m Message) string {
+	return m.CreatedAt.UTC().Format(time.RFC3339Nano) + "|" + m.ID.Hex()
+}
+
+// beforeCursor reports whether m sorts strictly before the (t, idHex) cursor
+// in (createdAt desc, _id desc) order. Empty idHex = legacy timestamp-only:
+// messages sharing the boundary timestamp are excluded.
+func beforeCursor(m Message, t time.Time, idHex string) bool {
+	if m.CreatedAt.Before(t) {
+		return true
+	}
+	if m.CreatedAt.After(t) {
+		return false
+	}
+	if idHex == "" {
+		return false
+	}
+	return m.ID.Hex() < idHex
+}
+
+// SliceMessagesPage paginates an in-memory slice deterministically (newest first).
+// Order: CreatedAt desc, _id desc tiebreaker. Used by tests and as aggregation fallback.
+// Legacy timestamp-only cursor; for same-timestamp boundaries use SliceMessagesPageCursor.
+func SliceMessagesPage(msgs []Message, before time.Time, hasBefore bool, limit int) HistoryPage {
+	return SliceMessagesPageCursor(msgs, before, "", hasBefore, limit)
+}
+
+// SliceMessagesPageCursor paginates with a compound (createdAt, _id) cursor so
+// every message sharing a boundary timestamp is returned exactly once.
+func SliceMessagesPageCursor(msgs []Message, before time.Time, beforeID string, hasBefore bool, limit int) HistoryPage {
+	limit = ClampHistoryLimit(limit)
+	cp := append([]Message(nil), msgs...)
+	sort.Slice(cp, func(i, j int) bool {
+		if cp[i].CreatedAt.Equal(cp[j].CreatedAt) {
+			return cp[i].ID.Hex() > cp[j].ID.Hex()
+		}
+		return cp[i].CreatedAt.After(cp[j].CreatedAt)
+	})
+	filtered := cp[:0]
+	for _, m := range cp {
+		if hasBefore && !beforeCursor(m, before, beforeID) {
+			continue
+		}
+		filtered = append(filtered, m)
+	}
+	total := len(filtered)
+	hasMore := total > limit
+	end := limit
+	if total < end {
+		end = total
+	}
+	page := filtered[:end]
+	out := HistoryPage{Messages: page, Total: total, HasMore: hasMore}
+	if hasMore && len(page) > 0 {
+		out.NextBefore = formatCursor(page[len(page)-1])
+	}
+	if out.Messages == nil {
+		out.Messages = []Message{}
+	}
+	return out
+}
+
+// GetHistoryPage returns one deterministic page (newest first) without loading
+// the full messages array when the aggregation path succeeds.
+// Legacy timestamp-only cursor; for same-timestamp boundaries use GetHistoryPageCursor.
+func (r *Repo) GetHistoryPage(ctx context.Context, convID string, before time.Time, hasBefore bool, limit int) (HistoryPage, *Conversation, error) {
+	return r.GetHistoryPageCursor(ctx, convID, before, "", hasBefore, limit)
+}
+
+// matchBeforeFilter builds the pre-sort filter for a cursor request: messages
+// with an earlier timestamp, or the same timestamp and a lower _id. Empty
+// beforeID keeps legacy timestamp-only behavior.
+func matchBeforeFilter(before time.Time, beforeID string) bson.M {
+	if beforeID == "" {
+		return bson.M{"messages.createdAt": bson.M{"$lt": before}}
+	}
+	if oid, err := primitive.ObjectIDFromHex(beforeID); err == nil {
+		return bson.M{"$or": []bson.M{
+			{"messages.createdAt": bson.M{"$lt": before}},
+			{"messages.createdAt": before, "messages._id": bson.M{"$lt": oid}},
+		}}
+	}
+	return bson.M{"messages.createdAt": bson.M{"$lt": before}}
+}
+
+// GetHistoryPageCursor returns one deterministic page using a compound
+// (createdAt, _id) cursor, so boundary timestamps paginate exactly once.
+func (r *Repo) GetHistoryPageCursor(ctx context.Context, convID string, before time.Time, beforeID string, hasBefore bool, limit int) (HistoryPage, *Conversation, error) {
+	limit = ClampHistoryLimit(limit)
+	oid, err := toObjectID(convID)
+	if err != nil {
+		return HistoryPage{}, nil, err
+	}
+
+	// Meta without messages (cheap, no 16MB risk).
+	var meta Conversation
+	proj := options.FindOne().SetProjection(bson.M{"messages": 0})
+	if err := r.col.FindOne(ctx, bson.M{"_id": oid}, proj).Decode(&meta); err != nil {
+		return HistoryPage{}, nil, err
+	}
+
+	// Aggregation: unwind -> optional before filter -> sort desc -> limit+1.
+	matchBefore := bson.M{}
+	if hasBefore {
+		matchBefore = matchBeforeFilter(before, beforeID)
+	}
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "_id", Value: oid}}}},
+		{{Key: "$unwind", Value: "$messages"}},
+	}
+	if hasBefore {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: matchBefore}})
+	}
+	pipeline = append(pipeline,
+		bson.D{{Key: "$sort", Value: bson.D{
+			{Key: "messages.createdAt", Value: -1},
+			{Key: "messages._id", Value: -1},
+		}}},
+		bson.D{{Key: "$limit", Value: limit + 1}},
+		bson.D{{Key: "$replaceRoot", Value: bson.D{{Key: "newRoot", Value: "$messages"}}}},
+	)
+
+	cur, err := r.col.Aggregate(ctx, pipeline)
+	if err != nil {
+		return r.historyFallback(ctx, oid, &meta, before, beforeID, hasBefore, limit)
+	}
+	defer cur.Close(ctx)
+
+	var got []Message
+	if err := cur.All(ctx, &got); err != nil {
+		return r.historyFallback(ctx, oid, &meta, before, beforeID, hasBefore, limit)
+	}
+
+	// Total for the filtered window (bounded count, no message bodies).
+	countFilter := bson.M{"_id": oid}
+	if hasBefore {
+		// Count via dedicated pipeline to avoid loading bodies.
+		cp := mongo.Pipeline{
+			{{Key: "$match", Value: bson.D{{Key: "_id", Value: oid}}}},
+			{{Key: "$unwind", Value: "$messages"}},
+			{{Key: "$match", Value: matchBefore}},
+			{{Key: "$count", Value: "n"}},
+		}
+		ccur, cerr := r.col.Aggregate(ctx, cp)
+		if cerr == nil {
+			var n []struct {
+				N int `bson:"n"`
+			}
+			if derr := ccur.All(ctx, &n); derr == nil && len(n) > 0 {
+				return buildPage(got, n[0].N, limit), &meta, nil
+			}
+			_ = ccur.Close(ctx)
+		}
+		_ = countFilter
+		// Fallback total: at least what we saw.
+		return buildPage(got, len(got), limit), &meta, nil
+	}
+	// No before: total = array size (metadata query, cheap $size projection).
+	var sized struct {
+		N int `bson:"n"`
+	}
+	serr := r.col.FindOne(ctx, bson.M{"_id": oid}, options.FindOne().
+		SetProjection(bson.M{"n": bson.M{"$size": bson.M{"$ifNull": []any{"$messages", []any{}}}}})).
+		Decode(&sized)
+	if serr != nil {
+		return buildPage(got, len(got), limit), &meta, nil
+	}
+	return buildPage(got, sized.N, limit), &meta, nil
+}
+
+func buildPage(got []Message, total, limit int) HistoryPage {
+	return buildPageCursor(got, total, limit)
+}
+
+func buildPageCursor(got []Message, total, limit int) HistoryPage {
+	hasMore := len(got) > limit
+	end := len(got)
+	if hasMore {
+		end = limit
+	}
+	page := got[:end]
+	out := HistoryPage{Messages: page, Total: total, HasMore: hasMore}
+	if hasMore && len(page) > 0 {
+		out.NextBefore = formatCursor(page[len(page)-1])
+	}
+	if out.Messages == nil {
+		out.Messages = []Message{}
+	}
+	return out
+}
+
+func (r *Repo) historyFallback(ctx context.Context, oid primitive.ObjectID, meta *Conversation, before time.Time, beforeID string, hasBefore bool, limit int) (HistoryPage, *Conversation, error) {
+	var full Conversation
+	if err := r.col.FindOne(ctx, bson.M{"_id": oid}).Decode(&full); err != nil {
+		return HistoryPage{}, nil, err
+	}
+	*meta = full
+	meta.Messages = nil
+	return SliceMessagesPageCursor(full.Messages, before, beforeID, hasBefore, limit), meta, nil
 }
 
 func toObjectID(s string) (primitive.ObjectID, error) {
