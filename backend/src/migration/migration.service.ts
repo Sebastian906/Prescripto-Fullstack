@@ -501,25 +501,22 @@ export class MigrationService {
   }
 
   private async migrateMonthlyStats(result: MigrationResult): Promise<void> {
-    // Lee spill Mongo si el modelo está registrado; si no, cae a uniquePatientIds.
-    let spillByKey = new Map<string, string[]>();
-    try {
-      const spillCol = this.connection.collection('monthly_stats_patients');
-      const spillDocs = await spillCol.find({}).toArray();
-      for (const s of spillDocs as Array<{
-        docId?: string;
-        year?: number;
-        month?: number;
-        patientId?: string;
-      }>) {
-        if (!s?.docId || !s?.patientId) continue;
-        const key = `${s.docId}|${s.year}|${s.month}`;
-        const arr = spillByKey.get(key) ?? [];
-        arr.push(s.patientId);
-        spillByKey.set(key, arr);
-      }
-    } catch {
-      spillByKey = new Map<string, string[]>();
+    // Lee spill Mongo; si la lectura falla, el error se propaga y queda
+    // registrado en el resultado (no se silencian IDs de spill).
+    const spillByKey = new Map<string, string[]>();
+    const spillCol = this.connection.collection('monthly_stats_patients');
+    const spillDocs = await spillCol.find({}).toArray();
+    for (const s of spillDocs as Array<{
+      docId?: string;
+      year?: number;
+      month?: number;
+      patientId?: string;
+    }>) {
+      if (!s?.docId || !s?.patientId) continue;
+      const key = `${s.docId}|${s.year}|${s.month}`;
+      const arr = spillByKey.get(key) ?? [];
+      arr.push(s.patientId);
+      spillByKey.set(key, arr);
     }
 
     const docs = await this.statsModel.find({}).lean();

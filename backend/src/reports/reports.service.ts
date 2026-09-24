@@ -232,7 +232,9 @@ export class ReportsService {
 
   /**
    * Lista paginada de patientIds (inline primero, luego spill).
-   * Útil para auditoría sin cargar 6000 IDs de golpe.
+   * Solo trae la ventana pedida: $slice sobre el array inline y
+   * skip/limit con sort estable sobre el spill. El offset de spill se
+   * calcula desde el conteo inline real (no desde uniquePatients).
    */
   async getUniquePatientIds(
     docId: string,
@@ -243,20 +245,57 @@ export class ReportsService {
   ): Promise<{ ids: string[]; total: number }> {
     const safePage = Math.max(1, Math.floor(page));
     const safeSize = Math.min(1000, Math.max(1, Math.floor(pageSize)));
-    const doc = await this.statsModel
-      .findOne({ docId, year, month })
-      .select('uniquePatientIds uniquePatients')
-      .lean();
-    const inline: string[] = doc?.uniquePatientIds ?? [];
-    const spillDocs = await this.spillModel
-      .find({ docId, year, month })
-      .select('patientId')
-      .lean();
-    const all = [...inline, ...spillDocs.map((s) => s.patientId)];
+    const header = await this.statsModel.aggregate<{
+      inlineCount: number;
+      uniquePatients?: number;
+    }>([
+      { $match: { docId, year, month } },
+      {
+        $project: {
+          _id: 0,
+          inlineCount: { $size: { $ifNull: ['$uniquePatientIds', []] } },
+          uniquePatients: 1,
+        },
+      },
+    ]);
+    const inlineCount = header[0]?.inlineCount ?? 0;
+    const spillTotal = await this.spillModel
+      .countDocuments({ docId, year, month })
+      .exec();
     const total =
-      typeof doc?.uniquePatients === 'number' ? doc.uniquePatients : all.length;
+      typeof header[0]?.uniquePatients === 'number'
+        ? header[0].uniquePatients
+        : inlineCount + spillTotal;
+
     const start = (safePage - 1) * safeSize;
-    return { ids: all.slice(start, start + safeSize), total };
+    const end = start + safeSize;
+    let ids: string[] = [];
+
+    if (start < inlineCount) {
+      const doc = await this.statsModel
+        .findOne({ docId, year, month })
+        .select('uniquePatientIds')
+        .slice('uniquePatientIds', [
+          start,
+          Math.min(safeSize, inlineCount - start),
+        ])
+        .lean();
+      ids = doc?.uniquePatientIds ?? [];
+    }
+
+    const spillNeeded = end - Math.max(start, inlineCount);
+    if (spillNeeded > 0) {
+      const spillDocs = await this.spillModel
+        .find({ docId, year, month })
+        .sort({ _id: 1 })
+        .skip(Math.max(0, start - inlineCount))
+        .limit(spillNeeded)
+        .select('patientId')
+        .lean();
+      ids = [...ids, ...spillDocs.map((s) => s.patientId)];
+    }
+
+    return { ids, total };
   }
 
   /**
@@ -304,24 +343,29 @@ export class ReportsService {
       .lean();
 
     // Documento inexistente: crearlo con el primer paciente inline.
+    // El filtro $ne evita doble conteo si el doc apareció entre el find y
+    // el upsert; el 11000 cubre la carrera de inserción concurrente.
+    // Sin $setOnInsert: los campos del filtro de igualdad se crean solos y
+    // los contadores nacen del $inc (ponerlos en ambos operadores conflicta).
     if (!existing) {
-      await this.statsModel.updateOne(
-        { docId, year, month },
-        {
-          $setOnInsert: {
-            docId,
-            year,
-            month,
-            completedAppointments: 0,
-            cancelledAppointments: 0,
-            totalAppointments: 0,
-            earnings: 0,
+      try {
+        await this.statsModel.updateOne(
+          { docId, year, month, uniquePatientIds: { $ne: patientId } },
+          {
+            $inc: { ...incCounters, uniquePatients: 1 },
+            $addToSet: { uniquePatientIds: patientId },
           },
-          $inc: { ...incCounters, uniquePatients: 1 },
-          $addToSet: { uniquePatientIds: patientId },
-        },
-        { upsert: true },
-      );
+          { upsert: true },
+        );
+      } catch (err) {
+        if ((err as { code?: number }).code !== 11000) throw err;
+        if (Object.keys(incCounters).length > 0) {
+          await this.statsModel.updateOne(
+            { docId, year, month },
+            { $inc: incCounters },
+          );
+        }
+      }
       return;
     }
 
@@ -352,10 +396,20 @@ export class ReportsService {
       return;
     }
 
-    // Hueco inline → intento atómico (filtro $ne evita doble $inc en carrera).
+    // Hueco inline → intento atómico: el filtro exige a la vez ausencia del
+    // paciente y array por debajo del cap (índice 4999 inexistente), en una
+    // sola operación. Si falla, se re-verifica antes de ir al spill.
     if (inline.length < MAX_INLINE_PATIENT_IDS) {
       const res = await this.statsModel.updateOne(
-        { docId, year, month, uniquePatientIds: { $ne: patientId } },
+        {
+          docId,
+          year,
+          month,
+          uniquePatientIds: { $ne: patientId },
+          [`uniquePatientIds.${MAX_INLINE_PATIENT_IDS - 1}`]: {
+            $exists: false,
+          },
+        },
         {
           ...(Object.keys(incCounters).length > 0
             ? { $inc: { ...incCounters, uniquePatients: 1 } }
@@ -363,21 +417,51 @@ export class ReportsService {
           $addToSet: { uniquePatientIds: patientId },
         },
       );
-      // Carrera perdida (otro writer lo insertó): solo contadores.
-      if ((res.modifiedCount ?? 0) === 0) {
+      if ((res.modifiedCount ?? 0) > 0) return;
+      // Sin modificación: re-check de membresía inline.
+      const recheck = await this.statsModel
+        .findOne({ docId, year, month })
+        .select('uniquePatientIds')
+        .lean();
+      const reInline: string[] = Array.isArray(recheck?.uniquePatientIds)
+        ? recheck.uniquePatientIds
+        : [];
+      if (reInline.includes(patientId)) {
         if (Object.keys(incCounters).length > 0) {
           await this.statsModel.updateOne(
             { docId, year, month },
             { $inc: incCounters },
           );
         }
+        return;
       }
-      return;
+      // Si no está inline (lleno o carrera): continuar al spill, sin return.
     }
 
     // Inline lleno → spill.
     try {
       await this.spillModel.create({ docId, year, month, patientId });
+      // Dedup de carrera: si el paciente también quedó inline mientras
+      // tanto, eliminar el spill y no incrementar uniquePatients.
+      const raced = await this.statsModel
+        .findOne({ docId, year, month })
+        .select('uniquePatientIds')
+        .lean();
+      const racedInline: string[] = Array.isArray(raced?.uniquePatientIds)
+        ? raced.uniquePatientIds
+        : [];
+      if (racedInline.includes(patientId)) {
+        await this.spillModel
+          .deleteOne({ docId, year, month, patientId })
+          .exec();
+        if (Object.keys(incCounters).length > 0) {
+          await this.statsModel.updateOne(
+            { docId, year, month },
+            { $inc: incCounters },
+          );
+        }
+        return;
+      }
       await this.statsModel.updateOne(
         { docId, year, month },
         {

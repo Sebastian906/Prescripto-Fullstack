@@ -1,6 +1,7 @@
 package repository_test
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -47,12 +48,12 @@ func TestParseHistoryBefore(t *testing.T) {
 		t.Error("empty before should mean now (has=false)")
 	}
 	ts := time.Date(2024, 5, 24, 12, 0, 0, 0, time.UTC)
-	ms := ts.UnixMilli()
-	got, has, err := repository.ParseHistoryBefore("1716540000000")
-	_ = got
-	_ = ms
+	got, has, err := repository.ParseHistoryBefore(strconv.FormatInt(ts.UnixMilli(), 10))
 	if err != nil || !has {
 		t.Fatalf("epoch ms parse: %v", err)
+	}
+	if !got.Equal(ts) {
+		t.Errorf("epoch ms round-trip: got %v want %v", got, ts)
 	}
 	if _, _, err := repository.ParseHistoryBefore("2024-05-24T12:00:00Z"); err != nil {
 		t.Fatalf("ISO parse: %v", err)
@@ -120,5 +121,52 @@ func TestSliceMessagesPage_Empty(t *testing.T) {
 	p := repository.SliceMessagesPage(nil, time.Time{}, false, 50)
 	if len(p.Messages) != 0 || p.HasMore || p.Total != 0 {
 		t.Fatalf("empty: %+v", p)
+	}
+}
+
+func TestSliceMessagesPageCursor_SameTimestamp(t *testing.T) {
+	base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	msgs := mkMsgs(6, base)
+	// Force a shared boundary timestamp across all messages.
+	for i := range msgs {
+		msgs[i].CreatedAt = base
+	}
+	p1 := repository.SliceMessagesPageCursor(msgs, time.Time{}, "", false, 2)
+	if len(p1.Messages) != 2 || !p1.HasMore || p1.Total != 6 {
+		t.Fatalf("p1 = len %d hasMore %v total %d", len(p1.Messages), p1.HasMore, p1.Total)
+	}
+	if p1.NextBefore == "" {
+		t.Fatal("p1 should expose a compound nextBefore")
+	}
+	bt, bid, has, err := repository.ParseHistoryCursor(p1.NextBefore)
+	if err != nil || !has || bid == "" {
+		t.Fatalf("compound cursor parse: %v has=%v id=%q", err, has, bid)
+	}
+	_ = bt
+	seen := map[string]bool{}
+	for _, m := range p1.Messages {
+		seen[m.ID.Hex()] = true
+	}
+	count := len(p1.Messages)
+	for cur := p1; cur.HasMore; {
+		ct, cid, _, err := repository.ParseHistoryCursor(cur.NextBefore)
+		if err != nil {
+			t.Fatalf("cursor parse: %v", err)
+		}
+		nxt := repository.SliceMessagesPageCursor(msgs, ct, cid, true, 2)
+		for _, m := range nxt.Messages {
+			if seen[m.ID.Hex()] {
+				t.Fatalf("duplicate message %s across pages", m.ID.Hex())
+			}
+			seen[m.ID.Hex()] = true
+		}
+		count += len(nxt.Messages)
+		cur = nxt
+		if count > 6 {
+			t.Fatal("paginated more messages than exist")
+		}
+	}
+	if count != 6 || len(seen) != 6 {
+		t.Fatalf("walk covered %d/6 messages (%d unique)", count, len(seen))
 	}
 }

@@ -63,6 +63,9 @@ describe('ReportsService spill (cap 5000)', () => {
       countDocuments: jest.fn().mockImplementation(() => ({
         exec: () => Promise.resolve(state.spill.size),
       })),
+      deleteOne: jest.fn().mockImplementation(() => ({
+        exec: () => Promise.resolve({ deletedCount: 0 }),
+      })),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -173,25 +176,185 @@ describe('ReportsService spill (cap 5000)', () => {
     expect(incUnique.length).toBeLessThanOrEqual(1);
   });
 
-  it('6000 pacientes sintéticos: inline queda en 5000 y spill recibe 1000', () => {
-    const state = {
-      inline: [] as string[],
-      uniquePatients: 0,
-      spill: new Set<string>(),
-    };
-    // Simular servicio realista sin 6000 mocks: iterar lógica de decisión.
+  it('6000 pacientes vía servicio: 5000 inline, 1000 en spill, uniquePatients 6000', async () => {
     const MAX = 5000;
+    type Bucket = {
+      created: boolean;
+      inline: string[];
+      uniquePatients: number;
+    };
+    const buckets = new Map<string, Bucket>();
+    const spills = new Map<string, Set<string>>();
+    const keyOf = (f: { docId: string; year: number; month: number }) =>
+      `${f.docId}|${f.year}|${f.month}`;
+    const bucketOf = (k: string): Bucket => {
+      let b = buckets.get(k);
+      if (!b) {
+        b = { created: false, inline: [], uniquePatients: 0 };
+        buckets.set(k, b);
+      }
+      return b;
+    };
+    const spillOf = (k: string): Set<string> => {
+      let s = spills.get(k);
+      if (!s) {
+        s = new Set<string>();
+        spills.set(k, s);
+      }
+      return s;
+    };
+    const dupError = () => {
+      const e = new Error('duplicate key') as Error & { code: number };
+      e.code = 11000;
+      return e;
+    };
+
+    const statsModel = {
+      findOne: jest.fn().mockImplementation((filter: unknown) => {
+        const f = filter as { docId: string; year: number; month: number };
+        const b = bucketOf(keyOf(f));
+        return {
+          select: jest.fn().mockReturnValue({
+            lean: jest
+              .fn()
+              .mockResolvedValue(
+                b.created ? { uniquePatientIds: [...b.inline] } : null,
+              ),
+          }),
+          slice: jest.fn().mockReturnThis(),
+        };
+      }),
+      updateOne: jest
+        .fn()
+        .mockImplementation(
+          (filter: unknown, update: unknown, opts?: { upsert?: boolean }) => {
+            const f = filter as {
+              docId: string;
+              year: number;
+              month: number;
+              uniquePatientIds?: { $ne?: string };
+              [k: string]: unknown;
+            };
+            const b = bucketOf(keyOf(f));
+            const u = update as {
+              $inc?: Record<string, number>;
+              $addToSet?: Record<string, string>;
+            };
+            const nePid =
+              typeof f.uniquePatientIds === 'object'
+                ? f.uniquePatientIds.$ne
+                : undefined;
+            // Filtro $ne incumplido sobre doc existente: sin match (con
+            // upsert, Mongo intentaría insertar y chocaría con el índice
+            // único → 11000, como en producción).
+            if (nePid !== undefined && b.created && b.inline.includes(nePid)) {
+              if (opts?.upsert) return Promise.reject(dupError());
+              return Promise.resolve({
+                modifiedCount: 0,
+                matchedCount: 1,
+                acknowledged: true,
+              });
+            }
+            // Filtro de cap atómico: índice 4999 existente = lleno.
+            const capKey = `uniquePatientIds.${MAX - 1}`;
+            if (
+              (f[capKey] as { $exists?: boolean } | undefined)?.$exists ===
+                false &&
+              b.created &&
+              b.inline.length >= MAX
+            ) {
+              return Promise.resolve({
+                modifiedCount: 0,
+                matchedCount: 1,
+                acknowledged: true,
+              });
+            }
+            if (!b.created && !opts?.upsert) {
+              return Promise.resolve({
+                modifiedCount: 0,
+                matchedCount: 0,
+                acknowledged: true,
+              });
+            }
+            b.created = true;
+            if (u.$addToSet?.uniquePatientIds) {
+              const pid = u.$addToSet.uniquePatientIds;
+              if (!b.inline.includes(pid) && b.inline.length < MAX)
+                b.inline.push(pid);
+            }
+            if (u.$inc?.uniquePatients)
+              b.uniquePatients += u.$inc.uniquePatients;
+            return Promise.resolve({
+              modifiedCount: 1,
+              matchedCount: 1,
+              acknowledged: true,
+            });
+          },
+        ),
+    };
+    const spillModel = {
+      exists: jest
+        .fn()
+        .mockImplementation(
+          (q: {
+            docId: string;
+            year: number;
+            month: number;
+            patientId: string;
+          }) => ({
+            exec: () =>
+              Promise.resolve(
+                spillOf(keyOf(q)).has(q.patientId) ? { _id: 'x' } : null,
+              ),
+          }),
+        ),
+      create: jest
+        .fn()
+        .mockImplementation(
+          (d: {
+            docId: string;
+            year: number;
+            month: number;
+            patientId: string;
+          }) => {
+            const s = spillOf(keyOf(d));
+            if (s.has(d.patientId)) return Promise.reject(dupError());
+            s.add(d.patientId);
+            return Promise.resolve(d);
+          },
+        ),
+      deleteOne: jest.fn().mockImplementation(() => ({
+        exec: () => Promise.resolve({ deletedCount: 0 }),
+      })),
+      countDocuments: jest.fn().mockImplementation(() => ({
+        exec: () => Promise.resolve(0),
+      })),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ReportsService,
+        { provide: getModelToken(MonthlyStats.name), useValue: statsModel },
+        {
+          provide: getModelToken(MonthlyStatsPatient.name),
+          useValue: spillModel,
+        },
+      ],
+    }).compile();
+    const service = module.get<ReportsService>(ReportsService);
+
+    const date = new Date(2025, 5, 15);
     for (let i = 0; i < 6000; i++) {
-      const pid = `s${i}`;
-      if (state.inline.includes(pid) || state.spill.has(pid)) continue;
-      if (state.inline.length < MAX) state.inline.push(pid);
-      else state.spill.add(pid);
+      await service.onAppointmentBooked('doc6000', `s${i}`, 10, date);
     }
-    expect(state.inline.length).toBe(5000);
-    expect(state.spill.size).toBe(1000);
-    expect(state.inline.length + state.spill.size).toBe(6000);
-    // uniquePatients exacto = suma
-    expect(state.inline.length + state.spill.size).toBe(6000);
+
+    const docKey = 'doc6000|2025|6';
+    const globalKey = `${GLOBAL_DOC_ID}|2025|6`;
+    for (const k of [docKey, globalKey]) {
+      expect(buckets.get(k)?.inline.length).toBe(5000);
+      expect(buckets.get(k)?.uniquePatients).toBe(6000);
+    }
+    const spilled = [...spills.values()].reduce((n, s) => n + s.size, 0);
+    expect(spilled).toBe(2000); // 1000 del doctor + 1000 globales
   });
 
   it('onAppointmentCompleted/Cancelled no tocan arrays de pacientes', async () => {
@@ -265,31 +428,50 @@ describe('ReportsService spill (cap 5000)', () => {
     expect(filters[0]).toMatchObject({ month: 6, year: 2025 });
   });
 
-  it('500 mensajes: paginación de pacientes no carga todo (getUniquePatientIds)', async () => {
+  it('paginación de pacientes solo trae la ventana pedida (getUniquePatientIds)', async () => {
     const inline = new Array(100).fill(0).map((_, i) => `q${i}`);
+    const aggregate = jest
+      .fn()
+      .mockResolvedValue([{ inlineCount: 100, uniquePatients: 100 }]);
+    const slicedIds = jest.fn((...args: unknown[]) => args);
+    const statsModelMock = {
+      aggregate,
+      findOne: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          slice: jest.fn().mockImplementation((...a: unknown[]) => {
+            slicedIds(...a);
+            const [start, size] = a[1] as [number, number];
+            return {
+              lean: jest.fn().mockResolvedValue({
+                uniquePatientIds: inline.slice(start, start + size),
+              }),
+            };
+          }),
+        }),
+      }),
+    };
+    const spillFindChain = {
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      select: jest
+        .fn()
+        .mockReturnValue({ lean: jest.fn().mockResolvedValue([]) }),
+    };
     const mod = await Test.createTestingModule({
       providers: [
         ReportsService,
         {
           provide: getModelToken(MonthlyStats.name),
-          useValue: {
-            findOne: () => ({
-              select: () => ({
-                lean: () =>
-                  Promise.resolve({
-                    uniquePatientIds: inline,
-                    uniquePatients: 100,
-                  }),
-              }),
-            }),
-          },
+          useValue: statsModelMock,
         },
         {
           provide: getModelToken(MonthlyStatsPatient.name),
           useValue: {
-            find: () => ({
-              select: () => ({ lean: () => Promise.resolve([]) }),
+            countDocuments: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue(0),
             }),
+            find: jest.fn().mockReturnValue(spillFindChain),
           },
         },
       ],
@@ -298,5 +480,7 @@ describe('ReportsService spill (cap 5000)', () => {
     const r = await svc.getUniquePatientIds('d', 2025, 6, 1, 50);
     expect(r.ids.length).toBe(50);
     expect(r.total).toBe(100);
+    // Ventana pedida vía $slice, sin traer los 100 inline.
+    expect(slicedIds).toHaveBeenCalledWith('uniquePatientIds', [0, 50]);
   });
 });

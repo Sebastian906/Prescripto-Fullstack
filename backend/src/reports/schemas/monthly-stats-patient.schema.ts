@@ -30,5 +30,5 @@ MonthlyStatsPatientSchema.index(
   { docId: 1, year: 1, month: 1, patientId: 1 },
   { unique: true },
 );
-
-MonthlyStatsPatientSchema.index({ docId: 1, year: 1, month: 1 });
+// Sin índice extra en { docId, year, month }: el prefijo del compuesto único
+// ya cubre esas consultas (regla de prefijos de MongoDB).
