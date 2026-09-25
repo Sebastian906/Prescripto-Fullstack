@@ -7,11 +7,19 @@ import { WaitlistSchema } from './schemas/waitlist.schema';
 describe('WaitlistService', () => {
   const doctorId = '64f1a2b3c4d5e6f7a8b9c0d1';
   let service: WaitlistService;
-  let waitlistModel: { findOne: jest.Mock; create: jest.Mock; findOneAndUpdate: jest.Mock };
+  let waitlistModel: {
+    findOne: jest.Mock;
+    create: jest.Mock;
+    findOneAndUpdate: jest.Mock;
+  };
   let doctorModel: { findById: jest.Mock };
 
   beforeEach(async () => {
-    waitlistModel = { findOne: jest.fn(), create: jest.fn(), findOneAndUpdate: jest.fn() };
+    waitlistModel = {
+      findOne: jest.fn(),
+      create: jest.fn(),
+      findOneAndUpdate: jest.fn(),
+    };
     doctorModel = { findById: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -32,20 +40,32 @@ describe('WaitlistService', () => {
   });
 
   it('declares FIFO + mine + dedupe + TTL(30d on createdAt) indexes', () => {
-    const idx = WaitlistSchema.indexes() as Array<[Record<string, 1 | -1>, Record<string, unknown>?]>;
-    const hasFifo = idx.some(([k]) => k['doctorId'] === 1 && k['slotDateKey'] === 1 && k['createdAt'] === 1);
+    const idx = WaitlistSchema.indexes() as Array<
+      [Record<string, 1 | -1>, Record<string, unknown>?]
+    >;
+    const hasFifo = idx.some(
+      ([k]) =>
+        k['doctorId'] === 1 && k['slotDateKey'] === 1 && k['createdAt'] === 1,
+    );
     const hasMine = idx.some(([k]) => k['userId'] === 1);
-    const hasTtl = idx.some(([k, o]) => k['createdAt'] === 1 && o?.['expireAfterSeconds'] === 2592000);
+    const hasTtl = idx.some(
+      ([k, o]) => k['createdAt'] === 1 && o?.['expireAfterSeconds'] === 2592000,
+    );
     expect(hasFifo).toBe(true);
     expect(hasMine).toBe(true);
     expect(hasTtl).toBe(true);
   });
 
   it('FIFO: join rejects duplicate waiting entry (409)', async () => {
-    doctorModel.findById.mockReturnValue({ select: () => ({ lean: () => Promise.resolve({ _id: doctorId }) }) });
-    waitlistModel.findOne.mockReturnValue({ lean: () => Promise.resolve({ _id: 'dup' }) });
+    doctorModel.findById.mockReturnValue({
+      select: () => ({ lean: () => Promise.resolve({ _id: doctorId }) }),
+    });
+    waitlistModel.findOne.mockReturnValue({
+      lean: () => Promise.resolve({ _id: 'dup' }),
+    });
+    const future = new Date(Date.now() + 30 * 86400000).toISOString();
     await expect(
-      service.join('user1', { doctorId, wantedDate: '2026-11-05T14:30:00.000Z' }),
+      service.join('user1', { doctorId, wantedDate: future }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -55,10 +75,23 @@ describe('WaitlistService', () => {
       .mockResolvedValueOnce(first)
       .mockResolvedValueOnce(null);
     const session = {} as never;
-    const r1 = await service.promoteEarliest(doctorId, '5_11_2026', '02:30 PM', session);
-    const r2 = await service.promoteEarliest(doctorId, '5_11_2026', '02:30 PM', session);
+    const r1 = await service.promoteEarliest(
+      doctorId,
+      '5_11_2026',
+      '02:30 PM',
+      session,
+    );
+    const r2 = await service.promoteEarliest(
+      doctorId,
+      '5_11_2026',
+      '02:30 PM',
+      session,
+    );
     expect([r1, r2].filter(Boolean)).toHaveLength(1);
-    const call = waitlistModel.findOneAndUpdate.mock.calls[0][2] as Record<string, unknown>;
+    const call = waitlistModel.findOneAndUpdate.mock.calls[0][2] as Record<
+      string,
+      unknown
+    >;
     expect(call['sort']).toEqual({ createdAt: 1 });
     expect(call['session']).toBe(session);
   });

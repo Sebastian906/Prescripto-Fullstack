@@ -40,7 +40,7 @@ export class AppointmentsService {
     private readonly reportsService: ReportsService,
     private readonly auditService: AuditService,
     private readonly waitlistService: WaitlistService,
-  ) { }
+  ) {}
 
   async bookAppointment(
     userId: string,
@@ -215,9 +215,15 @@ export class AppointmentsService {
           session,
         );
         if (waiter) {
+          // Re-reserva bajo la clave cruda del $pull: book y
+          // getAvailableSlots leen slots_booked con appointment.slotDate.
           await this.doctorModel.findByIdAndUpdate(
             appointment.docId,
-            { $push: { [`slots_booked.${freedSlotDateKey}`]: freedSlotTime } },
+            {
+              $push: {
+                [`slots_booked.${appointment.slotDate}`]: freedSlotTime,
+              },
+            },
             { session },
           );
           promotedWaitlistId = String(waiter._id);

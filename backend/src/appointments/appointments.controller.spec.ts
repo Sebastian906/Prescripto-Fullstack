@@ -1,26 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthUserGuard } from 'src/shared/guards/auth-user.guard';
-import { WaitlistController } from './waitlist.controller';
-import { WaitlistService } from './waitlist.service';
+import { AppointmentsController } from './appointments.controller';
+import { AppointmentsService } from './appointments.service';
 
-describe('WaitlistController', () => {
-  let controller: WaitlistController;
-  const waitlistService = {
-    join: jest.fn().mockResolvedValue({ success: true }),
-    listMine: jest.fn().mockResolvedValue({ success: true, entries: [] }),
-    leave: jest.fn().mockResolvedValue({ success: true }),
+describe('AppointmentsController', () => {
+  let controller: AppointmentsController;
+  const appointmentsService = {
+    bookAppointment: jest.fn(),
+    getUserAppointments: jest.fn(),
+    cancelAppointment: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [WaitlistController],
-      providers: [{ provide: WaitlistService, useValue: waitlistService }],
+      controllers: [AppointmentsController],
+      providers: [
+        { provide: AppointmentsService, useValue: appointmentsService },
+      ],
     })
       .overrideGuard(AuthUserGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
-    controller = module.get<WaitlistController>(WaitlistController);
+    controller = module.get<AppointmentsController>(AppointmentsController);
   });
 
   it('should be defined', () => {

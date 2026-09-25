@@ -41,6 +41,19 @@ export interface MigrationReport {
   schemaCreated: boolean;
 }
 
+interface WaitlistRawDoc {
+  _id: unknown;
+  doctorId?: unknown;
+  userId?: unknown;
+  slotDateKey?: unknown;
+  slotTime?: unknown;
+  status?: unknown;
+}
+
+function toWaitlistStr(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
 const SCHEMA_FILES = [
   '001_create_schema.sql',
   '002_advanced_objects.sql',
@@ -67,7 +80,7 @@ export class MigrationService {
     private readonly tokenModel: Model<PasswordResetTokenDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly pg: PostgresService,
-  ) { }
+  ) {}
 
   async runFullMigration(
     options: {
@@ -516,9 +529,12 @@ export class MigrationService {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`waitlist ensureIndex skipped: ${msg}`);
     }
-    const docs = await col.find({}).toArray();
+    const docs = (await col.find({}).toArray()) as unknown as WaitlistRawDoc[];
     await this.pg.withTransaction(async (client) => {
-      for (const doc of docs as unknown as Array<Record<string, unknown>>) {
+      for (const doc of docs) {
+        // Savepoint por fila: en PG un INSERT fallido aborta toda la tx,
+        // sin esto las filas siguientes contarían como errores en cascada.
+        await client.query('SAVEPOINT waitlist_row');
         try {
           await client.query(
             `INSERT INTO waitlist (mongo_id, doctor_mongo_id, user_mongo_id, slot_date_key, slot_time, status)
@@ -526,22 +542,26 @@ export class MigrationService {
              ON CONFLICT (mongo_id) DO UPDATE SET status=EXCLUDED.status`,
             [
               String(doc['_id']),
-              String(doc['doctorId'] ?? ''),
-              String(doc['userId'] ?? ''),
-              String(doc['slotDateKey'] ?? ''),
-              String(doc['slotTime'] ?? ''),
-              String(doc['status'] ?? 'waiting'),
+              toWaitlistStr(doc.doctorId),
+              toWaitlistStr(doc.userId),
+              toWaitlistStr(doc.slotDateKey),
+              toWaitlistStr(doc.slotTime),
+              toWaitlistStr(doc.status, 'waiting'),
             ],
           );
+          await client.query('RELEASE SAVEPOINT waitlist_row');
           result.migrated++;
         } catch (err) {
           // Si la tabla PG aún no existe (DDL pendiente), cuenta como skipped, no error fatal.
+          await client.query('ROLLBACK TO SAVEPOINT waitlist_row');
           const msg = err instanceof Error ? err.message : String(err);
           if (/relation .* does not exist/i.test(msg)) {
             result.skipped++;
           } else {
             result.errors++;
-            (result.errorDetails ??= []).push(`waitlist ${String(doc['_id'])}: ${msg}`);
+            (result.errorDetails ??= []).push(
+              `waitlist ${String(doc['_id'])}: ${msg}`,
+            );
           }
         }
       }

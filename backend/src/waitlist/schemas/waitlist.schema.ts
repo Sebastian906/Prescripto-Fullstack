@@ -21,7 +21,11 @@ export class Waitlist {
   @Prop({ required: true })
   slotTime!: string;
 
-  @Prop({ required: true, default: 'waiting', enum: ['waiting', 'promoted', 'cancelled'] })
+  @Prop({
+    required: true,
+    default: 'waiting',
+    enum: ['waiting', 'promoted', 'cancelled'],
+  })
   status!: WaitlistStatus;
 
   @Prop({ type: Date, default: null })

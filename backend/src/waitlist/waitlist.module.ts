@@ -7,15 +7,15 @@ import { WaitlistService } from './waitlist.service';
 import { Waitlist, WaitlistSchema } from './schemas/waitlist.schema';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([
-            { name: Waitlist.name, schema: WaitlistSchema },
-            { name: Doctor.name, schema: DoctorSchema },
-        ]),
-        AuthUserModule,
-    ],
-    controllers: [WaitlistController],
-    providers: [WaitlistService],
-    exports: [WaitlistService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Waitlist.name, schema: WaitlistSchema },
+      { name: Doctor.name, schema: DoctorSchema },
+    ]),
+    AuthUserModule,
+  ],
+  controllers: [WaitlistController],
+  providers: [WaitlistService],
+  exports: [WaitlistService],
 })
-export class WaitlistModule { }
+export class WaitlistModule {}
