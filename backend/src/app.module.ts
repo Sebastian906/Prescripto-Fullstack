@@ -21,6 +21,7 @@ import { ConsentModule } from './consent/consent.module';
 import { RequestIdMiddleware } from './shared/middleware/request-id.middleware';
 import { LoggingInterceptor } from './shared/interceptors/logging.interceptor';
 import { HttpRequestIdFilter } from './shared/filters/http-request-id.filter';
+import { WaitlistModule } from './waitlist/waitlist.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { HttpRequestIdFilter } from './shared/filters/http-request-id.filter';
     MigrationModule,
     AuditModule,
     ConsentModule,
+    WaitlistModule,
   ],
   controllers: [AppController],
   providers: [
