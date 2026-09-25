@@ -9,6 +9,7 @@ import { AuthUserModule } from 'src/shared/guards/auth-user.module';
 import { ConfigModule } from '@nestjs/config';
 import { ReportsModule } from 'src/reports/reports.module';
 import { AuditModule } from 'src/audit/audit.module';
+import { WaitlistModule } from 'src/waitlist/waitlist.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AuditModule } from 'src/audit/audit.module';
     ConfigModule,
     ReportsModule,
     AuditModule,
+    WaitlistModule,
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],

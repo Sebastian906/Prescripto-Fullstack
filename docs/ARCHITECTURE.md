@@ -196,6 +196,7 @@ All services are discoverable through the NestJS module system:
     UsersModule,
     DoctorsModule,
     AppointmentsModule,
+    WaitlistModule,
     SpecialitiesModule,
     SchedulingModule,
     ReportsModule,

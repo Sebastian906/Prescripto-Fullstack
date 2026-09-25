@@ -23,9 +23,12 @@ import {
 import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
 import { ReportsService } from 'src/reports/reports.service';
 import { AuditService } from 'src/audit/audit.service';
+import { Logger } from '@nestjs/common';
+import { WaitlistService } from 'src/waitlist/waitlist.service';
 
 @Injectable()
 export class AppointmentsService {
+  private readonly logger = new Logger(AppointmentsService.name);
   constructor(
     @InjectModel(Appointment.name)
     private readonly appointmentModel: Model<AppointmentDocument>,
@@ -36,7 +39,8 @@ export class AppointmentsService {
     private readonly configService: ConfigService,
     private readonly reportsService: ReportsService,
     private readonly auditService: AuditService,
-  ) {}
+    private readonly waitlistService: WaitlistService,
+  ) { }
 
   async bookAppointment(
     userId: string,
@@ -163,6 +167,10 @@ export class AppointmentsService {
 
     let cancelledDocId = '';
     let cancelledDate = new Date();
+    let freedSlotDateKey = '';
+    let freedSlotTime = '';
+    let promotedWaitlistId = '';
+    let promotedUserId = '';
 
     try {
       let result: { success: boolean; message: string };
@@ -197,6 +205,25 @@ export class AppointmentsService {
           ),
         ]);
 
+        // FIFO promotion: mismo tx. Normaliza claves legacy "D/M/YYYY" a "D_M_YYYY".
+        freedSlotDateKey = appointment.slotDate.replace(/\//g, '_');
+        freedSlotTime = appointment.slotTime;
+        const waiter = await this.waitlistService.promoteEarliest(
+          appointment.docId,
+          freedSlotDateKey,
+          freedSlotTime,
+          session,
+        );
+        if (waiter) {
+          await this.doctorModel.findByIdAndUpdate(
+            appointment.docId,
+            { $push: { [`slots_booked.${freedSlotDateKey}`]: freedSlotTime } },
+            { session },
+          );
+          promotedWaitlistId = String(waiter._id);
+          promotedUserId = waiter.userId;
+        }
+
         cancelledDocId = appointment.docId;
         cancelledDate = new Date(appointment.date);
         result = {
@@ -209,6 +236,21 @@ export class AppointmentsService {
         cancelledDocId,
         cancelledDate,
       );
+
+      // Promotion log: IDs only, best-effort fuera de la tx (no rompe el cancel).
+      if (promotedWaitlistId) {
+        this.logger.log(
+          JSON.stringify({
+            event: 'waitlist.promoted',
+            waitlistId: promotedWaitlistId,
+            userId: promotedUserId,
+            doctorId: cancelledDocId,
+            slotDateKey: freedSlotDateKey,
+            slotTime: freedSlotTime,
+            appointmentId: dto.appointmentId,
+          }),
+        );
+      }
 
       // Exactly one audit entry per user cancel (best-effort: never breaks the cancel).
       try {

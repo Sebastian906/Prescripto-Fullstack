@@ -15,6 +15,8 @@ const reportsService = {
   onAppointmentCompleted: jest.fn().mockResolvedValue(undefined),
 } as any;
 
+const waitlistService = { promoteEarliest: jest.fn().mockResolvedValue(null) } as any;
+
 describe('cancel writes exactly one AuditLog entry per role', () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -45,6 +47,7 @@ describe('cancel writes exactly one AuditLog entry per role', () => {
       {} as any,
       reportsService,
       auditService,
+      waitlistService,
     );
     await svc.cancelAppointment('u1', { appointmentId: 'a1' });
     expect(auditService.record).toHaveBeenCalledTimes(1);

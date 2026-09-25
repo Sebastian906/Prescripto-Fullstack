@@ -67,7 +67,7 @@ export class MigrationService {
     private readonly tokenModel: Model<PasswordResetTokenDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly pg: PostgresService,
-  ) {}
+  ) { }
 
   async runFullMigration(
     options: {
@@ -88,6 +88,7 @@ export class MigrationService {
       'doctors',
       'slots',
       'appointments',
+      'waitlist',
       'monthly_stats',
       'password_reset_tokens',
       'conversations',
@@ -165,6 +166,7 @@ export class MigrationService {
     const tables = [
       'conversation_messages',
       'conversations',
+      'waitlist',
       'monthly_stats_patients',
       'monthly_stats',
       'password_reset_tokens',
@@ -205,6 +207,9 @@ export class MigrationService {
           break;
         case 'appointments':
           await this.migrateAppointments(result);
+          break;
+        case 'waitlist':
+          await this.migrateWaitlist(result);
           break;
         case 'monthly_stats':
           await this.migrateMonthlyStats(result);
@@ -500,6 +505,49 @@ export class MigrationService {
     });
   }
 
+  private async migrateWaitlist(result: MigrationResult): Promise<void> {
+    // Idempotente: asegura índices Mongo y espeja registros a PG si la tabla existe.
+    const col = this.connection.collection('waitlists');
+    try {
+      await col.createIndex({ doctorId: 1, slotDateKey: 1, createdAt: 1 });
+      await col.createIndex({ userId: 1, createdAt: -1 });
+      await col.createIndex({ createdAt: 1 }, { expireAfterSeconds: 2592000 });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`waitlist ensureIndex skipped: ${msg}`);
+    }
+    const docs = await col.find({}).toArray();
+    await this.pg.withTransaction(async (client) => {
+      for (const doc of docs as unknown as Array<Record<string, unknown>>) {
+        try {
+          await client.query(
+            `INSERT INTO waitlist (mongo_id, doctor_mongo_id, user_mongo_id, slot_date_key, slot_time, status)
+             VALUES ($1,$2,$3,$4,$5,$6)
+             ON CONFLICT (mongo_id) DO UPDATE SET status=EXCLUDED.status`,
+            [
+              String(doc['_id']),
+              String(doc['doctorId'] ?? ''),
+              String(doc['userId'] ?? ''),
+              String(doc['slotDateKey'] ?? ''),
+              String(doc['slotTime'] ?? ''),
+              String(doc['status'] ?? 'waiting'),
+            ],
+          );
+          result.migrated++;
+        } catch (err) {
+          // Si la tabla PG aún no existe (DDL pendiente), cuenta como skipped, no error fatal.
+          const msg = err instanceof Error ? err.message : String(err);
+          if (/relation .* does not exist/i.test(msg)) {
+            result.skipped++;
+          } else {
+            result.errors++;
+            (result.errorDetails ??= []).push(`waitlist ${String(doc['_id'])}: ${msg}`);
+          }
+        }
+      }
+    });
+  }
+
   private async migrateMonthlyStats(result: MigrationResult): Promise<void> {
     // Lee spill Mongo; si la lectura falla, el error se propaga y queda
     // registrado en el resultado (no se silencian IDs de spill).
@@ -699,6 +747,7 @@ export class MigrationService {
       'doctors',
       'doctor_slots_booked',
       'appointments',
+      'waitlist',
       'monthly_stats',
       'monthly_stats_patients',
       'password_reset_tokens',
