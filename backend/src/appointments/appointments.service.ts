@@ -17,8 +17,9 @@ import { PaymentCODDto } from './dto/payment-cod.dto';
 import { PaymentStripeDto } from './dto/payment-stripe.dto';
 import Stripe from 'stripe';
 import {
-  binarySearch,
-  getAvailableSlots,
+  binarySearchSlots,
+  compareSlots,
+  getAvailableSlotsByMinutes,
 } from 'src/shared/utils/binary-search.util';
 import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
 import { ReportsService } from 'src/reports/reports.service';
@@ -68,11 +69,9 @@ export class AppointmentsService {
         }
 
         const bookedForDay: string[] = doctor.slots_booked?.[slotDate] ?? [];
-        const sortedBooked = [...bookedForDay].sort((a, b) =>
-          a.localeCompare(b),
-        );
+        const sortedBooked = [...bookedForDay].sort(compareSlots);
 
-        const alreadyBooked = binarySearch(sortedBooked, slotTime);
+        const alreadyBooked = binarySearchSlots(sortedBooked, slotTime);
         if (alreadyBooked !== -1) {
           throw new BadRequestException('Slot not available');
         }
@@ -307,9 +306,9 @@ export class AppointmentsService {
     const allSlots = generateDaySlots(date);
 
     const bookedRaw: string[] = doctor.slots_booked?.[dateStr] ?? [];
-    const bookedSorted = [...bookedRaw].sort((a, b) => a.localeCompare(b));
+    const bookedSorted = [...bookedRaw].sort(compareSlots);
 
-    const availableSlots = getAvailableSlots(allSlots, bookedSorted);
+    const availableSlots = getAvailableSlotsByMinutes(allSlots, bookedSorted);
 
     return { success: true, slots: availableSlots };
   }
