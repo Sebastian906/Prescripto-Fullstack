@@ -16,7 +16,11 @@ import {
   SchedulingSuggestionResult,
   SlotCandidate,
 } from 'src/shared/structures/scheduling-types';
-import { getAvailableSlots } from 'src/shared/utils/binary-search.util';
+import {
+  compareSlots,
+  getAvailableSlotsByMinutes,
+  toMinutes,
+} from 'src/shared/utils/binary-search.util';
 import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
 
 /** Pesos para la función de score greedy */
@@ -111,12 +115,12 @@ export class SchedulingService {
 
     const allSlots = generateDaySlots(date);
 
-    // orden cronológico por minutos, no lexicográfico (rompía AM/PM)
+    // Orden cronológico canónico (compareSlots). No usar localeCompare en slots.
     const booked: string[] = [...(doctor.slots_booked?.[dateStr] ?? [])].sort(
-      (a, b) => this.parseHour(a) - this.parseHour(b),
+      compareSlots,
     );
 
-    const available = getAvailableSlots(allSlots, booked);
+    const available = getAvailableSlotsByMinutes(allSlots, booked);
 
     if (available.length === 0) return;
 
@@ -182,19 +186,11 @@ export class SchedulingService {
   }
 
   private parseHour(timeStr: string): number {
-    // "10:30 AM" → 10.5,  "02:00 PM" → 14
-    const s = timeStr.trim().toUpperCase().replace(/\./g, '');
-    // 24h: "14:30"
-    const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
-    if (m24) return Number(m24[1]) + Number(m24[2]) / 60;
-    // 12h: "02:30 PM" / "2:30PM" / "10:30 A M"
-    const m12 = s.match(/^(\d{1,2}):(\d{2})\s*([AP])\s*M?$/);
-    if (!m12) return NaN;
-    let h = Number(m12[1]);
-    const m = Number(m12[2]);
-    if (m12[3] === 'P' && h !== 12) h += 12;
-    if (m12[3] === 'A' && h === 12) h = 0;
-    return h + m / 60;
+    // "10:30 AM" → 10.5, "02:00 PM" → 14. Delega en toMinutes:
+    // única fuente de verdad horaria; preserva contrato horas-float
+    // de computeScore/computeGap.
+    const mins = toMinutes(timeStr);
+    return Number.isNaN(mins) ? NaN : mins / 60;
   }
 
   /** Criterio de poda Branch & Bound */
