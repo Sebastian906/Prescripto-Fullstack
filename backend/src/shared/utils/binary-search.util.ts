@@ -120,7 +120,8 @@ export function getAvailableSlotsByMinutes(
     }
 
     const isBooked =
-      bookedIdx < bookedSlots.length && bookedSlots[bookedIdx] === slot;
+      bookedIdx < bookedSlots.length &&
+      compareSlots(bookedSlots[bookedIdx], slot) === 0;
 
     if (!isBooked) available.push(slot);
   }

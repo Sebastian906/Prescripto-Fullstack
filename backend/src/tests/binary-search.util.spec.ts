@@ -76,6 +76,13 @@ describe('orden cronologico', () => {
     ]);
   });
 
+  it('getAvailableSlotsByMinutes equipara 12h y 24h', () => {
+    const all = ['10:00 AM', '02:00 PM'];
+    expect(getAvailableSlotsByMinutes(all, sortSlots(['14:00']))).toEqual([
+      '10:00 AM',
+    ]);
+  });
+
   it('property: 200 permutaciones con semilla ordenan cronologicamente', () => {
     let seed = 42;
     const rnd = (): number => {
@@ -93,6 +100,7 @@ describe('orden cronologico', () => {
     for (let k = 0; k < 200; k++) {
       const shuffled = [...base].sort(() => rnd() - 0.5);
       const sorted = sortSlots(shuffled);
+      expect([...sorted].sort()).toEqual([...shuffled].sort());
       for (let i = 1; i < sorted.length; i++) {
         expect(toMinutes(sorted[i - 1])).toBeLessThanOrEqual(
           toMinutes(sorted[i]),

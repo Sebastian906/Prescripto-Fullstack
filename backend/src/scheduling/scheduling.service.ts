@@ -17,6 +17,7 @@ import {
   SlotCandidate,
 } from 'src/shared/structures/scheduling-types';
 import {
+  compareSlots,
   getAvailableSlotsByMinutes,
   toMinutes,
 } from 'src/shared/utils/binary-search.util';
@@ -114,9 +115,9 @@ export class SchedulingService {
 
     const allSlots = generateDaySlots(date);
 
-    // Orden cronológico canónico (toMinutes). No usar localeCompare en slots.
+    // Orden cronológico canónico (compareSlots). No usar localeCompare en slots.
     const booked: string[] = [...(doctor.slots_booked?.[dateStr] ?? [])].sort(
-      (a, b) => toMinutes(a) - toMinutes(b),
+      compareSlots,
     );
 
     const available = getAvailableSlotsByMinutes(allSlots, booked);
