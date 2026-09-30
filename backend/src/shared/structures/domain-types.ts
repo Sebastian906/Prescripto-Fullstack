@@ -116,7 +116,8 @@ export function isValidSlotDate(s: unknown): s is string {
 
 /**
  * Lanza si el grafo parentId contiene ciclos (directos e indirectos).
- * DFS con colores sobre punteros parent: O(n) tiempo, O(n) espacio.
+ * Recorrido iterativo por punteros parent con colores: O(n) tiempo, O(n) espacio.
+ * Sin recursión: cada cadena se camina con un bucle y se marca BLACK al terminar.
  */
 export function assertAcyclic(nodes: SpecialityLink[]): void {
   const parentById = new Map<string, string | null>();
@@ -125,24 +126,30 @@ export function assertAcyclic(nodes: SpecialityLink[]): void {
   const GRAY = 1;
   const BLACK = 2;
   const color = new Map<string, number>();
-  const visit = (id: string): void => {
-    const c = color.get(id) ?? WHITE;
-    if (c === BLACK) return;
-    if (c === GRAY) {
-      throw new DomainInvariantError(
-        'CYCLE_DETECTED',
-        `Cycle detected at speciality '${id}'`,
-        'parentId',
-      );
-    }
-    color.set(id, GRAY);
-    const parent = parentById.get(id);
-    if (parent !== null && parent !== undefined && parentById.has(parent)) {
-      visit(parent);
-    }
-    color.set(id, BLACK);
+  const failOnCycle = (id: string): never => {
+    throw new DomainInvariantError(
+      'CYCLE_DETECTED',
+      `Cycle detected at speciality '${id}'`,
+      'parentId',
+    );
   };
-  for (const id of parentById.keys()) visit(id);
+  for (const start of parentById.keys()) {
+    if ((color.get(start) ?? WHITE) === BLACK) continue;
+    const path: string[] = [];
+    let cur: string | null | undefined = start;
+    while (cur !== null && cur !== undefined && parentById.has(cur)) {
+      const c = color.get(cur) ?? WHITE;
+      if (c === BLACK) break;
+      if (c === GRAY) failOnCycle(cur);
+      color.set(cur, GRAY);
+      path.push(cur);
+      const parent = parentById.get(cur);
+      if (parent === null || parent === undefined || !parentById.has(parent))
+        break;
+      cur = parent;
+    }
+    for (const id of path) color.set(id, BLACK);
+  }
 }
 
 // Versión boolean de assertAcyclic (false = ciclo). O(n).
