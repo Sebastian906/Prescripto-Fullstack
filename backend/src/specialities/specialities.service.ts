@@ -1,4 +1,8 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Speciality, SpecialityDocument } from './schemas/speciality.schema';
@@ -8,6 +12,7 @@ import {
   findNodeBySlug,
   SpecialityNode,
 } from 'src/shared/structures/speciality-tree';
+import { DomainInvariantError } from 'src/shared/structures/domain-types';
 import { CreateSpecialityDto } from './dto/create-speciality.dto';
 import { UpdateSpecialityDto } from './dto/update-speciality.dto';
 
@@ -101,10 +106,20 @@ export class SpecialitiesService implements OnModuleDestroy {
       parentId: s.parentId ?? null,
     }));
 
-    const tree = buildSpecialityTree(normalized);
-    this.set(CACHE_KEY, tree);
-
-    return { success: true, tree };
+    // Traduce invariante tipada a 400 con code estable
+    try {
+      const tree = buildSpecialityTree(normalized);
+      this.set(CACHE_KEY, tree);
+      return { success: true, tree };
+    } catch (e) {
+      if (e instanceof DomainInvariantError) {
+        throw new BadRequestException({
+          message: e.message,
+          code: e.code,
+        });
+      }
+      throw e;
+    }
   }
 
   async getSpecialityNames(): Promise<{

@@ -1,3 +1,5 @@
+export type { Slot, DaySchedule } from './domain-types';
+
 export interface SlotCandidate {
   slotDate: string; // "15/7/2025"
   slotTime: string; // "10:00 AM"
@@ -14,7 +16,7 @@ export interface SchedulingSuggestionRequest {
 }
 
 export interface SchedulingSuggestionResult {
-  suggestions: SlotCandidate[];
+  suggestions: import('./domain-types').SlotCandidate[];
   isIdeal: boolean;
   reason: string;
 }

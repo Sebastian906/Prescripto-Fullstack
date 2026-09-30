@@ -22,8 +22,9 @@ import {
   toMinutes,
 } from 'src/shared/utils/binary-search.util';
 import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
+import { isValidSlotDate } from 'src/shared/structures/domain-types';
 
-/** Pesos para la función de score greedy */
+// Pesos para la función de score greedy
 const WEIGHT_LOAD = -2; // penaliza doctores sobrecargados
 const WEIGHT_GAP = 1; // premia huecos cómodos
 const WEIGHT_MORNING = 1; // premia horarios de mañana (heurística)
@@ -49,6 +50,17 @@ export class SchedulingService {
     const { docId, preferredDates, priorityLevel, minGapMinutes = 30 } = req;
 
     if (!isValidObjectId(docId)) throw new BadRequestException('Invalid docId');
+
+    // boundary de fechas — 400 tipado con code estable
+    for (const raw of preferredDates) {
+      const label = raw; // Copia para el mensaje
+      if (!isValidSlotDate(raw)) {
+        throw new BadRequestException({
+          message: `Invalid preferredDate: '${label}'. Expected DD/MM/YYYY`,
+          code: 'INVALID_SLOT_DATE',
+        });
+      }
+    }
 
     const doctor = await this.doctorModel
       .findById(docId)
@@ -193,7 +205,7 @@ export class SchedulingService {
     return Number.isNaN(mins) ? NaN : mins / 60;
   }
 
-  /** Criterio de poda Branch & Bound */
+  // Criterio de poda Branch & Bound
   private meetsBound(
     score: number,
     level: SchedulingSuggestionRequest['priorityLevel'],

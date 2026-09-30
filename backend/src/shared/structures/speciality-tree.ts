@@ -1,9 +1,13 @@
+import { assertAcyclic, assertNoOrphans } from './domain-types';
+// import type { SpecialityNode } from './domain-types';
+// export type { SpecialityNode } from './domain-types';
+
 export interface SpecialityNode {
   id: string;
   name: string;
   slug: string; // "general-physician"
   parentId: string | null;
-  children: SpecialityNode[];
+  children: import('./domain-types').SpecialityNode[];
   metadata?: {
     iconUrl?: string;
     description?: string;
@@ -18,9 +22,10 @@ export interface SpecialityNode {
  * Recursión implícita: cada nodo es raíz de su propio subárbol.
  * La función buildTree actúa como función de orden superior que
  * delega el ensamblaje a attachChildren (recursivo).
- * @param flatList - Nodos planos con id, name, slug y parentId (huérfanos sin padre se descartan).
+ * @param flatList - Nodos planos con id, name, slug y parentId.
+ * @throws DomainInvariantError CYCLE_DETECTED si hay ciclo; ORPHAN_NODE si hay huérfano.
  * @returns Raíces del árbol con children enlazados; [] si la lista es vacía.
- * @complexity O(n) — dos pasadas lineales con lookup en Map; O(n) espacio.
+ * @complexity O(n) — validación O(n) + dos pasadas lineales con lookup en Map; O(n) espacio.
  */
 export function buildSpecialityTree(
   flatList: Array<{
@@ -30,6 +35,9 @@ export function buildSpecialityTree(
     slug: string;
   }>,
 ): SpecialityNode[] {
+  // boundary de invariantes (falla rápido con error tipado)
+  assertAcyclic(flatList);
+  assertNoOrphans(flatList);
   // Paso 1: Construir índice O(n)
   const nodeMap = new Map<string, SpecialityNode>();
 
