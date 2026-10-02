@@ -6,12 +6,18 @@ import { useToast } from 'vue-toastification'
 import axios from 'axios'
 import { translateSpeciality } from '../../utils/specialityUtils'
 
+// Profundidad máxima espejo del backend (MAX_SPECIALITY_DEPTH = 4, raíz = 0).
+const MAX_DEPTH = 4
+
 const { backendUrl, aToken } = useAdminContext()
 const { t } = useI18n()
 const toast = useToast()
 
 const tree = ref([])
+const orphans = ref([])
 const loading = ref(false)
+
+const orphanCount = computed(() => orphans.value.length)
 
 const showForm = ref(false)
 const editingId = ref(null)
@@ -29,18 +35,42 @@ const flatTree = computed(() => {
     return result
 })
 
+// Ids prohibidos como padre al editar: el propio nodo + sus descendientes
+// (evita ciclos en la UI; el backend lo revalida con 400 CYCLE_DETECTED).
+const forbiddenParentIds = computed(() => {
+    if (!editingId.value) return new Set()
+    const out = new Set([editingId.value])
+    let grew = true
+    while (grew) {
+        grew = false
+        for (const n of flatTree.value) {
+            if (n.parentId && out.has(n.parentId) && !out.has(n.id)) {
+                out.add(n.id)
+                grew = true
+            }
+        }
+    }
+    return out
+})
+
+// Solo los nodos con depth < 4 pueden tener hijos (el hijo quedaría en ≤4).
 const parentOptions = computed(() =>
-    flatTree.value.map((node) => ({
-        id: node.id,
-        label: '—'.repeat(node.depth) + ' ' + translateSpeciality(node.name, t),
-    }))
+    flatTree.value
+        .filter((node) => node.depth < MAX_DEPTH && !forbiddenParentIds.value.has(node.id))
+        .map((node) => ({
+            id: node.id,
+            label: '—'.repeat(node.depth) + ' ' + translateSpeciality(node.name, t),
+        }))
 )
 
 const fetchTree = async () => {
     loading.value = true
     try {
         const { data } = await axios.get(`${backendUrl}/api/specialities/tree`)
-        if (data.success) tree.value = data.tree
+        if (data.success) {
+            tree.value = data.tree ?? []
+            orphans.value = data.orphans ?? []
+        }
     } catch {
         toast.error(t('specialities.couldNotLoad'))
     } finally {
@@ -88,6 +118,8 @@ const submitForm = async () => {
         showForm.value = false
         await fetchTree()
     } catch (err) {
+        // El backend responde 400 con { message, code: DEPTH_EXCEEDED |
+        // CYCLE_DETECTED | ORPHAN_NODE }; el mensaje ya es descriptivo.
         toast.error(err?.response?.data?.message ?? t('specialities.operationFailed'))
     }
 }
@@ -114,6 +146,13 @@ onMounted(fetchTree)
                 class="bg-indigo-500 text-white text-sm px-5 py-2 rounded-full hover:bg-indigo-600 transition-colors cursor-pointer">
                 {{ t('specialities.addRoot') }}
             </button>
+        </div>
+
+        <div v-if="!loading && orphanCount > 0"
+            class="mb-3 px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+            ⚠ {{ orphanCount }} orphan specialit{{ orphanCount === 1 ? 'y' : 'ies' }} with missing
+            parent:
+            <span v-for="o in orphans" :key="o.id" class="mr-2 font-mono">{{ o.name }}</span>
         </div>
 
         <div class="bg-white rounded-lg border overflow-hidden">
@@ -144,7 +183,7 @@ onMounted(fetchTree)
                 </span>
 
                 <div class="flex items-center gap-2">
-                    <button @click="openCreate(node.id)"
+                    <button v-if="node.depth < MAX_DEPTH" @click="openCreate(node.id)"
                         class="text-xs text-indigo-400 hover:text-indigo-600 cursor-pointer">
                         {{ t('specialities.addChild') }}
                     </button>
@@ -192,6 +231,7 @@ onMounted(fetchTree)
                                 {{ opt.label }}
                             </option>
                         </select>
+                        <p class="text-xs text-slate-400">Max depth: L{{ MAX_DEPTH }} (root = L0)</p>
                     </div>
 
                     <div class="flex flex-col gap-1">
