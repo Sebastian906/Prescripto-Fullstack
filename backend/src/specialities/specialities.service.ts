@@ -16,6 +16,7 @@ import {
 import {
   DomainInvariantError,
   MAX_SPECIALITY_DEPTH,
+  assertAcyclic,
   assertMaxDepth,
 } from 'src/shared/structures/domain-types';
 import { CreateSpecialityDto } from './dto/create-speciality.dto';
@@ -301,6 +302,7 @@ export class SpecialitiesService implements OnModuleDestroy {
       n.id === selfId ? { ...n, parentId: newParentId } : n,
     );
     try {
+      assertAcyclic(simulated);
       assertMaxDepth(simulated, MAX_SPECIALITY_DEPTH);
     } catch (e) {
       if (e instanceof DomainInvariantError) {

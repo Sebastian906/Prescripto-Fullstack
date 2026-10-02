@@ -217,4 +217,26 @@ describe('SpecialitiesService.getSpecialityTree domain guards', () => {
     }
     expect(modelMock.findByIdAndUpdate).not.toHaveBeenCalled();
   });
+
+  it('update válido con ciclo ajeno en DB → 400 CYCLE_DETECTED', async () => {
+    const { svc, modelMock } = await compileWithModel([
+      row('root', null),
+      row('a', 'root'),
+      row('c', 'd'),
+      row('d', 'c'),
+    ]);
+    created.push(svc);
+    // Reparenting válido (a sigue bajo root) pero la simulación contiene
+    // el ciclo ajeno c→d→c y debe rechazarse sin colgarse.
+    try {
+      await svc.updateSpeciality('a', { parentId: 'root' });
+      fail('debió lanzar BadRequestException');
+    } catch (e) {
+      expect(e).toBeInstanceOf(BadRequestException);
+      expect(
+        (e as BadRequestException).getResponse() as { code?: string },
+      ).toMatchObject({ code: 'CYCLE_DETECTED' });
+    }
+    expect(modelMock.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
 });

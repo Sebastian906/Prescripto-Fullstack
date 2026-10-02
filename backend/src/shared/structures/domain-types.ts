@@ -233,8 +233,16 @@ export function assertMaxDepth(
     const hit = cache.get(id);
     if (hit !== undefined) return hit;
     const chain: string[] = [];
+    const seen = new Set<string>();
     let cur: string | null = id;
     while (cur !== null && parentById.has(cur) && !cache.has(cur)) {
+      if (seen.has(cur)) {
+        throw new SpecialityCycleError([
+          ...chain.slice(chain.indexOf(cur)),
+          cur,
+        ]);
+      }
+      seen.add(cur);
       chain.push(cur);
       const p: string | null = parentOf(cur);
       cur = p !== null && parentById.has(p) ? p : null;
