@@ -8,7 +8,11 @@
 export type DomainErrorCode =
   | 'INVALID_SLOT_DATE'
   | 'CYCLE_DETECTED'
-  | 'ORPHAN_NODE';
+  | 'ORPHAN_NODE'
+  | 'DEPTH_EXCEEDED';
+
+// Profundidad máxima del árbol de especialidades (raíz = 0).
+export const MAX_SPECIALITY_DEPTH = 4;
 
 // Error tipado de invariante de dominio.
 export class DomainInvariantError extends Error {
@@ -20,6 +24,42 @@ export class DomainInvariantError extends Error {
     this.code = code;
     if (field !== undefined) this.field = field;
     Object.setPrototypeOf(this, DomainInvariantError.prototype);
+  }
+}
+
+// Ciclo en parentId: nombra los nodos en orden (p. ej. a -> b -> a).
+export class SpecialityCycleError extends DomainInvariantError {
+  readonly nodes: string[];
+  constructor(nodes: string[]) {
+    super(
+      'CYCLE_DETECTED',
+      `Cycle detected in speciality hierarchy: ${nodes.join(' -> ')}`,
+      'parentId',
+    );
+    this.name = 'SpecialityCycleError';
+    this.nodes = nodes;
+    Object.setPrototypeOf(this, SpecialityCycleError.prototype);
+  }
+}
+
+// Profundidad excedida: ruta desde la raíz hasta el nodo infractor.
+export class SpecialityDepthError extends DomainInvariantError {
+  readonly nodes: string[];
+  readonly depth: number;
+  constructor(
+    nodes: string[],
+    depth: number,
+    maxDepth: number = MAX_SPECIALITY_DEPTH,
+  ) {
+    super(
+      'DEPTH_EXCEEDED',
+      `Speciality depth ${depth} exceeds max ${maxDepth}: ${nodes.join(' -> ')}`,
+      'parentId',
+    );
+    this.name = 'SpecialityDepthError';
+    this.nodes = nodes;
+    this.depth = depth;
+    Object.setPrototypeOf(this, SpecialityDepthError.prototype);
   }
 }
 
@@ -116,39 +156,32 @@ export function isValidSlotDate(s: unknown): s is string {
 
 /**
  * Lanza si el grafo parentId contiene ciclos (directos e indirectos).
- * Recorrido iterativo por punteros parent con colores: O(n) tiempo, O(n) espacio.
- * Sin recursión: cada cadena se camina con un bucle y se marca BLACK al terminar.
+ * Recorrido iterativo por punteros parent: O(n) tiempo, O(n) espacio.
+ * El error incluye la ruta completa del ciclo (p. ej. a -> b -> a).
  */
 export function assertAcyclic(nodes: SpecialityLink[]): void {
   const parentById = new Map<string, string | null>();
   for (const n of nodes) parentById.set(n.id, n.parentId);
-  const WHITE = 0;
-  const GRAY = 1;
-  const BLACK = 2;
-  const color = new Map<string, number>();
-  const failOnCycle = (id: string): never => {
-    throw new DomainInvariantError(
-      'CYCLE_DETECTED',
-      `Cycle detected at speciality '${id}'`,
-      'parentId',
-    );
-  };
+  const black = new Set<string>();
   for (const start of parentById.keys()) {
-    if ((color.get(start) ?? WHITE) === BLACK) continue;
-    const path: string[] = [];
+    if (black.has(start)) continue;
+    const order: string[] = [];
+    const pos = new Map<string, number>();
     let cur: string | null | undefined = start;
     while (cur !== null && cur !== undefined && parentById.has(cur)) {
-      const c = color.get(cur) ?? WHITE;
-      if (c === BLACK) break;
-      if (c === GRAY) failOnCycle(cur);
-      color.set(cur, GRAY);
-      path.push(cur);
+      if (black.has(cur)) break;
+      const at = pos.get(cur);
+      if (at !== undefined) {
+        throw new SpecialityCycleError([...order.slice(at), cur]);
+      }
+      pos.set(cur, order.length);
+      order.push(cur);
       const parent = parentById.get(cur);
       if (parent === null || parent === undefined || !parentById.has(parent))
         break;
       cur = parent;
     }
-    for (const id of path) color.set(id, BLACK);
+    for (const id of order) black.add(id);
   }
 }
 
@@ -179,5 +212,54 @@ export function assertNoOrphans(nodes: SpecialityLink[]): void {
         'parentId',
       );
     }
+  }
+}
+
+/**
+ * Lanza SpecialityDepthError si algún nodo supera maxDepth (raíz = 0).
+ * Profundidad memoizada: cada arista se recorre una vez → O(n) tiempo, O(n) espacio.
+ * Los parentId inexistentes se tratan como frontera (el nodo cuenta como raíz
+ * de su propio subárbol); los huérfanos los reporta buildSpecialityTree.
+ */
+export function assertMaxDepth(
+  nodes: SpecialityLink[],
+  maxDepth: number = MAX_SPECIALITY_DEPTH,
+): void {
+  const parentById = new Map<string, string | null>();
+  for (const n of nodes) parentById.set(n.id, n.parentId);
+  const parentOf = (id: string): string | null => parentById.get(id) ?? null;
+  const cache = new Map<string, number>();
+  const depthOf = (id: string): number => {
+    const hit = cache.get(id);
+    if (hit !== undefined) return hit;
+    const chain: string[] = [];
+    let cur: string | null = id;
+    while (cur !== null && parentById.has(cur) && !cache.has(cur)) {
+      chain.push(cur);
+      const p: string | null = parentOf(cur);
+      cur = p !== null && parentById.has(p) ? p : null;
+    }
+    let d = cur === null ? -1 : (cache.get(cur) ?? -1);
+    for (let i = chain.length - 1; i >= 0; i--) {
+      d += 1;
+      cache.set(chain[i], d);
+    }
+    return cache.get(id) ?? 0;
+  };
+  const pathOf = (id: string): string[] => {
+    const path: string[] = [];
+    const seen = new Set<string>();
+    let cur: string | null = id;
+    while (cur !== null && parentById.has(cur) && !seen.has(cur)) {
+      seen.add(cur);
+      path.unshift(cur);
+      const p: string | null = parentOf(cur);
+      cur = p !== null && parentById.has(p) ? p : null;
+    }
+    return path;
+  };
+  for (const n of nodes) {
+    const d = depthOf(n.id);
+    if (d > maxDepth) throw new SpecialityDepthError(pathOf(n.id), d, maxDepth);
   }
 }

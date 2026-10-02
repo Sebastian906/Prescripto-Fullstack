@@ -1,13 +1,17 @@
-import { assertAcyclic, assertNoOrphans } from './domain-types';
-// import type { SpecialityNode } from './domain-types';
-// export type { SpecialityNode } from './domain-types';
+import {
+  MAX_SPECIALITY_DEPTH,
+  assertAcyclic,
+  assertMaxDepth,
+} from './domain-types';
+
+export { MAX_SPECIALITY_DEPTH };
 
 export interface SpecialityNode {
   id: string;
   name: string;
   slug: string; // "general-physician"
   parentId: string | null;
-  children: import('./domain-types').SpecialityNode[];
+  children: SpecialityNode[];
   metadata?: {
     iconUrl?: string;
     description?: string;
@@ -15,32 +19,46 @@ export interface SpecialityNode {
   };
 }
 
+// Fila plana aceptada por el builder (documento DB normalizado o fixture).
+export interface SpecialityFlatNode {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+}
+
+// Huérfano: parentId apunta a un id ausente. Se reporta, nunca se pierde.
+export type SpecialityOrphanNode = SpecialityFlatNode;
+
+// Resultado del builder: raíces enlazadas + huérfanos planos + conteo.
+export interface SpecialityTreeResult {
+  roots: SpecialityNode[];
+  orphans: SpecialityOrphanNode[];
+  orphanCount: number;
+  maxDepth: number;
+}
+
 /**
  * Construye un árbol jerárquico desde una lista plana.
- * Algoritmo: single-pass con Map lookup → O(n) tiempo, O(n) espacio.
+ * Algoritmo: validación O(n) + indexado O(n) + enlazado O(n) con Map lookup.
  *
- * Recursión implícita: cada nodo es raíz de su propio subárbol.
- * La función buildTree actúa como función de orden superior que
- * delega el ensamblaje a attachChildren (recursivo).
+ * - Ciclos (a→b→a): lanza SpecialityCycleError nombrando los nodos en orden.
+ * - Huérfanos: NO se descartan; se devuelven en `orphans`.
+ * - Profundidad > MAX_SPECIALITY_DEPTH (4): lanza SpecialityDepthError con la ruta.
+ *
  * @param flatList - Nodos planos con id, name, slug y parentId.
- * @throws DomainInvariantError CYCLE_DETECTED si hay ciclo; ORPHAN_NODE si hay huérfano.
- * @returns Raíces del árbol con children enlazados; [] si la lista es vacía.
- * @complexity O(n) — validación O(n) + dos pasadas lineales con lookup en Map; O(n) espacio.
+ * @returns Raíces con children enlazados + huérfanos reportados.
+ * @complexity O(n) tiempo, O(n) espacio. Sin recursión en el enlazado.
  */
 export function buildSpecialityTree(
-  flatList: Array<{
-    id: string;
-    name: string;
-    parentId: string | null;
-    slug: string;
-  }>,
-): SpecialityNode[] {
-  // boundary de invariantes (falla rápido con error tipado)
+  flatList: SpecialityFlatNode[],
+): SpecialityTreeResult {
+  // Frontera de invariantes (falla rápido con error tipado).
   assertAcyclic(flatList);
-  assertNoOrphans(flatList);
-  // Paso 1: Construir índice O(n)
-  const nodeMap = new Map<string, SpecialityNode>();
+  assertMaxDepth(flatList, MAX_SPECIALITY_DEPTH);
 
+  // Paso 1: construir índice O(n).
+  const nodeMap = new Map<string, SpecialityNode>();
   for (const item of flatList) {
     nodeMap.set(item.id, {
       id: item.id,
@@ -51,30 +69,44 @@ export function buildSpecialityTree(
     });
   }
 
-  // Paso 2: Enlazar hijos — O(n), sin recursión explícita en este paso
+  // Paso 2: enlazar hijos O(n); el huérfano se reporta en vez de perderse.
   const roots: SpecialityNode[] = [];
-
-  for (const node of nodeMap.values()) {
-    if (node.parentId === null) {
+  const orphans: SpecialityOrphanNode[] = [];
+  for (const item of flatList) {
+    const node = nodeMap.get(item.id);
+    if (!node) continue;
+    if (item.parentId === null) {
       roots.push(node);
     } else {
-      const parent = nodeMap.get(node.parentId);
+      const parent = nodeMap.get(item.parentId);
       if (parent) {
         parent.children.push(node);
+      } else {
+        orphans.push({
+          id: item.id,
+          name: item.name,
+          slug: item.slug,
+          parentId: item.parentId,
+        });
       }
     }
   }
 
-  return roots;
+  return {
+    roots,
+    orphans,
+    orphanCount: orphans.length,
+    maxDepth: MAX_SPECIALITY_DEPTH,
+  };
 }
 
 /**
  * Búsqueda recursiva por slug dentro del árbol.
- * Usa DFS (pila implícita del call stack).
+ * Usa DFS (pila implícita del call stack); profundidad acotada a 4.
  * @param nodes - Raíces donde iniciar la búsqueda.
  * @param slug - Slug exacto a localizar (case-sensitive).
  * @returns El nodo si existe; null si no se encuentra.
- * @complexity O(n) worst-case — el DFS puede visitar cada nodo aunque el árbol esté balanceado.
+ * @complexity O(n) worst-case.
  */
 export function findNodeBySlug(
   nodes: SpecialityNode[],
@@ -95,10 +127,9 @@ export function findNodeBySlug(
  * Recolecta TODOS los slugs de una rama (nodo + descendientes).
  * Usado para filtrar doctores: si seleccionas "Surgeon",
  * incluye "Orthopedic Surgeon", "Neurosurgeon", etc.
- * Cada nivel copia los slugs del subárbol vía spread: cada slug se copia una vez por ancestro.
  * @param node - Raíz de la rama a recolectar.
  * @returns Slugs de la rama (nodo primero, luego descendientes en DFS).
- * @complexity O(n·h) — n = tamaño de la rama, h = altura; O(n²) en cadena.
+ * @complexity O(n·h) — n = tamaño de la rama, h = altura (h ≤ 4 por invariante).
  */
 export function collectDescendantSlugs(node: SpecialityNode): string[] {
   const slugs: string[] = [node.slug];
