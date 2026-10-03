@@ -61,7 +61,7 @@ export class MigrationController {
     name: 'name',
     required: true,
     description:
-      'Collection name: users | specialities | doctors | slots | appointments | monthly_stats | password_reset_tokens | conversations',
+      'Collection name: users | specialities | doctors | slots | appointments | waitlist | monthly_stats | password_reset_tokens | conversations | referrals',
   })
   @UseGuards(AuthAdminGuard)
   async migrateOne(@Query('name') name: string) {

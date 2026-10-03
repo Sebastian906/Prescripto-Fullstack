@@ -11,6 +11,10 @@ import {
 } from 'src/auth/password-reset-token.schema';
 import { Doctor, DoctorDocument } from 'src/doctors/schemas/doctor.schema';
 import {
+  Referral,
+  ReferralDocument,
+} from 'src/referrals/schemas/referral.schema';
+import {
   MonthlyStats,
   MonthlyStatsDocument,
 } from 'src/reports/schemas/monthly-stats.schema';
@@ -78,6 +82,8 @@ export class MigrationService {
     private readonly statsModel: Model<MonthlyStatsDocument>,
     @InjectModel(PasswordResetToken.name)
     private readonly tokenModel: Model<PasswordResetTokenDocument>,
+    @InjectModel(Referral.name)
+    private readonly referralModel: Model<ReferralDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly pg: PostgresService,
   ) {}
@@ -105,6 +111,7 @@ export class MigrationService {
       'monthly_stats',
       'password_reset_tokens',
       'conversations',
+      'referrals',
     ];
 
     const results: MigrationResult[] = [];
@@ -177,6 +184,7 @@ export class MigrationService {
 
   private async dropAllTables(): Promise<void> {
     const tables = [
+      'referrals',
       'conversation_messages',
       'conversations',
       'waitlist',
@@ -232,6 +240,9 @@ export class MigrationService {
           break;
         case 'conversations':
           await this.migrateConversations(result);
+          break;
+        case 'referrals':
+          await this.migrateReferrals(result);
           break;
         default:
           this.logger.warn(`Unknown collection: ${name}`);
@@ -568,6 +579,50 @@ export class MigrationService {
     });
   }
 
+  private async migrateReferrals(result: MigrationResult): Promise<void> {
+    const col = this.connection.collection('referrals');
+    try {
+      await col.createIndex({ toDoctorId: 1 });
+      await col.createIndex({ fromDoctorId: 1 });
+      await col.createIndex({ fromDoctorId: 1, toDoctorId: 1 });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`referrals ensureIndex skipped: ${msg}`);
+    }
+    const docs = await this.referralModel.find({}).lean();
+    await this.pg.withTransaction(async (client) => {
+      for (const doc of docs) {
+        await client.query('SAVEPOINT referral_row');
+        try {
+          await client.query(
+            `INSERT INTO referrals (mongo_id, from_mongo_id, to_mongo_id, reason)
+             VALUES ($1,$2,$3,$4)
+             ON CONFLICT (mongo_id) DO UPDATE SET reason=EXCLUDED.reason`,
+            [
+              String(doc._id),
+              String(doc.fromDoctorId),
+              String(doc.toDoctorId),
+              doc.reason ?? '',
+            ],
+          );
+          await client.query('RELEASE SAVEPOINT referral_row');
+          result.migrated++;
+        } catch (err) {
+          await client.query('ROLLBACK TO SAVEPOINT referral_row');
+          const msg = err instanceof Error ? err.message : String(err);
+          if (/relation .* does not exist/i.test(msg)) {
+            result.skipped++;
+          } else {
+            result.errors++;
+            (result.errorDetails ??= []).push(
+              `referral ${String(doc._id)}: ${msg}`,
+            );
+          }
+        }
+      }
+    });
+  }
+
   private async migrateMonthlyStats(result: MigrationResult): Promise<void> {
     // Lee spill Mongo; si la lectura falla, el error se propaga y queda
     // registrado en el resultado (no se silencian IDs de spill).
@@ -773,6 +828,7 @@ export class MigrationService {
       'password_reset_tokens',
       'conversations',
       'conversation_messages',
+      'referrals',
     ];
 
     const tableCounts: Record<string, number> = {};

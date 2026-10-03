@@ -22,6 +22,10 @@ import {
   PasswordResetToken,
   PasswordResetTokenSchema,
 } from 'src/auth/password-reset-token.schema';
+import {
+  Referral,
+  ReferralSchema,
+} from 'src/referrals/schemas/referral.schema';
 import { PostgresService } from './postgres.service';
 
 @Module({
@@ -35,6 +39,7 @@ import { PostgresService } from './postgres.service';
       { name: Speciality.name, schema: SpecialitySchema },
       { name: MonthlyStats.name, schema: MonthlyStatsSchema },
       { name: PasswordResetToken.name, schema: PasswordResetTokenSchema },
+      { name: Referral.name, schema: ReferralSchema },
     ]),
   ],
   controllers: [MigrationController],
