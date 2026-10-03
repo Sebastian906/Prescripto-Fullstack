@@ -30,6 +30,7 @@ export interface ReferralGraph {
   depth2: string[];
   totalReferrers: number;
   referrers: string[];
+  truncated: boolean;
 }
 
 const BFS_LIMIT = 5000;
@@ -152,37 +153,44 @@ export class ReferralsService {
     const target = new Types.ObjectId(targetDoctorId);
     const visited = new Set<string>([targetDoctorId]);
 
-    const level1Docs = (await this.referralModel
-      .find({ toDoctorId: target })
-      .select('fromDoctorId reason')
-      .limit(BFS_LIMIT)
-      .lean()
-      .exec()) as unknown as ReferralLean[];
+    // Group by referrer before bounding: duplicate edges from the same
+    // doctor must not crowd distinct referrers out of the limit.
+    // One extra group probes truncation without a second query.
+    const level1Groups = (await this.referralModel
+      .aggregate([
+        { $match: { toDoctorId: target } },
+        { $group: { _id: '$fromDoctorId' } },
+        { $limit: BFS_LIMIT + 1 },
+      ])
+      .exec()) as unknown as Array<{ _id: unknown }>;
     const depth1: string[] = [];
-    for (const doc of level1Docs) {
-      const id = String(doc.fromDoctorId);
+    for (const group of level1Groups.slice(0, BFS_LIMIT)) {
+      const id = String(group._id);
       if (!visited.has(id)) {
         visited.add(id);
         depth1.push(id);
       }
     }
+    let truncated = level1Groups.length > BFS_LIMIT;
 
     const depth2: string[] = [];
     if (hops === 2 && depth1.length > 0) {
       const level1Oids = depth1.map((id) => new Types.ObjectId(id));
-      const level2Docs = (await this.referralModel
-        .find({ toDoctorId: { $in: level1Oids } })
-        .select('fromDoctorId reason')
-        .limit(BFS_LIMIT)
-        .lean()
-        .exec()) as unknown as ReferralLean[];
-      for (const doc of level2Docs) {
-        const id = String(doc.fromDoctorId);
+      const level2Groups = (await this.referralModel
+        .aggregate([
+          { $match: { toDoctorId: { $in: level1Oids } } },
+          { $group: { _id: '$fromDoctorId' } },
+          { $limit: BFS_LIMIT + 1 },
+        ])
+        .exec()) as unknown as Array<{ _id: unknown }>;
+      for (const group of level2Groups.slice(0, BFS_LIMIT)) {
+        const id = String(group._id);
         if (!visited.has(id)) {
           visited.add(id);
           depth2.push(id);
         }
       }
+      truncated = truncated || level2Groups.length > BFS_LIMIT;
     }
 
     return {
@@ -193,6 +201,7 @@ export class ReferralsService {
       depth2,
       totalReferrers: depth1.length + depth2.length,
       referrers: [...depth1, ...depth2],
+      truncated,
     };
   }
 }

@@ -14,22 +14,20 @@ const A = new Types.ObjectId().toHexString();
 const B = new Types.ObjectId().toHexString();
 const C = new Types.ObjectId().toHexString();
 
-function findMock(docs: unknown[]) {
-  return {
-    select: () => ({
-      limit: () => ({ lean: () => ({ exec: () => Promise.resolve(docs) }) }),
-    }),
-    limit: () => ({ lean: () => ({ exec: () => Promise.resolve(docs) }) }),
-    lean: () => ({ exec: () => Promise.resolve(docs) }),
-  };
+function aggregateMock(groups: unknown[]) {
+  return { exec: () => Promise.resolve(groups) };
+}
+
+function groupFor(id: string) {
+  return { _id: new Types.ObjectId(id) };
 }
 
 describe('ReferralsService', () => {
   let service: ReferralsService;
-  let referralModel: { find: jest.Mock; create: jest.Mock };
+  let referralModel: { aggregate: jest.Mock; create: jest.Mock };
 
   beforeEach(async () => {
-    referralModel = { find: jest.fn(), create: jest.fn() };
+    referralModel = { aggregate: jest.fn(), create: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReferralsService,
@@ -46,23 +44,38 @@ describe('ReferralsService', () => {
   });
 
   it('hops=1 returns direct referrers', async () => {
-    referralModel.find.mockReturnValueOnce(
-      findMock([{ fromDoctorId: new Types.ObjectId(A) }]),
+    referralModel.aggregate.mockReturnValueOnce(
+      aggregateMock([groupFor(A)]),
     );
     const res = await service.findReferrers(B, 1);
     expect(res.depth1).toEqual([A]);
     expect(res.depth2).toEqual([]);
+    expect(res.truncated).toBe(false);
   });
 
   it('hops=2 returns two levels without extra queries per node', async () => {
-    referralModel.find
-      .mockReturnValueOnce(findMock([{ fromDoctorId: new Types.ObjectId(A) }]))
-      .mockReturnValueOnce(findMock([{ fromDoctorId: new Types.ObjectId(C) }]));
+    referralModel.aggregate
+      .mockReturnValueOnce(aggregateMock([groupFor(A)]))
+      .mockReturnValueOnce(aggregateMock([groupFor(C)]));
     const res = await service.findReferrers(B, 2);
     expect(res.depth1).toEqual([A]);
     expect(res.depth2).toEqual([C]);
-    expect(referralModel.find).toHaveBeenCalledTimes(2);
-    expect(referralModel.find.mock.calls[1][0]).toHaveProperty('toDoctorId');
+    expect(res.truncated).toBe(false);
+    expect(referralModel.aggregate).toHaveBeenCalledTimes(2);
+    const secondPipeline = referralModel.aggregate.mock
+      .calls[1][0] as unknown[];
+    expect(secondPipeline).toHaveLength(3);
+  });
+
+  it('flags truncation when distinct referrers exceed the bound', async () => {
+    const overflow = Array.from(
+      { length: 5001 },
+      (_, i) => ({ _id: `extra-${i}` }),
+    );
+    referralModel.aggregate.mockReturnValueOnce(aggregateMock(overflow));
+    const res = await service.findReferrers(B, 1);
+    expect(res.truncated).toBe(true);
+    expect(res.depth1).toHaveLength(5000);
   });
 
   it('hops=3 throws 400', async () => {
@@ -91,14 +104,9 @@ describe('ReferralsService', () => {
   });
 
   it('cycle A->B->A terminates via visited set', async () => {
-    referralModel.find
-      .mockReturnValueOnce(findMock([{ fromDoctorId: new Types.ObjectId(A) }]))
-      .mockReturnValueOnce(
-        findMock([
-          { fromDoctorId: new Types.ObjectId(B) },
-          { fromDoctorId: new Types.ObjectId(C) },
-        ]),
-      );
+    referralModel.aggregate
+      .mockReturnValueOnce(aggregateMock([groupFor(A)]))
+      .mockReturnValueOnce(aggregateMock([groupFor(B), groupFor(C)]));
     const res = await service.findReferrers(B, 2);
     expect(res.depth1).toEqual([A]);
     expect(res.depth2).toEqual([C]);
