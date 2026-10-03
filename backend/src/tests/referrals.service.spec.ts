@@ -44,9 +44,7 @@ describe('ReferralsService', () => {
   });
 
   it('hops=1 returns direct referrers', async () => {
-    referralModel.aggregate.mockReturnValueOnce(
-      aggregateMock([groupFor(A)]),
-    );
+    referralModel.aggregate.mockReturnValueOnce(aggregateMock([groupFor(A)]));
     const res = await service.findReferrers(B, 1);
     expect(res.depth1).toEqual([A]);
     expect(res.depth2).toEqual([]);
@@ -68,10 +66,9 @@ describe('ReferralsService', () => {
   });
 
   it('flags truncation when distinct referrers exceed the bound', async () => {
-    const overflow = Array.from(
-      { length: 5001 },
-      (_, i) => ({ _id: `extra-${i}` }),
-    );
+    const overflow = Array.from({ length: 5001 }, (_, i) => ({
+      _id: `extra-${i}`,
+    }));
     referralModel.aggregate.mockReturnValueOnce(aggregateMock(overflow));
     const res = await service.findReferrers(B, 1);
     expect(res.truncated).toBe(true);
