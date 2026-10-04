@@ -4,22 +4,27 @@ describe('Availability migration idempotency', () => {
   it('rerun estable: $addToSet+$each no duplica', async () => {
     const store = new Map<string, Set<string>>();
     const availabilityModel = {
-      updateOne: async (filter, update, opts) => {
-        expect(opts.upsert).toBe(true);
-        expect(opts.upsert).toBe(true);
-        const key = `${filter.doctorId}|${filter.date}`;
-        if (!store.has(key)) {
-          store.set(key, new Set());
-          for (const t of update.$addToSet.slots.$each) store.get(key)!.add(t);
-          return { upsertedCount: 1, modifiedCount: 0 };
+      bulkWrite: (
+        ops: Array<{
+          updateOne: {
+            filter: { doctorId: string; date: string };
+            update: { $addToSet: { slots: { $each: string[] } } };
+          };
+        }>,
+      ) => {
+        let upsertedCount = 0;
+        let modifiedCount = 0;
+        for (const op of ops) {
+          const key = `${op.updateOne.filter.doctorId}|${op.updateOne.filter.date}`;
+          const isNew = !store.has(key);
+          const set = store.get(key) ?? new Set<string>();
+          store.set(key, set);
+          const before = set.size;
+          for (const t of op.updateOne.update.$addToSet.slots.$each) set.add(t);
+          if (isNew) upsertedCount++;
+          else if (set.size > before) modifiedCount++;
         }
-        const set = store.get(key)!;
-        const before = set.size;
-        for (const t of update.$addToSet.slots.$each) set.add(t);
-        return Promise.resolve({
-          upsertedCount: 0,
-          modifiedCount: set.size > before ? 1 : 0,
-        });
+        return Promise.resolve({ upsertedCount, modifiedCount });
       },
     };
     // cursor ahora es FUNCIÓN que retorna el iterable (igual que Mongoose)
