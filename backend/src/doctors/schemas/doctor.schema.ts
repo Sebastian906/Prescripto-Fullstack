@@ -44,6 +44,9 @@ export class Doctor {
   @Prop({ required: true, default: Date.now })
   date!: number;
 
+  // TODO(availability): READ-ONLY since Availability extraction. Kept one release
+  // for frontend fallback (Appointment.jsx). Do not write. Remove next release
+  // together with the fallback; then drop the field.
   @Prop({ type: Object, default: {} })
   slots_booked!: Record<string, string[]>;
 }

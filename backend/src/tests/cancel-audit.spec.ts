@@ -19,6 +19,13 @@ const waitlistService = {
   promoteEarliest: jest.fn().mockResolvedValue(null),
 } as any;
 
+// ↓↓↓ ADD: mock compartido ↓↓↓
+const availabilityService = {
+  claimSlot: jest.fn().mockResolvedValue({ claimed: true }),
+  releaseSlot: jest.fn().mockResolvedValue(undefined),
+  getBookedSlots: jest.fn().mockResolvedValue([]),
+} as any;
+
 describe('cancel writes exactly one AuditLog entry per role', () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -50,6 +57,7 @@ describe('cancel writes exactly one AuditLog entry per role', () => {
       reportsService,
       auditService,
       waitlistService,
+      availabilityService, // ← ADD (9º param)
     );
     await svc.cancelAppointment('u1', { appointmentId: 'a1' });
     expect(auditService.record).toHaveBeenCalledTimes(1);
@@ -87,6 +95,7 @@ describe('cancel writes exactly one AuditLog entry per role', () => {
       {} as any,
       reportsService,
       auditService,
+      availabilityService, // ← ADD (7º param)
     );
     await svc.cancelAppointmentDoctor('d1', 'a2');
     expect(auditService.record).toHaveBeenCalledTimes(1);
@@ -123,6 +132,7 @@ describe('cancel writes exactly one AuditLog entry per role', () => {
       {} as any,
       {} as any,
       auditService,
+      availabilityService,
     );
     await svc.cancelAppointment('a3');
     expect(auditService.record).toHaveBeenCalledTimes(1);

@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -26,6 +28,10 @@ import { ReportsService } from 'src/reports/reports.service';
 import { AuditService } from 'src/audit/audit.service';
 import { Logger } from '@nestjs/common';
 import { WaitlistService } from 'src/waitlist/waitlist.service';
+import {
+  AvailabilityService,
+  MAX_SLOTS_PER_DAY,
+} from 'src/availability/availability.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -41,6 +47,7 @@ export class AppointmentsService {
     private readonly reportsService: ReportsService,
     private readonly auditService: AuditService,
     private readonly waitlistService: WaitlistService,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
   async bookAppointment(
@@ -59,7 +66,7 @@ export class AppointmentsService {
       await session.withTransaction(async () => {
         const doctor = await this.doctorModel
           .findById(docId)
-          .select('-password')
+          .select('_id available fees')
           .session(session)
           .lean();
 
@@ -68,12 +75,21 @@ export class AppointmentsService {
           throw new BadRequestException('Doctor is not available');
         }
 
-        const bookedForDay: string[] = doctor.slots_booked?.[slotDate] ?? [];
+        const bookedForDay = await this.availabilityService.getBookedSlots(
+          docId,
+          slotDate,
+        );
         const sortedBooked = [...bookedForDay].sort(compareSlots);
 
         const alreadyBooked = binarySearchSlots(sortedBooked, slotTime);
         if (alreadyBooked !== -1) {
           throw new BadRequestException('Slot not available');
+        }
+        if (sortedBooked.length >= MAX_SLOTS_PER_DAY) {
+          throw new HttpException(
+            'Day is fully booked',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
         }
 
         const user = await this.userModel
@@ -84,27 +100,27 @@ export class AppointmentsService {
 
         if (!user) throw new NotFoundException('User not found');
 
-        const slotKey = `slots_booked.${slotDate}`;
-        const updateResult = await this.doctorModel
-          .findOneAndUpdate(
-            {
-              _id: docId,
-              [`slots_booked.${slotDate}`]: {
-                $not: { $elemMatch: { $eq: slotTime } },
-              },
-            },
-            { $push: { [slotKey]: slotTime } },
-            { session, new: true },
-          )
-          .lean();
+        const claim = await this.availabilityService.claimSlot(
+          docId,
+          slotDate,
+          slotTime,
+          session,
+        );
 
-        if (!updateResult) {
+        if (!claim.claimed) {
+          if (claim.reason === 'capped') {
+            throw new HttpException(
+              'Day is fully booked',
+              HttpStatus.TOO_MANY_REQUESTS,
+            );
+          }
           throw new BadRequestException(
             'Slot was just taken. Please select another time.',
           );
         }
 
-        const { slots_booked: _, ...docDataSnapshot } = doctor;
+        const { slots_booked: _ignored, ...docDataSnapshot } =
+          doctor as unknown as Record<string, unknown>;
 
         await this.appointmentModel.create(
           [
@@ -138,7 +154,8 @@ export class AppointmentsService {
       console.error('bookAppointment ERROR:', error);
       if (
         error instanceof BadRequestException ||
-        error instanceof NotFoundException
+        error instanceof NotFoundException ||
+        error instanceof HttpException
       ) {
         throw error;
       }
@@ -187,22 +204,17 @@ export class AppointmentsService {
           throw new BadRequestException('Already cancelled');
         }
 
-        await Promise.all([
-          this.appointmentModel.findByIdAndUpdate(
-            appointmentId,
-            { cancelled: true },
-            { session },
-          ),
-          this.doctorModel.findByIdAndUpdate(
-            appointment.docId,
-            {
-              $pull: {
-                [`slots_booked.${appointment.slotDate}`]: appointment.slotTime,
-              },
-            },
-            { session },
-          ),
-        ]);
+        await this.appointmentModel.findByIdAndUpdate(
+          appointmentId,
+          { cancelled: true },
+          { session },
+        );
+        await this.availabilityService.releaseSlot(
+          appointment.docId,
+          appointment.slotDate,
+          appointment.slotTime,
+          session,
+        );
 
         // FIFO promotion: mismo tx. Normaliza claves legacy "D/M/YYYY" a "D_M_YYYY".
         freedSlotDateKey = appointment.slotDate.replace(/\//g, '_');
@@ -214,17 +226,17 @@ export class AppointmentsService {
           session,
         );
         if (waiter) {
-          // Re-reserva bajo la clave cruda del $pull: book y
-          // getAvailableSlots leen slots_booked con appointment.slotDate.
-          await this.doctorModel.findByIdAndUpdate(
+          const reclaim = await this.availabilityService.claimSlot(
             appointment.docId,
-            {
-              $push: {
-                [`slots_booked.${appointment.slotDate}`]: freedSlotTime,
-              },
-            },
-            { session },
+            appointment.slotDate,
+            freedSlotTime,
+            session,
           );
+          if (!reclaim.claimed) {
+            this.logger.warn(
+              `waitlist promotion lost race doctor=${appointment.docId} date=${freedSlotDateKey} time=${freedSlotTime}`,
+            );
+          }
           promotedWaitlistId = String(waiter._id);
           promotedUserId = waiter.userId;
         }
@@ -292,7 +304,7 @@ export class AppointmentsService {
   ): Promise<{ success: boolean; slots: string[] }> {
     const doctor = await this.doctorModel
       .findById(docId)
-      .select('slots_booked available')
+      .select('_id available')
       .lean();
 
     if (!doctor) throw new NotFoundException('Doctor not found');
@@ -305,7 +317,10 @@ export class AppointmentsService {
 
     const allSlots = generateDaySlots(date);
 
-    const bookedRaw: string[] = doctor.slots_booked?.[dateStr] ?? [];
+    const bookedRaw: string[] = await this.availabilityService.getBookedSlots(
+      docId,
+      dateStr,
+    );
     const bookedSorted = [...bookedRaw].sort(compareSlots);
 
     const availableSlots = getAvailableSlotsByMinutes(allSlots, bookedSorted);

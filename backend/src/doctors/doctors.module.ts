@@ -12,6 +12,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthDoctorModule } from 'src/shared/guards/auth-doctor.module';
 import { ReportsModule } from 'src/reports/reports.module';
 import { AuditModule } from 'src/audit/audit.module';
+import { AvailabilityModule } from 'src/availability/availability.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AuditModule } from 'src/audit/audit.module';
     ConfigModule,
     ReportsModule,
     AuditModule,
+    AvailabilityModule,
   ],
   controllers: [DoctorsController],
   providers: [DoctorsService],

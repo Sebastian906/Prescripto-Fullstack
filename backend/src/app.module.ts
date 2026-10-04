@@ -23,6 +23,7 @@ import { LoggingInterceptor } from './shared/interceptors/logging.interceptor';
 import { HttpRequestIdFilter } from './shared/filters/http-request-id.filter';
 import { WaitlistModule } from './waitlist/waitlist.module';
 import { ReferralsModule } from './referrals/referrals.module';
+import { AvailabilityModule } from './availability/availability.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { ReferralsModule } from './referrals/referrals.module';
     ConsentModule,
     WaitlistModule,
     ReferralsModule,
+    AvailabilityModule,
   ],
   controllers: [AppController],
   providers: [

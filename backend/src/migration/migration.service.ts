@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model } from 'mongoose';
+import { AnyBulkWriteOperation, Connection, Model } from 'mongoose';
 import {
   Appointment,
   AppointmentDocument,
@@ -27,6 +27,11 @@ import { PostgresService } from './postgres.service';
 import { PoolClient } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  Availability,
+  AvailabilityDocument,
+} from 'src/availability/schemas/availability.schema';
+import { normalizeSlotDate } from 'src/availability/availability.service';
 
 export interface MigrationResult {
   collection: string;
@@ -84,6 +89,8 @@ export class MigrationService {
     private readonly tokenModel: Model<PasswordResetTokenDocument>,
     @InjectModel(Referral.name)
     private readonly referralModel: Model<ReferralDocument>,
+    @InjectModel(Availability.name)
+    private readonly availabilityModel: Model<AvailabilityDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly pg: PostgresService,
   ) {}
@@ -243,6 +250,9 @@ export class MigrationService {
           break;
         case 'referrals':
           await this.migrateReferrals(result);
+          break;
+        case 'availability':
+          await this.migrateAvailabilityMongo(result);
           break;
         default:
           this.logger.warn(`Unknown collection: ${name}`);
@@ -410,6 +420,89 @@ export class MigrationService {
         await this.migrateSingleDoctorSlots(client, doc, result);
       }
     });
+  }
+
+  async backfillAvailabilityFromDoctors(): Promise<MigrationResult> {
+    const result: MigrationResult = {
+      collection: 'availability',
+      migrated: 0,
+      skipped: 0,
+      errors: 0,
+      durationMs: 0,
+    };
+    const start = Date.now();
+    await this.migrateAvailabilityMongo(result);
+    result.durationMs = Date.now() - start;
+    return result;
+  }
+
+  private async migrateAvailabilityMongo(
+    result: MigrationResult,
+  ): Promise<void> {
+    const BATCH_SIZE = 500;
+    let batch: AnyBulkWriteOperation<AvailabilityDocument>[] = [];
+    const flush = async (): Promise<void> => {
+      if (batch.length === 0) return;
+      const ops = batch;
+      batch = [];
+      try {
+        const res = await this.availabilityModel.bulkWrite(ops, {
+          ordered: false,
+        });
+        const ok = (res.upsertedCount ?? 0) + (res.modifiedCount ?? 0);
+        result.migrated += ok;
+        result.skipped += ops.length - ok;
+      } catch (err) {
+        const partial = err as {
+          result?: { upsertedCount?: number; modifiedCount?: number };
+        };
+        result.migrated +=
+          (partial.result?.upsertedCount ?? 0) +
+          (partial.result?.modifiedCount ?? 0);
+        result.errors++;
+        const msg = err instanceof Error ? err.message : String(err);
+        (result.errorDetails ??= []).push(`availability batch: ${msg}`);
+        this.logger.error(`availability backfill batch: ${msg}`);
+      }
+    };
+    const cursor = this.doctorModel
+      .find({})
+      .select('_id slots_booked')
+      .lean()
+      .cursor();
+    for await (const doc of cursor as unknown as AsyncIterable<{
+      _id: unknown;
+      slots_booked?: Record<string, unknown>;
+    }>) {
+      const doctorId = String((doc as { _id: unknown })._id);
+      const map =
+        (doc as { slots_booked?: Record<string, unknown> }).slots_booked ?? {};
+      const dates = Object.entries(map);
+      if (dates.length === 0) {
+        result.skipped++;
+        continue;
+      }
+      for (const [rawDate, times] of dates) {
+        if (!Array.isArray(times)) continue;
+        const clean = (times as unknown[]).filter(
+          (t): t is string => typeof t === 'string' && t.length > 0,
+        );
+        if (clean.length === 0) continue;
+        const date = normalizeSlotDate(rawDate);
+        batch.push({
+          updateOne: {
+            filter: { doctorId, date },
+            update: {
+              $addToSet: { slots: { $each: clean } },
+              $setOnInsert: { doctorId, date },
+            },
+            upsert: true,
+          },
+        });
+        if (batch.length >= BATCH_SIZE) await flush();
+      }
+    }
+    await flush();
   }
 
   private async migrateSingleDoctorSlots(

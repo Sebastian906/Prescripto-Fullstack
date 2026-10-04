@@ -9,6 +9,7 @@ import {
 } from '../appointments/schemas/appointment.schema';
 import { AuthUserModule } from 'src/shared/guards/auth-user.module';
 import { ConfigModule } from '@nestjs/config';
+import { AvailabilityModule } from 'src/availability/availability.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ConfigModule } from '@nestjs/config';
     ]),
     AuthUserModule,
     ConfigModule,
+    AvailabilityModule,
   ],
   providers: [SchedulingService],
   controllers: [SchedulingController],
