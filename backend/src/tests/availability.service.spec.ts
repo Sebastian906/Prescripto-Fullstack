@@ -56,7 +56,7 @@ describe('AvailabilityService', () => {
   });
 
   it('concurrencia: segundo claim al mismo slot reporta taken', async () => {
-    findOneAndUpdate.mockReturnValue({ lean: async () => null });
+    findOneAndUpdate.mockReturnValue({ lean: () => Promise.resolve(null) });
     findOne.mockReturnValue({
       select: () => ({
         lean: () => Promise.resolve({ slots: ['10:00 AM'] }),
