@@ -37,6 +37,8 @@ describe('AvailabilityService', () => {
   it('normalizeSlotDate convierte legacy con slashes', () => {
     expect(normalizeSlotDate('20/7/2025')).toBe('20_7_2025');
     expect(normalizeSlotDate('20_7_2025')).toBe('20_7_2025');
+    expect(normalizeSlotDate('07/07/2025')).toBe('7_7_2025');
+    expect(normalizeSlotDate('07_07_2025')).toBe('7_7_2025');
   });
 
   it('claim usa filtro anti-duplicado + upsert + cap', async () => {
@@ -57,6 +59,20 @@ describe('AvailabilityService', () => {
 
   it('concurrencia: segundo claim al mismo slot reporta taken', async () => {
     findOneAndUpdate.mockReturnValue({ lean: () => Promise.resolve(null) });
+    findOne.mockReturnValue({
+      select: () => ({
+        lean: () => Promise.resolve({ slots: ['10:00 AM'] }),
+      }),
+    });
+    const res = await service.claimSlot('doc1', '20_7_2025', '10:00 AM');
+    expect(res).toEqual({ claimed: false, reason: 'taken' });
+  });
+
+  it('upsert concurrente con E11000 se clasifica como taken', async () => {
+    findOneAndUpdate.mockReturnValue({
+      lean: () =>
+        Promise.reject(Object.assign(new Error('E11000'), { code: 11000 })),
+    });
     findOne.mockReturnValue({
       select: () => ({
         lean: () => Promise.resolve({ slots: ['10:00 AM'] }),

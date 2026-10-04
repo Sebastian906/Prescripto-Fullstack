@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model } from 'mongoose';
+import { AnyBulkWriteOperation, Connection, Model } from 'mongoose';
 import {
   Appointment,
   AppointmentDocument,
@@ -439,6 +439,32 @@ export class MigrationService {
   private async migrateAvailabilityMongo(
     result: MigrationResult,
   ): Promise<void> {
+    const BATCH_SIZE = 500;
+    let batch: AnyBulkWriteOperation<AvailabilityDocument>[] = [];
+    const flush = async (): Promise<void> => {
+      if (batch.length === 0) return;
+      const ops = batch;
+      batch = [];
+      try {
+        const res = await this.availabilityModel.bulkWrite(ops, {
+          ordered: false,
+        });
+        const ok = (res.upsertedCount ?? 0) + (res.modifiedCount ?? 0);
+        result.migrated += ok;
+        result.skipped += ops.length - ok;
+      } catch (err) {
+        const partial = err as {
+          result?: { upsertedCount?: number; modifiedCount?: number };
+        };
+        result.migrated +=
+          (partial.result?.upsertedCount ?? 0) +
+          (partial.result?.modifiedCount ?? 0);
+        result.errors++;
+        const msg = err instanceof Error ? err.message : String(err);
+        (result.errorDetails ??= []).push(`availability batch: ${msg}`);
+        this.logger.error(`availability backfill batch: ${msg}`);
+      }
+    };
     const cursor = this.doctorModel
       .find({})
       .select('_id slots_booked')
@@ -463,31 +489,20 @@ export class MigrationService {
         );
         if (clean.length === 0) continue;
         const date = normalizeSlotDate(rawDate);
-        try {
-          const res = await this.availabilityModel.updateOne(
-            { doctorId, date },
-            {
+        batch.push({
+          updateOne: {
+            filter: { doctorId, date },
+            update: {
               $addToSet: { slots: { $each: clean } },
               $setOnInsert: { doctorId, date },
             },
-            { upsert: true },
-          );
-          // upsertedCount + modifiedCount distinguen insert vs merge; re-run suma 0.
-          if ((res.upsertedCount ?? 0) > 0 || (res.modifiedCount ?? 0) > 0)
-            result.migrated++;
-          else result.skipped++;
-        } catch (err) {
-          result.errors++;
-          const msg = err instanceof Error ? err.message : String(err);
-          (result.errorDetails ??= []).push(
-            `availability ${doctorId}/${date}: ${msg}`,
-          );
-          this.logger.error(
-            `availability backfill ${doctorId}/${date}: ${msg}`,
-          );
-        }
+            upsert: true,
+          },
+        });
+        if (batch.length >= BATCH_SIZE) await flush();
       }
     }
+    await flush();
   }
 
   private async migrateSingleDoctorSlots(

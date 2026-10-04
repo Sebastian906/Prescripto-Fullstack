@@ -11,7 +11,13 @@ import {
 export const MAX_SLOTS_PER_DAY = 22;
 
 export function normalizeSlotDate(raw: string): string {
-  return raw.replace(/\//g, '_');
+  const unified = raw.replace(/\//g, '_');
+  const parts = unified.split('_');
+  if (parts.length !== 3) return unified;
+  const [day, month, year] = parts;
+  if (!/^\d+$/.test(day) || !/^\d+$/.test(month) || !/^\d+$/.test(year))
+    return unified;
+  return `${Number(day)}_${Number(month)}_${year}`;
 }
 
 @Injectable()
@@ -28,26 +34,41 @@ export class AvailabilityService {
     session?: ClientSession,
   ): Promise<{ claimed: boolean; reason?: 'taken' | 'capped' }> {
     const date = normalizeSlotDate(rawDate);
-    const claimed = await this.availabilityModel
-      .findOneAndUpdate(
-        {
-          doctorId,
-          date,
-          slots: { $ne: slotTime },
-          [`slots.${MAX_SLOTS_PER_DAY - 1}`]: { $exists: false },
-        },
-        {
-          $addToSet: { slots: slotTime },
-          $setOnInsert: { doctorId, date },
-        },
-        { upsert: true, new: true, session },
-      )
-      .lean();
+    let claimed: unknown = null;
+    let aborted = false;
+    try {
+      claimed = await this.availabilityModel
+        .findOneAndUpdate(
+          {
+            doctorId,
+            date,
+            slots: { $ne: slotTime },
+            [`slots.${MAX_SLOTS_PER_DAY - 1}`]: { $exists: false },
+          },
+          {
+            $addToSet: { slots: slotTime },
+            $setOnInsert: { doctorId, date },
+          },
+          { upsert: true, new: true, session },
+        )
+        .lean();
+    } catch (err) {
+      // Carrera de upserts concurrentes sobre el mismo {doctorId, date}:
+      // el perdedor recibe E11000. Se clasifica abajo como taken/capped
+      // en vez de romper la reserva con un 500. Otros errores se propagan.
+      if ((err as { code?: number })?.code !== 11000) throw err;
+      aborted = true;
+    }
     if (claimed) return { claimed: true };
-    const existing = await this.availabilityModel
+    // Tras un E11000 la transacción queda abortada: el fallback DEBE leer
+    // sin session (el ganador ya commiteó). Con tx viva se usa la session.
+    const query = this.availabilityModel
       .findOne({ doctorId, date })
-      .select('slots')
-      .lean();
+      .select('slots');
+    const existing =
+      session && !aborted
+        ? await query.session(session).lean()
+        : await query.lean();
     const slots = existing?.slots ?? [];
     if (slots.includes(slotTime)) return { claimed: false, reason: 'taken' };
     if (slots.length >= MAX_SLOTS_PER_DAY)
