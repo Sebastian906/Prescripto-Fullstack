@@ -23,6 +23,7 @@ import {
 } from 'src/shared/utils/binary-search.util';
 import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
 import { isValidSlotDate } from 'src/shared/structures/domain-types';
+import { AvailabilityService } from 'src/availability/availability.service';
 
 // Pesos para la función de score greedy
 const WEIGHT_LOAD = -2; // penaliza doctores sobrecargados
@@ -37,6 +38,7 @@ export class SchedulingService {
     private readonly doctorModel: Model<DoctorDocument>,
     @InjectModel(Appointment.name)
     private readonly appointmentModel: Model<AppointmentDocument>,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
   /**
@@ -64,7 +66,7 @@ export class SchedulingService {
 
     const doctor = await this.doctorModel
       .findById(docId)
-      .select('slots_booked available')
+      .select('_id available')
       .lean();
 
     if (!doctor) throw new NotFoundException('Doctor not found');
@@ -79,9 +81,13 @@ export class SchedulingService {
     const queue = new PriorityQueue<SlotCandidate>();
 
     for (const dateStr of preferredDates) {
+      const booked = await this.availabilityService.getBookedSlots(
+        docId,
+        dateStr,
+      );
       this.buildCandidatesForDate(
         dateStr,
-        doctor,
+        booked,
         priorityLevel,
         minGapMinutes,
         queue,
@@ -106,7 +112,7 @@ export class SchedulingService {
 
   private buildCandidatesForDate(
     dateStr: string,
-    doctor: { slots_booked?: Record<string, string[]> },
+    bookedRaw: string[],
     priorityLevel: SchedulingSuggestionRequest['priorityLevel'],
     minGapMinutes: number,
     queue: PriorityQueue<SlotCandidate>,
@@ -128,9 +134,7 @@ export class SchedulingService {
     const allSlots = generateDaySlots(date);
 
     // Orden cronológico canónico (compareSlots). No usar localeCompare en slots.
-    const booked: string[] = [...(doctor.slots_booked?.[dateStr] ?? [])].sort(
-      compareSlots,
-    );
+    const booked: string[] = [...bookedRaw].sort(compareSlots);
 
     const available = getAvailableSlotsByMinutes(allSlots, booked);
 

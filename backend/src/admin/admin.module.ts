@@ -17,6 +17,7 @@ import {
   SpecialitySchema,
 } from 'src/specialities/schemas/speciality.schema';
 import { AuditModule } from 'src/audit/audit.module';
+import { AvailabilityModule } from 'src/availability/availability.module'; // ← ADD
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AuditModule } from 'src/audit/audit.module';
     AuthAdminModule,
     DoctorsModule,
     AuditModule,
+    AvailabilityModule,
   ],
   providers: [AdminService],
   controllers: [AdminController],

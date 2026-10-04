@@ -4,6 +4,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Appointment } from 'src/appointments/schemas/appointment.schema';
 import { Doctor } from 'src/doctors/schemas/doctor.schema';
 import { SchedulingService } from 'src/scheduling/scheduling.service';
+import { AvailabilityService } from 'src/availability/availability.service';
 
 describe('SchedulingService', () => {
   let service: SchedulingService;
@@ -14,6 +15,10 @@ describe('SchedulingService', () => {
         SchedulingService,
         { provide: getModelToken(Doctor.name), useValue: {} },
         { provide: getModelToken(Appointment.name), useValue: {} },
+        {
+          provide: AvailabilityService,
+          useValue: { getBookedSlots: jest.fn().mockResolvedValue([]) },
+        },
       ],
     }).compile();
 

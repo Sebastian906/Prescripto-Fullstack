@@ -24,6 +24,7 @@ import {
   SpecialityDocument,
 } from 'src/specialities/schemas/speciality.schema';
 import { AuditService } from 'src/audit/audit.service';
+import { AvailabilityService } from 'src/availability/availability.service';
 
 @Injectable()
 export class AdminService {
@@ -40,6 +41,7 @@ export class AdminService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
   async addDoctor(
@@ -169,21 +171,8 @@ export class AdminService {
     });
 
     const { docId, slotDate, slotTime } = appointment;
-    const doctor = await this.doctorModel.findById(docId);
-
-    if (doctor) {
-      const slotsBooked = doctor.slots_booked ?? {};
-
-      if (slotsBooked[slotDate]) {
-        slotsBooked[slotDate] = slotsBooked[slotDate].filter(
-          (slot) => slot !== slotTime,
-        );
-      }
-
-      await this.doctorModel.findByIdAndUpdate(docId, {
-        slots_booked: slotsBooked,
-      });
-    }
+    // slots_booked read-only: solo Availability.
+    await this.availabilityService.releaseSlot(docId, slotDate, slotTime);
 
     // AuthAdminGuard sets no actor id (contract intact) → literal 'admin'.
     try {

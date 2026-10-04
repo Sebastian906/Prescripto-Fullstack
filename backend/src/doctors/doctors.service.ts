@@ -18,6 +18,7 @@ import {
 import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
 import { ReportsService } from 'src/reports/reports.service';
 import { AuditService } from 'src/audit/audit.service';
+import { AvailabilityService } from 'src/availability/availability.service';
 
 @Injectable()
 export class DoctorsService {
@@ -30,10 +31,13 @@ export class DoctorsService {
     private readonly configService: ConfigService,
     private readonly reportsService: ReportsService,
     private readonly auditService: AuditService,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
   async getAllDoctors() {
-    const doctors = await this.doctorModel.find({}).select('-password');
+    const doctors = await this.doctorModel
+      .find({})
+      .select('-password -slots_booked');
     return { success: true, doctors };
   }
 
@@ -55,7 +59,7 @@ export class DoctorsService {
     try {
       const doctors = await this.doctorModel
         .find({})
-        .select(['-password', '-email']);
+        .select(['-password', '-email', '-slots_booked']);
       return { success: true, doctors };
     } catch (error: any) {
       console.log(error);
@@ -158,21 +162,12 @@ export class DoctorsService {
       cancelled: true,
     });
 
-    const doctor = await this.doctorModel.findById(docId);
-    if (doctor) {
-      const slotsBooked = doctor.slots_booked ?? {};
-      const { slotDate, slotTime } = appointment;
-
-      if (slotsBooked[slotDate]) {
-        slotsBooked[slotDate] = slotsBooked[slotDate].filter(
-          (slot) => slot !== slotTime,
-        );
-      }
-
-      await this.doctorModel.findByIdAndUpdate(docId, {
-        slots_booked: slotsBooked,
-      });
-    }
+    // slots_booked is read-only: release only via Availability ($pull atómico).
+    await this.availabilityService.releaseSlot(
+      docId,
+      appointment.slotDate,
+      appointment.slotTime,
+    );
 
     await this.reportsService.onAppointmentCancelled(
       appointment.docId,
@@ -229,7 +224,7 @@ export class DoctorsService {
   ): Promise<{ success: boolean; profileData: DoctorDocument }> {
     const profileData = await this.doctorModel
       .findById(docId)
-      .select('-password');
+      .select('-password -slots_booked');
 
     if (!profileData) {
       throw new NotFoundException('Doctor not found');

@@ -10,6 +10,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ReportsModule } from 'src/reports/reports.module';
 import { AuditModule } from 'src/audit/audit.module';
 import { WaitlistModule } from 'src/waitlist/waitlist.module';
+import { AvailabilityModule } from 'src/availability/availability.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WaitlistModule } from 'src/waitlist/waitlist.module';
     ReportsModule,
     AuditModule,
     WaitlistModule,
+    AvailabilityModule,
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],

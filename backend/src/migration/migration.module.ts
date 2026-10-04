@@ -26,6 +26,10 @@ import {
   Referral,
   ReferralSchema,
 } from 'src/referrals/schemas/referral.schema';
+import {
+  Availability,
+  AvailabilitySchema,
+} from 'src/availability/schemas/availability.schema';
 import { PostgresService } from './postgres.service';
 
 @Module({
@@ -40,6 +44,7 @@ import { PostgresService } from './postgres.service';
       { name: MonthlyStats.name, schema: MonthlyStatsSchema },
       { name: PasswordResetToken.name, schema: PasswordResetTokenSchema },
       { name: Referral.name, schema: ReferralSchema },
+      { name: Availability.name, schema: AvailabilitySchema },
     ]),
   ],
   controllers: [MigrationController],
