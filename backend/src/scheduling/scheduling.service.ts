@@ -17,6 +17,12 @@ import {
   SlotCandidate,
 } from 'src/shared/structures/scheduling-types';
 import {
+  URGENCY_BONUS,
+  WEIGHT_GAP,
+  WEIGHT_LOAD,
+  WEIGHT_MORNING,
+} from './scheduling.weights';
+import {
   compareSlots,
   getAvailableSlotsByMinutes,
   toMinutes,
@@ -25,11 +31,8 @@ import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
 import { isValidSlotDate } from 'src/shared/structures/domain-types';
 import { AvailabilityService } from 'src/availability/availability.service';
 
-// Pesos para la función de score greedy
-const WEIGHT_LOAD = -2; // penaliza doctores sobrecargados
-const WEIGHT_GAP = 1; // premia huecos cómodos
-const WEIGHT_MORNING = 1; // premia horarios de mañana (heurística)
-const URGENCY_BONUS = { urgent: 10, normal: 5, flexible: 0 };
+// Pesos: ver ./scheduling.weights.ts (PILOTO n=200, PENDIENTE_F-02).
+// TODO(F-02): recalibrar con no-show rate por franja.
 
 @Injectable()
 export class SchedulingService {
@@ -100,6 +103,10 @@ export class SchedulingService {
       if (item) suggestions.push(item.value);
     }
 
+    // Umbral isIdeal: score >= URGENCY_BONUS[level].
+    // Equivale a (WEIGHT_LOAD*load + WEIGHT_GAP*min(gap/30,4) + morning) >= 0,
+    // invariante al priorityLevel. Justificación: WEIGHTS.md §3.
+    // TODO(F-02): re-justificar si la calibración mueve pesos o umbral.
     const isIdeal =
       suggestions.length > 0 &&
       suggestions[0].score >= URGENCY_BONUS[priorityLevel];
