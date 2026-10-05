@@ -1,3 +1,5 @@
+import { isSlotDate } from '../utils/validators';
+
 /**
  * Tipos de dominio compartidos + asserts runtime.
  * Capa framework-agnostic: NO importar @nestjs/common aquí.
@@ -134,25 +136,10 @@ export interface StatsCell {
 
 /**
  * Valida fecha DD/MM/YYYY estricta con round-trip.
- * Estricto: exige 2/2/4 dígitos ("01/01/2026" sí, "1/1/2026" no).
- * Round-trip: construye Date(y,m-1,d) y compara componentes.
- * O(1) tiempo y espacio.
+ * Implementación única: shared/utils/validators.isSlotDate (AFD documentado
+ * allí). Alias para no duplicar la regla ni romper a los llamadores actuales.
  */
-export function isValidSlotDate(s: unknown): s is string {
-  if (typeof s !== 'string') return false;
-  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return false;
-  const parts = s.split('/');
-  const dd = Number(parts[0]);
-  const mm = Number(parts[1]);
-  const yyyy = Number(parts[2]);
-  if (!Number.isInteger(dd) || !Number.isInteger(mm) || !Number.isInteger(yyyy))
-    return false;
-  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return false;
-  const d = new Date(yyyy, mm - 1, dd);
-  return (
-    d.getDate() === dd && d.getMonth() === mm - 1 && d.getFullYear() === yyyy
-  );
-}
+export const isValidSlotDate = isSlotDate;
 
 /**
  * Lanza si el grafo parentId contiene ciclos (directos e indirectos).

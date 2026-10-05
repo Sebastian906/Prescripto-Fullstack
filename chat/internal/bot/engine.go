@@ -45,7 +45,7 @@ type Engine struct {
 }
 
 func NewEngine(lang string) *Engine {
-	if lang == "" {
+	if !IsValidLang(lang) {
 		lang = "en"
 	}
 	return &Engine{language: lang}
