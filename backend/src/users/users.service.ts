@@ -36,7 +36,7 @@ export class UsersService {
   async register(
     dto: RegisterUserDto,
   ): Promise<{ success: boolean; token: string }> {
-    const { name, email, password } = dto;
+    const { name, email, password, phone } = dto;
 
     if (!name || !email || !password) {
       throw new BadRequestException('Missing details');
@@ -64,6 +64,7 @@ export class UsersService {
       name,
       email,
       password: hashedPassword,
+      ...(phone ? { phone } : {}),
     });
 
     const savedUser = await newUser.save();
