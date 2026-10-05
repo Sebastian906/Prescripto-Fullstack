@@ -34,16 +34,17 @@ import { isEmail as isEmailFormat } from 'class-validator';
  * Aceptación en dos niveles:
  * 1. Léxico: la cadena recorre q0..qF consumiendo exactamente 10 caracteres
  *    (día 01..31, mes 01..12, año de 4 dígitos).
- * 2. Semántico (round-trip): Date(y, m-1, d) debe devolver exactamente los
- *    componentes leídos; eso impone los días reales de cada mes y la regla
+ * 2. Semántico (round-trip): Date.UTC(y, m-1, d) debe devolver exactamente
+ *    los componentes leídos (UTC: sin DST ni dependencia de la zona
+ *    horaria del servidor); eso impone los días reales de cada mes y la regla
  *    gregoriana de bisiesto ((y%4==0 && y%100!=0) || y%400==0). Un autómata
  *    finito con estados para los 10000 años posibles sería enorme, así que la
  *    implementación factoriza el AFD en: regex (forma) + guardas de rango
  *    (transiciones restringidas de q1/q4) + round-trip (condición final).
  *    Ambas descripciones aceptan exactamente el mismo lenguaje.
 
- * Año 0000-0099: rechazado en ambos stacks — en JS Date(y,...) con y<100 se
- * interpreta como 1900+y y el round-trip nunca cuadra; Go replica la guarda
+ * Año 0000-0099: rechazado en ambos stacks — en JS Date.UTC(y,...) con y<100
+ * se interpreta como 1900+y y el round-trip nunca cuadra; Go replica la guarda
  * para mantener la paridad (chat/internal/bot/validators.go).
 
  * Acepta:   01/01/2026, 29/02/2024, 29/02/2000, 01/01/0100
@@ -96,8 +97,10 @@ export function isSlotDate(value: unknown): value is string {
   const yyyy = Number(value.slice(6, 10));
   if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return false;
   if (yyyy < 100) return false; // Date(y<100) => 1900+y: ver AFD
-  const d = new Date(yyyy, mm - 1, dd);
+  const d = new Date(Date.UTC(yyyy, mm - 1, dd));
   return (
-    d.getDate() === dd && d.getMonth() === mm - 1 && d.getFullYear() === yyyy
+    d.getUTCDate() === dd &&
+    d.getUTCMonth() === mm - 1 &&
+    d.getUTCFullYear() === yyyy
   );
 }
