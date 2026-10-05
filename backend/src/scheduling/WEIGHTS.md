@@ -22,7 +22,7 @@ Fórmula (`computeScore`): `URGENCY_BONUS[level] + WEIGHT_LOAD*dayLoad + WEIGHT_
 
 - `WEIGHT_LOAD=-2`: cada cita del día resta 2; con día lleno (22) resta 44 y hunde cualquier slot. Sin datos de no-show: pendiente F-02.
 - `WEIGHT_GAP=1` cap 4: premia huecos hasta 120min; más allá no suma (techo `min(gap/30,4)` + fallback `computeGap→120`). Sin datos: pendiente F-02.
-- `WEIGHT_MORNING=1`: bonus fijo pre-13:00. **Sesgo conocido**: en día vacío el top-3 siempre es mañana (10:00/10:30/11:00). Se conserva por compatibilidad hasta F-02; no ampliar ni condicionar por franja sin dataset.
+- `WEIGHT_MORNING=1`: bonus fijo pre-13:00. **Sesgo conocido**: en día vacío el top-3 siempre son slots de mañana. Se conserva por compatibilidad hasta F-02; no ampliar ni condicionar por franja sin dataset.
 - `URGENCY 10/5/0`: desplazamiento base por prioridad, no cambia el orden relativo dentro del mismo día/nivel.
 
 ## 3. Umbral `isIdeal`

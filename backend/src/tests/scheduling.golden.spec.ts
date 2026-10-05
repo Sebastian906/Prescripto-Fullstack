@@ -20,7 +20,7 @@ function byScoreThenTime(a: SlotCandidate, b: SlotCandidate): number {
     return toMinutes(a.slotTime) - toMinutes(b.slotTime);
 }
 
-async function makeService(bookedByDate: Record<string, string[]>, available = true): Promise<SchedulingService> {
+async function makeService(bookedByDate: Record<string, string[]>, available = true): Promise<SchedulingService & { __doctorFindById: jest.Mock; __getBookedSlots: jest.Mock }> {
     const doctorModel = {
         findById: jest.fn().mockReturnValue({
             select: jest.fn().mockReturnValue({
@@ -37,7 +37,10 @@ async function makeService(bookedByDate: Record<string, string[]>, available = t
             { provide: AvailabilityService, useValue: availability },
         ],
     }).compile();
-    return mod.get<SchedulingService>(SchedulingService);
+    const service = mod.get<SchedulingService>(SchedulingService) as SchedulingService & { __doctorFindById: jest.Mock; __getBookedSlots: jest.Mock };
+    service.__doctorFindById = doctorModel.findById;
+    service.__getBookedSlots = availability.getBookedSlots as jest.Mock;
+    return service;
 }
 
 describe('Scheduling golden G01-G30 (pesos PILOTO n=200, PENDIENTE_F-02)', () => {
@@ -145,17 +148,19 @@ describe('Scheduling golden G01-G30 (pesos PILOTO n=200, PENDIENTE_F-02)', () =>
     it('G14 mediodía 12:00 PM cuenta como mañana (<13): bonus 1', async () => {
         const s = await makeService({ '15/07/2026': ['10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM'] });
         const r = await s.suggestSlots({ docId: DOC, preferredDates: ['15/07/2026'], priorityLevel: 'normal' });
-        const noon = r.suggestions.find((x) => x.slotTime === '12:00 PM') ?? [...r.suggestions].sort(byScoreThenTime)[0];
-        // load 4 → -8; 12:00 PM gap 120→4 +1: 5-8+4+1=2
-        expect(noon.score).toBeLessThanOrEqual(2 + 4); // cota, el top exacto depende del heap
+        const noon = r.suggestions.find((x) => x.slotTime === '12:00 PM');
+        // load 4 → -8; 12:00 PM gap 120→4 +1: 5-8+4+1=2. Sin fallback: si falta, falla.
+        expect(noon).toBeDefined();
+        expect(noon).toMatchObject({ gapMinutes: 120, score: 2 });
         expect(toMinutes('12:00 PM') / 60).toBeLessThan(13);
     });
-    it('G15 01:00 PM sin bonus: día vacío tarde score 9 normal', async () => {
-        const s = await makeService({ '15/07/2026': [] });
+    it('G15 01:00 PM sin bonus: mañanas ocupadas fuerzan tarde observable', async () => {
+        const s = await makeService({ '15/07/2026': [...MORNINGS] });
         const r = await s.suggestSlots({ docId: DOC, preferredDates: ['15/07/2026'], priorityLevel: 'normal' });
-        // Verificación indirecta vía orden normalizado: la tarde vale 1 menos que la mañana
-        const sorted = [...r.suggestions].sort(byScoreThenTime);
-        expect(sorted[0].score - 1).toBe(9); // 10-1: la tarde equivalente daría 9
+        // load 6 → -12; 01:00 PM gap 120→4 bonus 0: 5-12+4+0=-3. Sin fallback: si falta, falla.
+        const afternoon = r.suggestions.find((x) => x.slotTime === '01:00 PM');
+        expect(afternoon).toBeDefined();
+        expect(afternoon).toMatchObject({ gapMinutes: 120, score: -3 });
     });
     it('G16 dos fechas: elige mejor día (vacío sobre cargado)', async () => {
         const s = await makeService({ '15/07/2026': ALL.slice(0, 10), '16/07/2026': [] });
@@ -209,6 +214,8 @@ describe('Scheduling golden G01-G30 (pesos PILOTO n=200, PENDIENTE_F-02)', () =>
     it('G25 mezcla válida+inválida: 400 sin tocar DB (falla antes)', async () => {
         const s = await makeService({ '15/07/2026': [] });
         await expect(s.suggestSlots({ docId: DOC, preferredDates: ['15/07/2026', '32/13/2026'], priorityLevel: 'normal' })).rejects.toMatchObject({ response: { code: 'INVALID_SLOT_DATE' } });
+        expect(s.__doctorFindById).not.toHaveBeenCalled();
+        expect(s.__getBookedSlots).not.toHaveBeenCalled();
     });
     it('G26 formato ISO 2026-01-01: 400', async () => {
         const s = await makeService({});
