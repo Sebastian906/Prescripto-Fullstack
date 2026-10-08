@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
+import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import { ReportsService } from './reports.service';
 import { MonthlyStats } from './schemas/monthly-stats.schema';
 import { MonthlyStatsPatient } from './schemas/monthly-stats-patient.schema';
@@ -27,6 +27,10 @@ describe('ReportsService', () => {
             countDocuments: jest.fn(),
             find: jest.fn(),
           },
+        },
+        {
+          provide: getConnectionToken(),
+          useValue: { collection: jest.fn() },
         },
       ],
     }).compile();

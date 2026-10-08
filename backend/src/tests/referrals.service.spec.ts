@@ -38,7 +38,7 @@ describe('ReferralsService', () => {
   });
 
   it('declares the mandatory { toDoctorId: 1 } index', () => {
-    const idx = ReferralSchema.indexes() as Array<[Record<string, number>]>;
+    const idx = ReferralSchema.indexes() as Array<[Record<string, number>, unknown]>;
     expect(idx.some(([k]) => k['toDoctorId'] === 1)).toBe(true);
     expect(idx.some(([k]) => k['fromDoctorId'] === 1)).toBe(true);
   });

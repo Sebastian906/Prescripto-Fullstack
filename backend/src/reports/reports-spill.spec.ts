@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
+import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import { ReportsService, GLOBAL_DOC_ID } from './reports.service';
 import { MonthlyStats } from './schemas/monthly-stats.schema';
 import { MonthlyStatsPatient } from './schemas/monthly-stats-patient.schema';
@@ -74,6 +74,10 @@ describe('ReportsService spill (cap 5000)', () => {
         {
           provide: getModelToken(MonthlyStatsPatient.name),
           useValue: spillModel,
+        },
+        {
+          provide: getConnectionToken(),
+          useValue: { collection: jest.fn() },
         },
       ],
     }).compile();
@@ -259,7 +263,7 @@ describe('ReportsService spill (cap 5000)', () => {
             const capKey = `uniquePatientIds.${MAX - 1}`;
             if (
               (f[capKey] as { $exists?: boolean } | undefined)?.$exists ===
-                false &&
+              false &&
               b.created &&
               b.inline.length >= MAX
             ) {
@@ -337,6 +341,10 @@ describe('ReportsService spill (cap 5000)', () => {
         {
           provide: getModelToken(MonthlyStatsPatient.name),
           useValue: spillModel,
+        },
+        {
+          provide: getConnectionToken(),
+          useValue: { collection: jest.fn() },
         },
       ],
     }).compile();
@@ -473,6 +481,10 @@ describe('ReportsService spill (cap 5000)', () => {
             }),
             find: jest.fn().mockReturnValue(spillFindChain),
           },
+        },
+        {
+          provide: getConnectionToken(),
+          useValue: { collection: jest.fn() }
         },
       ],
     }).compile();

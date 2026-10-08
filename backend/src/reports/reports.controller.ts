@@ -1,15 +1,16 @@
-import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ReportsService, GLOBAL_DOC_ID } from './reports.service';
 import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
 import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
+import { BackfillMonthlyStatsDto } from './dto/get-report.dto';
 import { annualReportToCsv } from './utils/annual-report-csv.util';
 
 @ApiTags('Reports')
 @Controller('api/reports')
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(private readonly reportsService: ReportsService) { }
 
   /**
    * Reporte anual — Admin: puede consultar cualquier doctor o el sistema global.
@@ -89,5 +90,21 @@ export class ReportsController {
       docId,
       months ? Number(months) : 12,
     );
+  }
+
+  /**
+   * Backfill idempotente appointments → monthly_stats.
+   * Re-ejecutable: la 2ª corrida devuelve los mismos conteos.
+   */
+  @Post('admin/backfill-monthly-stats')
+  @ApiOperation({ summary: 'Backfill monthly stats from appointments (admin, idempotent)' })
+  @ApiHeader({ name: 'atoken', required: true })
+  @UseGuards(AuthAdminGuard)
+  async backfillMonthlyStats(@Body() dto: BackfillMonthlyStatsDto) {
+    return this.reportsService.backfillMonthlyStats({
+      year: dto.year,
+      docId: dto.docId,
+      dryRun: dto.dryRun ?? false,
+    });
   }
 }

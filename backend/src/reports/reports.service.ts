@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import {
   MAX_INLINE_PATIENT_IDS,
   MonthlyStats,
@@ -9,7 +9,7 @@ import {
   MonthlyStatsPatient,
   MonthlyStatsPatientDocument,
 } from './schemas/monthly-stats-patient.schema';
-import { Model } from 'mongoose';
+import { Connection, Model } from 'mongoose';
 
 // Constante para métricas globales del sistema
 export const GLOBAL_DOC_ID = '__global__';
@@ -30,7 +30,9 @@ export class ReportsService {
     private readonly statsModel: Model<MonthlyStatsDocument>,
     @InjectModel(MonthlyStatsPatient.name)
     private readonly spillModel: Model<MonthlyStatsPatientDocument>,
-  ) {}
+    @InjectConnection()
+    private readonly connection: Connection,
+  ) { }
 
   /**
    * Registra una nueva cita en la tabla DP.
@@ -211,14 +213,131 @@ export class ReportsService {
         completionRate: row
           ? row.totalAppointments > 0
             ? Math.round(
-                (row.completedAppointments / row.totalAppointments) * 100,
-              )
+              (row.completedAppointments / row.totalAppointments) * 100,
+            )
             : 0
           : 0,
       };
     });
 
     return { success: true, trend };
+  }
+
+  /**
+   * Backfill idempotente appointments → monthly_stats (+spill).
+   * Idempotencia: todas las escrituras son $set + upsert (nunca $inc);
+   * el spill inserta faltantes y borra stale, por lo que la 2ª corrida
+   * con la misma entrada produce documentos idénticos.
+   * Usa la misma fuente y función que bookAppointment: new Date(a.date)
+   * + extractYearMonth (hora local), para que earnings/total reconcilien.
+   * Earnings = sum(amount) donde (isCompleted || payment);
+   * completedAppointments solo donde isCompleted.
+   * Sin filtros recorre TODA la historia; year/docId solo acotan re-runs.
+   */
+  async backfillMonthlyStats(opts: {
+    year?: number;
+    docId?: string;
+    dryRun?: boolean;
+  } = {}): Promise<{
+    buckets: number;
+    upserted: number;
+    spillUpserted: number;
+    spillDeleted: number;
+    durationMs: number;
+  }> {
+    const start = Date.now();
+    const match: Record<string, unknown> = {};
+    if (opts.docId) match['docId'] = opts.docId;
+    const cursor = this.connection
+      .collection('appointments')
+      .find(match)
+      .project({ docId: 1, userId: 1, amount: 1, date: 1, cancelled: 1, isCompleted: 1, payment: 1 });
+    type Bucket = {
+      total: number;
+      completed: number;
+      cancelled: number;
+      earnings: number;
+      users: Set<string>;
+    };
+    const buckets = new Map<string, Bucket & { docId: string; year: number; month: number }>();
+    for await (const a of cursor as unknown as AsyncIterable<{
+      docId?: string; userId?: string; amount?: number; date?: number;
+      cancelled?: boolean; isCompleted?: boolean; payment?: boolean;
+    }>) {
+      if (!a?.docId) continue;
+      const { year, month } = this.extractYearMonth(new Date(a.date ?? Date.now()));
+      if (opts.year && year !== opts.year) continue;
+      const key = `${a.docId}|${year}|${month}`;
+      let b = buckets.get(key);
+      if (!b) {
+        b = { docId: a.docId, year, month, total: 0, completed: 0, cancelled: 0, earnings: 0, users: new Set<string>() };
+        buckets.set(key, b);
+      }
+      b.total += 1;
+      if (a.cancelled) b.cancelled += 1;
+      if (a.isCompleted) b.completed += 1;
+      if (a.isCompleted || a.payment) {
+        b.earnings += a.amount ?? 0;
+      }
+      if (typeof a.userId === 'string' && a.userId.length > 0) b.users.add(a.userId);
+    }
+    let upserted = 0;
+    let spillUpserted = 0;
+    let spillDeleted = 0;
+    const BATCH = 500;
+    const statsOps: Parameters<Model<MonthlyStatsDocument>['bulkWrite']>[0] = [];
+    const flushStats = async (): Promise<void> => {
+      if (statsOps.length === 0 || opts.dryRun) {
+        statsOps.length = 0;
+        return;
+      }
+      const r = await this.statsModel.bulkWrite(statsOps.splice(0, statsOps.length), { ordered: false });
+      upserted += (r.upsertedCount ?? 0) + (r.modifiedCount ?? 0);
+    };
+    for (const b of buckets.values()) {
+      const sorted = [...b.users].sort();
+      const inline = sorted.slice(0, MAX_INLINE_PATIENT_IDS);
+      const spill = sorted.slice(MAX_INLINE_PATIENT_IDS);
+      statsOps.push({
+        updateOne: {
+          filter: { docId: b.docId, year: b.year, month: b.month },
+          update: {
+            $set: {
+              totalAppointments: b.total,
+              completedAppointments: b.completed,
+              cancelledAppointments: b.cancelled,
+              earnings: b.earnings,
+              uniquePatients: sorted.length,
+              uniquePatientIds: inline,
+            },
+          },
+          upsert: true,
+        },
+      } as never);
+      if (statsOps.length >= BATCH) await flushStats();
+      if (!opts.dryRun && spill.length > 0) {
+        const ops = spill.map((patientId) => ({
+          updateOne: {
+            filter: { docId: b.docId, year: b.year, month: b.month, patientId },
+            update: { $setOnInsert: { docId: b.docId, year: b.year, month: b.month, patientId } },
+            upsert: true,
+          },
+        }));
+        for (let i = 0; i < ops.length; i += BATCH) {
+          const r = await this.spillModel.bulkWrite(ops.slice(i, i + BATCH) as never, { ordered: false });
+          spillUpserted += (r.upsertedCount ?? 0);
+        }
+      }
+      if (!opts.dryRun) {
+        const del = await this.spillModel.deleteMany({
+          docId: b.docId, year: b.year, month: b.month,
+          patientId: { $nin: spill.length > 0 ? spill : ['__none__'] },
+        } as never).exec();
+        spillDeleted += del.deletedCount ?? 0;
+      }
+    }
+    await flushStats();
+    return { buckets: buckets.size, upserted, spillUpserted, spillDeleted, durationMs: Date.now() - start };
   }
 
   // Conteo de pacientes en spill para un (docId, year, month).
