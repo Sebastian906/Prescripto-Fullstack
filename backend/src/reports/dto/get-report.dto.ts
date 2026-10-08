@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsMongoId, IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+  Min,
+} from 'class-validator';
 
 export class GetAnnualReportDto {
   @ApiProperty({ example: 2025 })

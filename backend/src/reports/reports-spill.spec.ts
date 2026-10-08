@@ -263,7 +263,7 @@ describe('ReportsService spill (cap 5000)', () => {
             const capKey = `uniquePatientIds.${MAX - 1}`;
             if (
               (f[capKey] as { $exists?: boolean } | undefined)?.$exists ===
-              false &&
+                false &&
               b.created &&
               b.inline.length >= MAX
             ) {
@@ -484,7 +484,7 @@ describe('ReportsService spill (cap 5000)', () => {
         },
         {
           provide: getConnectionToken(),
-          useValue: { collection: jest.fn() }
+          useValue: { collection: jest.fn() },
         },
       ],
     }).compile();

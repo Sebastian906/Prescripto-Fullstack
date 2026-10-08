@@ -32,7 +32,7 @@ export class ReportsService {
     private readonly spillModel: Model<MonthlyStatsPatientDocument>,
     @InjectConnection()
     private readonly connection: Connection,
-  ) { }
+  ) {}
 
   /**
    * Registra una nueva cita en la tabla DP.
@@ -213,8 +213,8 @@ export class ReportsService {
         completionRate: row
           ? row.totalAppointments > 0
             ? Math.round(
-              (row.completedAppointments / row.totalAppointments) * 100,
-            )
+                (row.completedAppointments / row.totalAppointments) * 100,
+              )
             : 0
           : 0,
       };
@@ -233,16 +233,25 @@ export class ReportsService {
    * Earnings = sum(amount) donde (isCompleted || payment);
    * completedAppointments solo donde isCompleted.
    * Sin filtros recorre TODA la historia; year/docId solo acotan re-runs.
+   * Sin docId también reconstruye la fila GLOBAL_DOC_ID por mes como suma
+   * de doctores; con docId solo se toca ese doctor (sin global).
+   * Los registros sin docId o sin date se omiten y cuentan en `skipped`.
+   * ATENCIÓN: pausar las escrituras live de citas mientras corre, porque
+   * el $set por bucket y el deleteMany de spill stale pisarían updates
+   * concurrentes de book/complete/cancel.
    */
-  async backfillMonthlyStats(opts: {
-    year?: number;
-    docId?: string;
-    dryRun?: boolean;
-  } = {}): Promise<{
+  async backfillMonthlyStats(
+    opts: {
+      year?: number;
+      docId?: string;
+      dryRun?: boolean;
+    } = {},
+  ): Promise<{
     buckets: number;
     upserted: number;
     spillUpserted: number;
     spillDeleted: number;
+    skipped: number;
     durationMs: number;
   }> {
     const start = Date.now();
@@ -251,7 +260,15 @@ export class ReportsService {
     const cursor = this.connection
       .collection('appointments')
       .find(match)
-      .project({ docId: 1, userId: 1, amount: 1, date: 1, cancelled: 1, isCompleted: 1, payment: 1 });
+      .project({
+        docId: 1,
+        userId: 1,
+        amount: 1,
+        date: 1,
+        cancelled: 1,
+        isCompleted: 1,
+        payment: 1,
+      });
     type Bucket = {
       total: number;
       completed: number;
@@ -259,39 +276,75 @@ export class ReportsService {
       earnings: number;
       users: Set<string>;
     };
-    const buckets = new Map<string, Bucket & { docId: string; year: number; month: number }>();
-    for await (const a of cursor as unknown as AsyncIterable<{
-      docId?: string; userId?: string; amount?: number; date?: number;
-      cancelled?: boolean; isCompleted?: boolean; payment?: boolean;
-    }>) {
-      if (!a?.docId) continue;
-      const { year, month } = this.extractYearMonth(new Date(a.date ?? Date.now()));
-      if (opts.year && year !== opts.year) continue;
-      const key = `${a.docId}|${year}|${month}`;
+    const buckets = new Map<
+      string,
+      Bucket & { docId: string; year: number; month: number }
+    >();
+    let skipped = 0;
+    const bucketOf = (docId: string, year: number, month: number) => {
+      const key = `${docId}|${year}|${month}`;
       let b = buckets.get(key);
       if (!b) {
-        b = { docId: a.docId, year, month, total: 0, completed: 0, cancelled: 0, earnings: 0, users: new Set<string>() };
+        b = {
+          docId,
+          year,
+          month,
+          total: 0,
+          completed: 0,
+          cancelled: 0,
+          earnings: 0,
+          users: new Set<string>(),
+        };
         buckets.set(key, b);
       }
-      b.total += 1;
-      if (a.cancelled) b.cancelled += 1;
-      if (a.isCompleted) b.completed += 1;
-      if (a.isCompleted || a.payment) {
-        b.earnings += a.amount ?? 0;
+      return b;
+    };
+    for await (const a of cursor as unknown as AsyncIterable<{
+      docId?: string;
+      userId?: string;
+      amount?: number;
+      date?: number;
+      cancelled?: boolean;
+      isCompleted?: boolean;
+      payment?: boolean;
+    }>) {
+      // Sin docId o sin date el registro no es bucketizable: se omite y se
+      // cuenta (nunca se asigna al mes corriente con Date.now()).
+      if (!a?.docId || typeof a.date !== 'number') {
+        skipped += 1;
+        continue;
       }
-      if (typeof a.userId === 'string' && a.userId.length > 0) b.users.add(a.userId);
+      const { year, month } = this.extractYearMonth(new Date(a.date));
+      if (opts.year && year !== opts.year) continue;
+      // Fila del doctor + fila global (solo sin filtro docId).
+      const targets = [bucketOf(a.docId, year, month)];
+      if (!opts.docId) targets.push(bucketOf(GLOBAL_DOC_ID, year, month));
+      for (const b of targets) {
+        b.total += 1;
+        if (a.cancelled) b.cancelled += 1;
+        if (a.isCompleted) b.completed += 1;
+        if (a.isCompleted || a.payment) {
+          b.earnings += a.amount ?? 0;
+        }
+        if (typeof a.userId === 'string' && a.userId.length > 0)
+          b.users.add(a.userId);
+      }
     }
     let upserted = 0;
     let spillUpserted = 0;
     let spillDeleted = 0;
     const BATCH = 500;
-    const statsOps: Parameters<Model<MonthlyStatsDocument>['bulkWrite']>[0] = [];
+    const statsOps: Parameters<Model<MonthlyStatsDocument>['bulkWrite']>[0] =
+      [];
     const flushStats = async (): Promise<void> => {
       if (statsOps.length === 0 || opts.dryRun) {
         statsOps.length = 0;
         return;
       }
-      const r = await this.statsModel.bulkWrite(statsOps.splice(0, statsOps.length), { ordered: false });
+      const r = await this.statsModel.bulkWrite(
+        statsOps.splice(0, statsOps.length),
+        { ordered: false },
+      );
       upserted += (r.upsertedCount ?? 0) + (r.modifiedCount ?? 0);
     };
     for (const b of buckets.values()) {
@@ -313,31 +366,52 @@ export class ReportsService {
           },
           upsert: true,
         },
-      } as never);
+      });
       if (statsOps.length >= BATCH) await flushStats();
       if (!opts.dryRun && spill.length > 0) {
         const ops = spill.map((patientId) => ({
           updateOne: {
             filter: { docId: b.docId, year: b.year, month: b.month, patientId },
-            update: { $setOnInsert: { docId: b.docId, year: b.year, month: b.month, patientId } },
+            update: {
+              $setOnInsert: {
+                docId: b.docId,
+                year: b.year,
+                month: b.month,
+                patientId,
+              },
+            },
             upsert: true,
           },
         }));
         for (let i = 0; i < ops.length; i += BATCH) {
-          const r = await this.spillModel.bulkWrite(ops.slice(i, i + BATCH) as never, { ordered: false });
-          spillUpserted += (r.upsertedCount ?? 0);
+          const r = await this.spillModel.bulkWrite(
+            ops.slice(i, i + BATCH) as never,
+            { ordered: false },
+          );
+          spillUpserted += r.upsertedCount ?? 0;
         }
       }
       if (!opts.dryRun) {
-        const del = await this.spillModel.deleteMany({
-          docId: b.docId, year: b.year, month: b.month,
-          patientId: { $nin: spill.length > 0 ? spill : ['__none__'] },
-        } as never).exec();
+        const del = await this.spillModel
+          .deleteMany({
+            docId: b.docId,
+            year: b.year,
+            month: b.month,
+            patientId: { $nin: spill.length > 0 ? spill : ['__none__'] },
+          } as never)
+          .exec();
         spillDeleted += del.deletedCount ?? 0;
       }
     }
     await flushStats();
-    return { buckets: buckets.size, upserted, spillUpserted, spillDeleted, durationMs: Date.now() - start };
+    return {
+      buckets: buckets.size,
+      upserted,
+      spillUpserted,
+      spillDeleted,
+      skipped,
+      durationMs: Date.now() - start,
+    };
   }
 
   // Conteo de pacientes en spill para un (docId, year, month).

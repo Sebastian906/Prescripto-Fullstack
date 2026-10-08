@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ReportsService, GLOBAL_DOC_ID } from './reports.service';
@@ -10,7 +19,7 @@ import { annualReportToCsv } from './utils/annual-report-csv.util';
 @ApiTags('Reports')
 @Controller('api/reports')
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) { }
+  constructor(private readonly reportsService: ReportsService) {}
 
   /**
    * Reporte anual — Admin: puede consultar cualquier doctor o el sistema global.
@@ -95,9 +104,14 @@ export class ReportsController {
   /**
    * Backfill idempotente appointments → monthly_stats.
    * Re-ejecutable: la 2ª corrida devuelve los mismos conteos.
+   * Pausar las reservas live mientras corre: el $set por bucket y el
+   * deleteMany de spill pisarían altas concurrentes.
    */
   @Post('admin/backfill-monthly-stats')
-  @ApiOperation({ summary: 'Backfill monthly stats from appointments (admin, idempotent)' })
+  @ApiOperation({
+    summary: 'Backfill monthly stats from appointments (admin, idempotent)',
+    description: 'Pause live booking writes while it runs.',
+  })
   @ApiHeader({ name: 'atoken', required: true })
   @UseGuards(AuthAdminGuard)
   async backfillMonthlyStats(@Body() dto: BackfillMonthlyStatsDto) {
