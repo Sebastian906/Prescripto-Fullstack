@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsMongoId, IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+  Min,
+} from 'class-validator';
 
 export class GetAnnualReportDto {
   @ApiProperty({ example: 2025 })
@@ -24,4 +30,22 @@ export class GetMonthlyTrendDto {
   @IsNumber()
   @Min(1)
   months?: number;
+}
+
+export class BackfillMonthlyStatsDto {
+  @ApiPropertyOptional({ example: 2025 })
+  @IsOptional()
+  @IsNumber()
+  @Min(2000)
+  year?: number;
+
+  @ApiPropertyOptional({ example: '64f1a2b3c4d5e6f7a8b9c0d1' })
+  @IsOptional()
+  @IsMongoId()
+  docId?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  dryRun?: boolean;
 }

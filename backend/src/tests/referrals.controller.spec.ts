@@ -38,7 +38,9 @@ describe('ReferralsController', () => {
 
   it('doctor create delegates with dtoken identity', async () => {
     await controller.createMine(
-      { docId: 'docA' },
+      { docId: 'docA' } as unknown as Parameters<
+        ReferralsController['createMine']
+      >[0],
       {
         toDoctorId: 'docB',
         reason: ReferralReason.LabWorkup,
