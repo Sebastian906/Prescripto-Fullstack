@@ -127,55 +127,51 @@ function percentile(sortedAsc: number[], p: number): number {
 }
 
 describe('scheduling.bench [icebox, reevaluar trimestralmente]', () => {
-  it(
-    `p95 suggest multi-doctor (8x7x22) <= ${P95_THRESHOLD_MS}ms o TRIGGER FIRED`,
-    async () => {
-      const service = await makeBenchService(buildBookedSeed());
+  it(`p95 suggest multi-doctor (8x7x22) <= ${P95_THRESHOLD_MS}ms o TRIGGER FIRED`, async () => {
+    const service = await makeBenchService(buildBookedSeed());
 
-      const oneSearch = async (): Promise<void> => {
-        for (const docId of DOC_IDS) {
-          await service.suggestSlots({
-            docId,
-            preferredDates: DATES,
-            priorityLevel: 'normal',
-          });
-        }
-      };
-
-      for (let w = 0; w < WARMUP; w++) await oneSearch();
-
-      const latencies: number[] = [];
-      for (let i = 0; i < ITERATIONS; i++) {
-        const t0 = performance.now();
-        await oneSearch();
-        latencies.push(performance.now() - t0);
+    const oneSearch = async (): Promise<void> => {
+      for (const docId of DOC_IDS) {
+        await service.suggestSlots({
+          docId,
+          preferredDates: DATES,
+          priorityLevel: 'normal',
+        });
       }
+    };
 
-      const sorted = [...latencies].sort((a, b) => a - b);
-      const p50 = percentile(sorted, 50);
-      const p95 = percentile(sorted, 95);
-      const p99 = percentile(sorted, 99);
-      // eslint-disable-next-line no-console
-      console.log(
-        `[bench] n=${ITERATIONS} seed=${N_DOCTORS}x${N_DAYS}x${ALL.length} ` +
-          `p50=${p50.toFixed(2)}ms p95=${p95.toFixed(2)}ms p99=${p99.toFixed(2)}ms ` +
-          `threshold=${P95_THRESHOLD_MS}ms`,
+    for (let w = 0; w < WARMUP; w++) await oneSearch();
+
+    const latencies: number[] = [];
+    for (let i = 0; i < ITERATIONS; i++) {
+      const t0 = performance.now();
+      await oneSearch();
+      latencies.push(performance.now() - t0);
+    }
+
+    const sorted = [...latencies].sort((a, b) => a - b);
+    const p50 = percentile(sorted, 50);
+    const p95 = percentile(sorted, 95);
+    const p99 = percentile(sorted, 99);
+
+    console.log(
+      `[bench] n=${ITERATIONS} seed=${N_DOCTORS}x${N_DAYS}x${ALL.length} ` +
+        `p50=${p50.toFixed(2)}ms p95=${p95.toFixed(2)}ms p99=${p99.toFixed(2)}ms ` +
+        `threshold=${P95_THRESHOLD_MS}ms`,
+    );
+
+    if (p95 > P95_THRESHOLD_MS) {
+      console.error(
+        `TRIGGER FIRED: p95 suggest ${p95.toFixed(2)}ms > ${P95_THRESHOLD_MS}ms — implementar beam-search k=5`,
       );
+      throw new Error(
+        `TRIGGER FIRED: p95 ${p95.toFixed(2)}ms > ${P95_THRESHOLD_MS}ms`,
+      );
+    }
 
-      if (p95 > P95_THRESHOLD_MS) {
-        // eslint-disable-next-line no-console
-        console.error(
-          `TRIGGER FIRED: p95 suggest ${p95.toFixed(2)}ms > ${P95_THRESHOLD_MS}ms — implementar beam-search k=5`,
-        );
-        throw new Error(
-          `TRIGGER FIRED: p95 ${p95.toFixed(2)}ms > ${P95_THRESHOLD_MS}ms`,
-        );
-      }
-
-      // eslint-disable-next-line no-console
-      console.log('TRIGGER SLEEPING: p95 dentro del umbral, el issue sigue icebox');
-      expect(p95).toBeLessThanOrEqual(P95_THRESHOLD_MS);
-    },
-    120000,
-  );
+    console.log(
+      'TRIGGER SLEEPING: p95 dentro del umbral, el issue sigue icebox',
+    );
+    expect(p95).toBeLessThanOrEqual(P95_THRESHOLD_MS);
+  }, 120000);
 });
