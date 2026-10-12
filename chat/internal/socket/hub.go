@@ -3,10 +3,12 @@ package socket
 import (
 	"context"
 	"encoding/json"
+	"hash/fnv"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/auth"
@@ -16,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/sync/errgroup"
 )
 
 // allowedOrigins is the WS handshake truth. Set once from main.go via
@@ -170,7 +173,8 @@ func (c *client) readPump() {
 			continue
 		}
 
-		c.hub.inbound <- inboundEvent{client: c, content: inbound.Content}
+		// Non-blocking: never stall readPump; depth>200 signals backpressure.
+		c.hub.Enqueue(inboundEvent{client: c, content: inbound.Content})
 	}
 }
 
@@ -192,58 +196,178 @@ type Hub struct {
 	unregister        chan *client
 	inbound           chan inboundEvent
 	repo              *repository.Repo
+	// Bounded pipeline (all unexported: public NewHub/Run signatures unchanged).
+	workers     []chan inboundEvent
+	metrics     *Metrics
+	inflight    atomic.Int64
+	process     func(inboundEvent)
 }
 
 func NewHub(repo *repository.Repo) *Hub {
-	return &Hub{
+	h := &Hub{
 		rooms:             make(map[string]map[*client]struct{}),
 		register:          make(chan *client, 64),
 		registerBroadcast: make(chan registerAndBroadcast, 64),
 		unregister:        make(chan *client, 64),
-		inbound:           make(chan inboundEvent, 256),
+		inbound:           make(chan inboundEvent, InboundBufferSize),
 		repo:              repo,
+		workers:           make([]chan inboundEvent, NumWorkers),
+	}
+	for i := range h.workers {
+		h.workers[i] = make(chan inboundEvent, WorkerQueueSize)
+	}
+	h.process = h.handleInbound
+	return h
+}
+
+// AttachMetrics wires the gauge/counter to this hub. Call once in main
+// before exposing /metrics. Safe to skip in unit tests.
+func (h *Hub) AttachMetrics(m *Metrics) { h.metrics = m }
+
+// PendingLen is the effective depth for the gauge and the drop check.
+func (h *Hub) PendingLen() int {
+	n := len(h.inbound)
+	for _, w := range h.workers {
+		n += len(w)
+	}
+	return n
+}
+func (h *Hub) pendingLenFloat() float64 { return float64(h.PendingLen()) }
+
+// Enqueue is the only producer path. Non-blocking. Depth>=200 drops
+// with {event:backpressure} counted, never silently queued.
+func (h *Hub) Enqueue(evt inboundEvent) bool {
+	if h.PendingLen() >= BackpressureThreshold {
+		h.emitBackpressure(evt.client, evt.client.conversationID)
+		return false
+	}
+	select {
+	case h.inbound <- evt:
+		return true
+	default:
+		h.emitBackpressure(evt.client, evt.client.conversationID)
+		return false
 	}
 }
 
-func (h *Hub) Run() {
-	for {
-		select {
+func (h *Hub) emitBackpressure(c *client, convID string) {
+	if h.metrics != nil {
+		h.metrics.Dropped.WithLabelValues(DropReasonBackpress).Inc()
+	}
+	if c == nil {
+		return
+	}
+	data, err := json.Marshal(OutboundMessage{
+		ConversationID: convID,
+		Sender:         "bot",
+		SenderID:       "bot",
+		Event:          "backpressure",
+		CreatedAt:      time.Now(),
+	})
+	if err != nil {
+		return
+	}
+	select {
+	case c.send <- data:
+	default:
+		// send buffer full: counted above, never block the dispatcher.
+	}
+}
 
-		case c := <-h.register:
-			h.mu.Lock()
-			if h.rooms[c.conversationID] == nil {
-				h.rooms[c.conversationID] = make(map[*client]struct{})
-			}
-			h.rooms[c.conversationID][c] = struct{}{}
-			h.mu.Unlock()
+func shardRoom(convID string) uint32 {
+	sum := fnv.New32a()
+	_, _ = sum.Write([]byte(convID))
+	return sum.Sum32() % uint32(NumWorkers)
+}
 
-		case rb := <-h.registerBroadcast:
-			h.mu.Lock()
-			c := rb.cl
-			if h.rooms[c.conversationID] == nil {
-				h.rooms[c.conversationID] = make(map[*client]struct{})
-			}
-			h.rooms[c.conversationID][c] = struct{}{}
-			h.mu.Unlock()
-			h.broadcast(c.conversationID, rb.msg)
+func (h *Hub) Run() { _ = h.RunContext(context.Background()) }
 
-		case c := <-h.unregister:
-			h.mu.Lock()
-			if room, ok := h.rooms[c.conversationID]; ok {
-				if _, exists := room[c]; exists {
-					delete(room, c)
-					close(c.send)
-					if len(room) == 0 {
-						delete(h.rooms, c.conversationID)
+// RunContext bounds processing with errgroup + ctx. One dispatcher
+// preserves global receive order; sharded workers preserve per-room FIFO.
+// On ctx cancel it drains central+worker queues, then returns.
+func (h *Hub) RunContext(ctx context.Context) error {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(NumWorkers + 1)
+	for _, wch := range h.workers {
+		wch := wch
+		g.Go(func() error {
+			for {
+				select {
+				case <-ctx.Done():
+					for {
+						select {
+						case evt := <-wch:
+							h.process(evt)
+						default:
+							return nil
+						}
 					}
+				case evt := <-wch:
+					h.process(evt)
 				}
 			}
-			h.mu.Unlock()
-
-		case evt := <-h.inbound:
-			go h.handleInbound(evt)
-		}
+		})
 	}
+	g.Go(func() error {
+		for {
+			select {
+			case <-ctx.Done():
+				// Drain central into workers, then close workers.
+				for {
+					select {
+					case evt := <-h.inbound:
+						h.workers[shardRoom(evt.client.conversationID)] <- evt
+					default:
+						for _, wch := range h.workers {
+							close(wch)
+						}
+						return nil
+					}
+				}
+			case c := <-h.register:
+				h.mu.Lock()
+				if h.rooms[c.conversationID] == nil {
+					h.rooms[c.conversationID] = make(map[*client]struct{})
+				}
+				h.rooms[c.conversationID][c] = struct{}{}
+				h.mu.Unlock()
+
+		case rb := <-h.registerBroadcast:
+				h.mu.Lock()
+				c := rb.cl
+				if h.rooms[c.conversationID] == nil {
+					h.rooms[c.conversationID] = make(map[*client]struct{})
+				}
+				h.rooms[c.conversationID][c] = struct{}{}
+				h.mu.Unlock()
+				h.broadcast(c.conversationID, rb.msg)
+
+			case c := <-h.unregister:
+				h.mu.Lock()
+				if room, ok := h.rooms[c.conversationID]; ok {
+					if _, exists := room[c]; exists {
+						delete(room, c)
+						close(c.send)
+						if len(room) == 0 {
+							delete(h.rooms, c.conversationID)
+						}
+					}
+				}
+				h.mu.Unlock()
+
+			case evt := <-h.inbound:
+				h.workers[shardRoom(evt.client.conversationID)] <- evt
+			}
+		}
+	})
+	// Track inflight around the real handler without changing its signature.
+	orig := h.process
+	h.process = func(evt inboundEvent) {
+		h.inflight.Add(1)
+		defer h.inflight.Add(-1)
+		orig(evt)
+	}
+	return g.Wait()
 }
 
 func (h *Hub) handleInbound(evt inboundEvent) {
