@@ -17,6 +17,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	_ "github.com/Sebastian906/Prescripto-Fullstack/chat/docs"
 )
@@ -44,7 +46,21 @@ func main() {
 		}
 	}
 	hub := socket.NewHub(repo)
-	go hub.Run()
+	// H-04a wiring: gauge reads effective depth; counter counts drops.
+	if m, err := socket.RegisterInboundMetrics(func() float64 { return float64(hub.PendingLen()) }, prometheus.DefaultRegisterer); err != nil {
+		log.Printf("metrics: register: %v", err)
+	} else {
+		hub.AttachMetrics(m)
+	}
+	hubCtx, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	hubDone := make(chan struct{})
+	go func() {
+		defer close(hubDone)
+		if err := hub.RunContext(hubCtx); err != nil {
+			log.Printf("hub stopped: %v", err)
+		}
+	}()
 	// The WS upgrader allowlist lives in socket (CheckOrigin). Without this
 	// call it would fall back to the local-frontend defaults.
 	socket.SetAllowedOrigins(cfg.AllowedOrigins)
@@ -87,6 +103,9 @@ func main() {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	// H-04a: default registry; chat_hub_inbound_len visible here.
+	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
+
 	e.Static("/swagger", "docs")
 	e.File("/swagger/doc.json", "docs/swagger.json")
 
@@ -119,6 +138,16 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+
+	// Drain path: stop dispatch first, RunContext drains central+workers.
+	hubCancel()
+	// Wait for the drain before returning so the deferred repo.Disconnect
+	// cannot close Mongo underneath in-flight handlers.
+	select {
+	case <-hubDone:
+	case <-time.After(10 * time.Second):
+		log.Printf("hub drain timeout")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

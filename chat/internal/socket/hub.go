@@ -3,10 +3,12 @@ package socket
 import (
 	"context"
 	"encoding/json"
+	"hash/fnv"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Sebastian906/Prescripto-Fullstack/chat/internal/auth"
@@ -16,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/sync/errgroup"
 )
 
 // allowedOrigins is the WS handshake truth. Set once from main.go via
@@ -109,10 +112,37 @@ type client struct {
 	hub            *Hub
 	conn           *websocket.Conn
 	send           chan []byte
+	sendMu         sync.Mutex
+	sendClosed     bool
 	conversationID string
 	userID         string
 	role           string
 	engine         *bot.Engine
+}
+
+// trySend is a non-blocking send that is safe against concurrent close.
+// It reports false when the client is gone or slow; callers evict via unregister.
+func (c *client) trySend(data []byte) bool {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+	if c.sendClosed {
+		return false
+	}
+	select {
+	case c.send <- data:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *client) closeSend() {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+	if !c.sendClosed {
+		c.sendClosed = true
+		close(c.send)
+	}
 }
 
 func (c *client) writePump() {
@@ -170,7 +200,8 @@ func (c *client) readPump() {
 			continue
 		}
 
-		c.hub.inbound <- inboundEvent{client: c, content: inbound.Content}
+		// Non-blocking: never stall readPump; depth>200 signals backpressure.
+		c.hub.Enqueue(inboundEvent{client: c, content: inbound.Content})
 	}
 }
 
@@ -192,58 +223,178 @@ type Hub struct {
 	unregister        chan *client
 	inbound           chan inboundEvent
 	repo              *repository.Repo
+	// Bounded pipeline (all unexported: public NewHub/Run signatures unchanged).
+	workers  []chan inboundEvent
+	metrics  *Metrics
+	inflight atomic.Int64
+	process  func(inboundEvent)
 }
 
 func NewHub(repo *repository.Repo) *Hub {
-	return &Hub{
+	h := &Hub{
 		rooms:             make(map[string]map[*client]struct{}),
 		register:          make(chan *client, 64),
 		registerBroadcast: make(chan registerAndBroadcast, 64),
 		unregister:        make(chan *client, 64),
-		inbound:           make(chan inboundEvent, 256),
+		inbound:           make(chan inboundEvent, InboundBufferSize),
 		repo:              repo,
+		workers:           make([]chan inboundEvent, NumWorkers),
+	}
+	for i := range h.workers {
+		h.workers[i] = make(chan inboundEvent, WorkerQueueSize)
+	}
+	h.process = h.handleInbound
+	return h
+}
+
+// AttachMetrics wires the gauge/counter to this hub. Call once in main
+// before exposing /metrics. Safe to skip in unit tests.
+func (h *Hub) AttachMetrics(m *Metrics) { h.metrics = m }
+
+// PendingLen is the effective depth for the gauge and the drop check.
+func (h *Hub) PendingLen() int {
+	n := len(h.inbound)
+	for _, w := range h.workers {
+		n += len(w)
+	}
+	return n
+}
+func (h *Hub) pendingLenFloat() float64 { return float64(h.PendingLen()) }
+
+// Enqueue is the only producer path. Non-blocking. Depth>=200 drops
+// with {event:backpressure} counted, never silently queued.
+func (h *Hub) Enqueue(evt inboundEvent) bool {
+	if h.PendingLen() >= BackpressureThreshold {
+		h.emitBackpressure(evt.client, evt.client.conversationID)
+		return false
+	}
+	select {
+	case h.inbound <- evt:
+		return true
+	default:
+		h.emitBackpressure(evt.client, evt.client.conversationID)
+		return false
 	}
 }
 
-func (h *Hub) Run() {
-	for {
-		select {
+func (h *Hub) emitBackpressure(c *client, convID string) {
+	if h.metrics != nil {
+		h.metrics.Dropped.WithLabelValues(DropReasonBackpress).Inc()
+	}
+	if c == nil {
+		return
+	}
+	data, err := json.Marshal(OutboundMessage{
+		ConversationID: convID,
+		Sender:         "bot",
+		SenderID:       "bot",
+		Event:          "backpressure",
+		CreatedAt:      time.Now(),
+	})
+	if err != nil {
+		return
+	}
+	// Safe against concurrent unregister: trySend checks the closed flag.
+	_ = c.trySend(data)
+}
 
-		case c := <-h.register:
-			h.mu.Lock()
-			if h.rooms[c.conversationID] == nil {
-				h.rooms[c.conversationID] = make(map[*client]struct{})
+func shardRoom(convID string) uint32 {
+	sum := fnv.New32a()
+	_, _ = sum.Write([]byte(convID))
+	return sum.Sum32() % uint32(NumWorkers)
+}
+
+func (h *Hub) Run() { _ = h.RunContext(context.Background()) }
+
+// RunContext bounds processing with errgroup + ctx. One dispatcher
+// preserves global receive order; sharded workers preserve per-room FIFO.
+// On ctx cancel it drains central+worker queues, then returns.
+func (h *Hub) RunContext(ctx context.Context) error {
+	g, _ := errgroup.WithContext(ctx)
+	g.SetLimit(NumWorkers + 1)
+	// Capture the handler once before workers start: no shared-field race
+	// and the in-flight counter always applies.
+	base := h.process
+	if base == nil {
+		base = h.handleInbound
+	}
+	process := func(evt inboundEvent) {
+		h.inflight.Add(1)
+		defer h.inflight.Add(-1)
+		base(evt)
+	}
+	for _, wch := range h.workers {
+		wch := wch
+		// Dispatcher alone owns shutdown: workers range until closed.
+		g.Go(func() error {
+			for evt := range wch {
+				process(evt)
 			}
-			h.rooms[c.conversationID][c] = struct{}{}
-			h.mu.Unlock()
-
-		case rb := <-h.registerBroadcast:
-			h.mu.Lock()
-			c := rb.cl
-			if h.rooms[c.conversationID] == nil {
-				h.rooms[c.conversationID] = make(map[*client]struct{})
-			}
-			h.rooms[c.conversationID][c] = struct{}{}
-			h.mu.Unlock()
-			h.broadcast(c.conversationID, rb.msg)
-
-		case c := <-h.unregister:
-			h.mu.Lock()
-			if room, ok := h.rooms[c.conversationID]; ok {
-				if _, exists := room[c]; exists {
-					delete(room, c)
-					close(c.send)
-					if len(room) == 0 {
-						delete(h.rooms, c.conversationID)
+			return nil
+		})
+	}
+	g.Go(func() error {
+		for {
+			select {
+			case <-ctx.Done():
+				// Drain central into workers, then close workers.
+				// Workers are still ranging, so this blocking send makes
+				// progress; close only after inbound is fully enqueued.
+				for {
+					select {
+					case evt := <-h.inbound:
+						h.workers[shardRoom(evt.client.conversationID)] <- evt
+					default:
+						for _, wch := range h.workers {
+							close(wch)
+						}
+						return nil
 					}
 				}
-			}
-			h.mu.Unlock()
+			case c := <-h.register:
+				h.mu.Lock()
+				if h.rooms[c.conversationID] == nil {
+					h.rooms[c.conversationID] = make(map[*client]struct{})
+				}
+				h.rooms[c.conversationID][c] = struct{}{}
+				h.mu.Unlock()
 
-		case evt := <-h.inbound:
-			go h.handleInbound(evt)
+			case rb := <-h.registerBroadcast:
+				h.mu.Lock()
+				c := rb.cl
+				if h.rooms[c.conversationID] == nil {
+					h.rooms[c.conversationID] = make(map[*client]struct{})
+				}
+				h.rooms[c.conversationID][c] = struct{}{}
+				h.mu.Unlock()
+				h.broadcast(c.conversationID, rb.msg)
+
+			case c := <-h.unregister:
+				h.mu.Lock()
+				if room, ok := h.rooms[c.conversationID]; ok {
+					if _, exists := room[c]; exists {
+						delete(room, c)
+						c.closeSend()
+						if len(room) == 0 {
+							delete(h.rooms, c.conversationID)
+						}
+					}
+				}
+				h.mu.Unlock()
+
+			case evt := <-h.inbound:
+				wch := h.workers[shardRoom(evt.client.conversationID)]
+				select {
+				case wch <- evt:
+				default:
+					// Worker queue full: keep the dispatcher responsive to
+					// register/unregister; signal instead of blocking.
+					h.emitBackpressure(evt.client, evt.client.conversationID)
+				}
+			}
 		}
-	}
+	})
+	return g.Wait()
 }
 
 func (h *Hub) handleInbound(evt inboundEvent) {
@@ -344,9 +495,7 @@ func (h *Hub) broadcast(conversationID string, msg OutboundMessage) {
 	h.mu.RUnlock()
 
 	for c := range room {
-		select {
-		case c.send <- data:
-		default:
+		if !c.trySend(data) {
 			h.unregister <- c
 		}
 	}
@@ -434,7 +583,7 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 			CreatedAt:      time.Now(),
 		}
 		data, _ := json.Marshal(welcome)
-		cl.send <- data
+		_ = cl.trySend(data)
 		_ = h.repo.UpdateBotState(ctx, conv.ID.Hex(), welcomeResp.NextState)
 	}
 	// Sync the client whenever the fallback selected a conversation other
@@ -454,7 +603,7 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 			CreatedAt:      time.Now(),
 		}
 		data, _ := json.Marshal(resumedMsg)
-		cl.send <- data
+		_ = cl.trySend(data)
 	}
 
 	return nil
