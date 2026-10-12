@@ -112,10 +112,37 @@ type client struct {
 	hub            *Hub
 	conn           *websocket.Conn
 	send           chan []byte
+	sendMu         sync.Mutex
+	sendClosed     bool
 	conversationID string
 	userID         string
 	role           string
 	engine         *bot.Engine
+}
+
+// trySend is a non-blocking send that is safe against concurrent close.
+// It reports false when the client is gone or slow; callers evict via unregister.
+func (c *client) trySend(data []byte) bool {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+	if c.sendClosed {
+		return false
+	}
+	select {
+	case c.send <- data:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *client) closeSend() {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+	if !c.sendClosed {
+		c.sendClosed = true
+		close(c.send)
+	}
 }
 
 func (c *client) writePump() {
@@ -197,10 +224,10 @@ type Hub struct {
 	inbound           chan inboundEvent
 	repo              *repository.Repo
 	// Bounded pipeline (all unexported: public NewHub/Run signatures unchanged).
-	workers     []chan inboundEvent
-	metrics     *Metrics
-	inflight    atomic.Int64
-	process     func(inboundEvent)
+	workers  []chan inboundEvent
+	metrics  *Metrics
+	inflight atomic.Int64
+	process  func(inboundEvent)
 }
 
 func NewHub(repo *repository.Repo) *Hub {
@@ -267,11 +294,8 @@ func (h *Hub) emitBackpressure(c *client, convID string) {
 	if err != nil {
 		return
 	}
-	select {
-	case c.send <- data:
-	default:
-		// send buffer full: counted above, never block the dispatcher.
-	}
+	// Safe against concurrent unregister: trySend checks the closed flag.
+	_ = c.trySend(data)
 }
 
 func shardRoom(convID string) uint32 {
@@ -286,26 +310,27 @@ func (h *Hub) Run() { _ = h.RunContext(context.Background()) }
 // preserves global receive order; sharded workers preserve per-room FIFO.
 // On ctx cancel it drains central+worker queues, then returns.
 func (h *Hub) RunContext(ctx context.Context) error {
-	g, ctx := errgroup.WithContext(ctx)
+	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(NumWorkers + 1)
+	// Capture the handler once before workers start: no shared-field race
+	// and the in-flight counter always applies.
+	base := h.process
+	if base == nil {
+		base = h.handleInbound
+	}
+	process := func(evt inboundEvent) {
+		h.inflight.Add(1)
+		defer h.inflight.Add(-1)
+		base(evt)
+	}
 	for _, wch := range h.workers {
 		wch := wch
+		// Dispatcher alone owns shutdown: workers range until closed.
 		g.Go(func() error {
-			for {
-				select {
-				case <-ctx.Done():
-					for {
-						select {
-						case evt := <-wch:
-							h.process(evt)
-						default:
-							return nil
-						}
-					}
-				case evt := <-wch:
-					h.process(evt)
-				}
+			for evt := range wch {
+				process(evt)
 			}
+			return nil
 		})
 	}
 	g.Go(func() error {
@@ -313,6 +338,8 @@ func (h *Hub) RunContext(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				// Drain central into workers, then close workers.
+				// Workers are still ranging, so this blocking send makes
+				// progress; close only after inbound is fully enqueued.
 				for {
 					select {
 					case evt := <-h.inbound:
@@ -332,7 +359,7 @@ func (h *Hub) RunContext(ctx context.Context) error {
 				h.rooms[c.conversationID][c] = struct{}{}
 				h.mu.Unlock()
 
-		case rb := <-h.registerBroadcast:
+			case rb := <-h.registerBroadcast:
 				h.mu.Lock()
 				c := rb.cl
 				if h.rooms[c.conversationID] == nil {
@@ -347,7 +374,7 @@ func (h *Hub) RunContext(ctx context.Context) error {
 				if room, ok := h.rooms[c.conversationID]; ok {
 					if _, exists := room[c]; exists {
 						delete(room, c)
-						close(c.send)
+						c.closeSend()
 						if len(room) == 0 {
 							delete(h.rooms, c.conversationID)
 						}
@@ -356,17 +383,17 @@ func (h *Hub) RunContext(ctx context.Context) error {
 				h.mu.Unlock()
 
 			case evt := <-h.inbound:
-				h.workers[shardRoom(evt.client.conversationID)] <- evt
+				wch := h.workers[shardRoom(evt.client.conversationID)]
+				select {
+				case wch <- evt:
+				default:
+					// Worker queue full: keep the dispatcher responsive to
+					// register/unregister; signal instead of blocking.
+					h.emitBackpressure(evt.client, evt.client.conversationID)
+				}
 			}
 		}
 	})
-	// Track inflight around the real handler without changing its signature.
-	orig := h.process
-	h.process = func(evt inboundEvent) {
-		h.inflight.Add(1)
-		defer h.inflight.Add(-1)
-		orig(evt)
-	}
 	return g.Wait()
 }
 
@@ -468,9 +495,7 @@ func (h *Hub) broadcast(conversationID string, msg OutboundMessage) {
 	h.mu.RUnlock()
 
 	for c := range room {
-		select {
-		case c.send <- data:
-		default:
+		if !c.trySend(data) {
 			h.unregister <- c
 		}
 	}
@@ -558,7 +583,7 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 			CreatedAt:      time.Now(),
 		}
 		data, _ := json.Marshal(welcome)
-		cl.send <- data
+		_ = cl.trySend(data)
 		_ = h.repo.UpdateBotState(ctx, conv.ID.Hex(), welcomeResp.NextState)
 	}
 	// Sync the client whenever the fallback selected a conversation other
@@ -578,7 +603,7 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 			CreatedAt:      time.Now(),
 		}
 		data, _ := json.Marshal(resumedMsg)
-		cl.send <- data
+		_ = cl.trySend(data)
 	}
 
 	return nil

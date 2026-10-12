@@ -1,7 +1,9 @@
 package socket
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -91,26 +93,18 @@ func TestOrderPerRoomPreserved(t *testing.T) {
 	seen := map[string][]string{}
 	var wg sync.WaitGroup
 	h.process = func(evt inboundEvent) {
-		time.Sleep(2 * time.Millisecond) // force interleave across rooms
+		time.Sleep(1 * time.Millisecond) // force interleave across rooms
 		mu.Lock()
 		seen[evt.client.conversationID] = append(seen[evt.client.conversationID], evt.content)
 		mu.Unlock()
 		wg.Done()
 	}
-	// Sequential per-room dispatch (same rule as RunContext).
-	go func() {
-		for evt := range h.inbound {
-			h.workers[shardRoom(evt.client.conversationID)] <- evt
-		}
-	}()
-	for _, wch := range h.workers {
-		wch := wch
-		go func() {
-			for evt := range wch {
-				h.process(evt)
-			}
-		}()
-	}
+	// Exercise the real dispatch and drain path.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hubDone := make(chan error, 1)
+	go func() { hubDone <- h.RunContext(ctx) }()
+
 	rooms := []string{"room-A", "room-B"}
 	const perRoom = 50
 	wg.Add(len(rooms) * perRoom)
@@ -119,8 +113,11 @@ func TestOrderPerRoomPreserved(t *testing.T) {
 		go func() {
 			cl := testClient(h, r)
 			for i := 0; i < perRoom; i++ {
-				// Bypass Enqueue threshold here: order test, not load test.
-				h.inbound <- inboundEvent{client: cl, content: string(rune('0' + i%10))}
+				// Unique sequence per room; total 100 stays below the 200 drop threshold.
+				if !h.Enqueue(inboundEvent{client: cl, content: fmt.Sprintf("%d", i)}) {
+					t.Errorf("unexpected drop room=%s seq=%d", r, i)
+					wg.Done()
+				}
 			}
 		}()
 	}
@@ -129,6 +126,27 @@ func TestOrderPerRoomPreserved(t *testing.T) {
 		defer mu.Unlock()
 		return len(seen["room-A"]) == perRoom && len(seen["room-B"]) == perRoom
 	}, "both rooms must keep 50 msgs")
+	mu.Lock()
+	for _, r := range rooms {
+		got := seen[r]
+		if len(got) != perRoom {
+			mu.Unlock()
+			t.Fatalf("room %s got %d msgs, want %d", r, len(got), perRoom)
+		}
+		for i := 0; i < perRoom; i++ {
+			if want := fmt.Sprintf("%d", i); got[i] != want {
+				mu.Unlock()
+				t.Fatalf("room %s out of order at %d: got %q want %q", r, i, got[i], want)
+			}
+		}
+	}
+	mu.Unlock()
+	cancel()
+	select {
+	case <-hubDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("RunContext did not stop after cancel")
+	}
 }
 
 func TestInboundLenGaugeMoves(t *testing.T) {

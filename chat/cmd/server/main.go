@@ -54,7 +54,9 @@ func main() {
 	}
 	hubCtx, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
+	hubDone := make(chan struct{})
 	go func() {
+		defer close(hubDone)
 		if err := hub.RunContext(hubCtx); err != nil {
 			log.Printf("hub stopped: %v", err)
 		}
@@ -139,6 +141,13 @@ func main() {
 
 	// Drain path: stop dispatch first, RunContext drains central+workers.
 	hubCancel()
+	// Wait for the drain before returning so the deferred repo.Disconnect
+	// cannot close Mongo underneath in-flight handlers.
+	select {
+	case <-hubDone:
+	case <-time.After(10 * time.Second):
+		log.Printf("hub drain timeout")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
