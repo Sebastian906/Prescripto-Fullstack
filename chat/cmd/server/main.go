@@ -67,7 +67,18 @@ func main() {
 
 	e := echo.New()
 	e.HideBanner = true
-	e.Use(middleware.Logger())
+	// Redacted access log: method/status/latency only, never URI
+	// (query strings carry tokens). Uses RequestLogger: LoggerWithConfig
+	// is deprecated in Echo v4.
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogMethod:  true,
+		LogStatus:  true,
+		LogLatency: true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			c.Logger().Infof("method=%s status=%d latency=%s", v.Method, v.Status, v.Latency)
+			return nil
+		},
+	}))
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: cfg.AllowedOrigins,
@@ -167,14 +178,7 @@ func handlePending(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 		atoken = c.QueryParam("atoken")
 	}
 
-	masked := atoken
-	if len(masked) > 12 {
-		masked = masked[:8] + "..."
-	}
-	log.Printf("chat: handlePending received atoken (masked)=%s len=%d", masked, len(atoken))
-
 	if _, err := v.ValidateAdmin(atoken); err != nil {
-		log.Printf("chat: handlePending ValidateAdmin error=%v", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}
 
@@ -204,7 +208,6 @@ func handleHistory(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 			atoken = c.QueryParam("atoken")
 		}
 		if _, err2 := v.ValidateAdmin(atoken); err2 != nil {
-			log.Printf("chat: handleHistory ValidateAdmin error=%v", err2)
 			return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 		}
 		claims = nil
@@ -282,7 +285,6 @@ func handleClose(c echo.Context, repo *repository.Repo, v *auth.Validator) error
 		atoken = c.QueryParam("atoken")
 	}
 	if _, err := v.ValidateAdmin(atoken); err != nil {
-		log.Printf("chat: handleClose ValidateAdmin error=%v", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}
 

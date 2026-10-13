@@ -12,6 +12,7 @@ type Translation struct {
 	DoctorProfileInfo   string
 	ContactAdminMsg     string
 	AdminJoinedMsg      string
+	SendFailMsg         string
 	FallbackMsg         string
 	FallbackPriceHint   string
 	FallbackDoctorHint  string
@@ -80,6 +81,8 @@ var translationEN = Translation{
 		"Feel free to type your question while you wait and they'll pick it up when they arrive.",
 
 	AdminJoinedMsg: "An administrator has joined the chat. You're now speaking with a human operator.",
+
+	SendFailMsg: "I couldn't save your message. Please check your connection and try again.",
 
 	FallbackMsg: "I didn't quite catch that. Here's what I can help you with — just pick an option:",
 
@@ -151,6 +154,8 @@ var translationES = Translation{
 		"Puedes escribir tu consulta mientras esperas y el administrador la verá al llegar.",
 
 	AdminJoinedMsg: "Un administrador se ha unido al chat. Ahora estás hablando con una persona.",
+
+	SendFailMsg: "No pude guardar tu mensaje. Revisa tu conexión e inténtalo de nuevo.",
 
 	FallbackMsg: "No estoy seguro de haber entendido bien. Aquí está lo que puedo hacer por ti — elige una opción:",
 

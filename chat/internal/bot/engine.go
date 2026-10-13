@@ -51,6 +51,9 @@ func NewEngine(lang string) *Engine {
 	return &Engine{language: lang}
 }
 
+// Lang reports the engine locale, for user-visible fallback text.
+func (e *Engine) Lang() string { return e.language }
+
 func (e *Engine) Process(userMessage, state string) Response {
 	intent := classify(userMessage, state)
 	trans := GetTranslation(e.language)

@@ -188,7 +188,9 @@
         "online": "Online",
         "placeholder": "Type a message…",
         "loginPrompt": "Please log in to start chatting with our assistant.",
-        "connecting": "Connecting to chat…"
+        "connecting": "Connecting to chat…",
+        "reconnectFailed": "Connection lost. Check your network and try again.",
+        "retry": "Retry"
     },
     "relatedDoctors": {
         "title": "Related Doctors",
