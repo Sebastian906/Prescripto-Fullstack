@@ -29,7 +29,6 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      // ponytail: recommendedTypeChecked flags the pervasive `any` pattern
       // (guards, `as any` mocks, catch values) as errors. Same treatment as
       // no-unsafe-argument above: warn in CI, harden types incrementally.
       '@typescript-eslint/no-unsafe-assignment': 'warn',

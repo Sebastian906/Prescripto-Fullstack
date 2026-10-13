@@ -67,8 +67,17 @@ func main() {
 
 	e := echo.New()
 	e.HideBanner = true
-	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-  	    Format: "method=${method} status=${status} latency=${latency_human}\n",
+	// Redacted access log: method/status/latency only, never URI
+	// (query strings carry tokens). Uses RequestLogger: LoggerWithConfig
+	// is deprecated in Echo v4.
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogMethod:  true,
+		LogStatus:  true,
+		LogLatency: true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			c.Logger().Infof("method=%s status=%d latency=%s", v.Method, v.Status, v.Latency)
+			return nil
+		},
 	}))
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{

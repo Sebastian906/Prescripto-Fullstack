@@ -19,8 +19,12 @@ func TestNoSecretLoggingPatterns(t *testing.T) {
 		"RequestURI", "RawQuery", "${uri}", // query string (?token=) en logs HTTP
 	}
 	var failures []string
-	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	// Un scan incompleto debe fallar el test, nunca dar verde falso.
+	walkErr := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
 			return nil
 		}
 		if !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
@@ -33,7 +37,7 @@ func TestNoSecretLoggingPatterns(t *testing.T) {
 		}
 		b, err := os.ReadFile(p)
 		if err != nil {
-			return nil
+			return err
 		}
 		src := string(b)
 		for _, pat := range forbidden {
@@ -49,6 +53,9 @@ func TestNoSecretLoggingPatterns(t *testing.T) {
 		}
 		return nil
 	})
+	if walkErr != nil {
+		t.Fatalf("redaction scan incomplete: %v", walkErr)
+	}
 	if len(failures) > 0 {
 		t.Fatalf("secret logging patterns found:\n%s", strings.Join(failures, "\n"))
 	}

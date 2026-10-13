@@ -8,6 +8,9 @@ const CHAT_URL = import.meta.env.VITE_CHAT_SERVICE_URL ?? import.meta.env.VITE_C
 export const MAX_RETRIES = 8
 export const BASE_MS = 1000
 export const CAP_MS = 30_000
+// La conexión solo se considera estable tras 10s abierta; los flaps
+// open→drop no deben resetear el presupuesto de reintentos (anti-flap).
+export const STABLE_OPEN_MS = 10_000
 export function computeDelay(attempt, rand = Math.random) {
     return Math.min(BASE_MS * 2 ** attempt, CAP_MS) * (0.5 + rand() * 0.5)
 }
@@ -23,6 +26,7 @@ export function useChat(token, lang = 'en') {
     const seenIdsRef = useRef(new Set())
     const mountedRef = useRef(true)
     const timeoutRef = useRef(null)
+    const stableRef = useRef(null)
     const convIdRef = useRef(null)
     const intentionalCloseRef = useRef(false)
 
@@ -50,6 +54,7 @@ export function useChat(token, lang = 'en') {
     const connect = useCallback(() => {
         if (!token) return
         if (wsRef.current?.readyState === WebSocket.OPEN) return
+        clearTimeout(stableRef.current)
 
         setStatus('connecting')
 
@@ -72,11 +77,21 @@ export function useChat(token, lang = 'en') {
 
         ws.onopen = () => {
             if (!mountedRef.current) return
-            const wasResume = retryRef.current > 0 && convIdRef.current
+            // Gap-fill siempre que haya conversación: los connects manuales
+            // (incl. manualRetry, que resetea el contador) también deben
+            // recuperar lo llegado durante la caída.
+            const wasResume = !!convIdRef.current
             setStatus('open')
-            retryRef.current = 0
-            setRetryCount(0)
             setNeedsManualRetry(false)
+            // Anti-flap: el presupuesto de reintentos solo se resetea tras
+            // una conexión estable; los ciclos open→drop siguen contando
+            // hacia el cap y terminan en retry manual.
+            clearTimeout(stableRef.current)
+            stableRef.current = setTimeout(() => {
+                if (!mountedRef.current) return
+                retryRef.current = 0
+                setRetryCount(0)
+            }, STABLE_OPEN_MS)
             // Gap-fill: lo llegado mientras estábamos caídos se recupera por
             // historia y se mergea por id (sin pérdida ni duplicado).
             if (wasResume) {
@@ -117,7 +132,6 @@ export function useChat(token, lang = 'en') {
             if (!mountedRef.current) return
             try {
                 const msg = JSON.parse(event.data)
-                // ponytail: traza dev-only, sin content (redacción también en consola).
                 if (import.meta.env.DEV) console.debug('[useChat] rx', { id: msg.id, sender: msg.sender, event: msg.event, conv: msg.conversationId })
 
                 // Evento de sistema no renderizable: sincroniza el id real.
@@ -160,6 +174,7 @@ export function useChat(token, lang = 'en') {
             if (!mountedRef.current) return
             if (wsRef.current !== ws) return // callback obsoleto de un socket ya reemplazado
             wsRef.current = null
+            clearTimeout(stableRef.current)
             if (intentionalCloseRef.current) {
                 intentionalCloseRef.current = false
                 setStatus('closed')
@@ -196,6 +211,7 @@ export function useChat(token, lang = 'en') {
         return () => {
             mountedRef.current = false
             clearTimeout(timeoutRef.current)
+            clearTimeout(stableRef.current)
             intentionalCloseRef.current = true
             try { wsRef.current?.close(1000, 'unmount') } catch { /* noop */ }
             wsRef.current = null

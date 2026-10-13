@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"hash/fnv"
-	// "log"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -190,7 +190,7 @@ func (c *client) readPump() {
 		_, rawMsg, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				// log.Printf("ws read error [%s]: %v", c.conversationID, err)
+				log.Printf("ws read error [%s]: %v", c.conversationID, err)
 			}
 			break
 		}
@@ -397,6 +397,27 @@ func (h *Hub) RunContext(ctx context.Context) error {
 	return g.Wait()
 }
 
+// sendFailure reports a persistence failure with a visible, ephemeral bot
+// bubble (never stored). The client sees feedback instead of a phantom
+// message that would vanish on resume.
+func (h *Hub) sendFailure(c *client) {
+	lang := "en"
+	if c.engine != nil {
+		lang = c.engine.Lang()
+	}
+	data, _ := json.Marshal(OutboundMessage{
+		ID:             primitive.NewObjectID().Hex(),
+		ConversationID: c.conversationID,
+		Sender:         "bot",
+		SenderID:       "bot",
+		Content:        bot.GetTranslation(lang).SendFailMsg,
+		Metadata:       repository.BotMetadata{Intent: "send_failed"},
+		Event:          "send_failed",
+		CreatedAt:      time.Now(),
+	})
+	_ = c.trySend(data)
+}
+
 func (h *Hub) handleInbound(evt inboundEvent) {
 	c := evt.client
 	content := evt.content
@@ -418,7 +439,11 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		Content:   content,
 		CreatedAt: now,
 	}
-	_ = h.repo.AppendMessage(ctx, c.conversationID, userMsg)
+	// Persist first: never broadcast what isn't stored (no phantoms on resume).
+	if err := h.repo.AppendMessage(ctx, c.conversationID, userMsg); err != nil {
+		h.sendFailure(c)
+		return
+	}
 
 	h.broadcast(c.conversationID, OutboundMessage{
 		ID:             userMsg.ID.Hex(),
@@ -458,7 +483,10 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		},
 		CreatedAt: time.Now(),
 	}
-	_ = h.repo.AppendMessage(ctx, c.conversationID, botMsg)
+	if err := h.repo.AppendMessage(ctx, c.conversationID, botMsg); err != nil {
+		h.sendFailure(c)
+		return
+	}
 
 	h.broadcast(c.conversationID, OutboundMessage{
 		ID:             botMsg.ID.Hex(),
@@ -554,11 +582,13 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 	go cl.writePump()
 	go cl.readPump()
 
-	// Welcome on every fresh open (brand-new or implicit reuse), never on
-	// resume: the client keeps its messages there, so anything renderable
-	// would duplicate the greeting. The welcome is ephemeral (not persisted).
-	isNew := !resumed
-	if isNew {
+	// Ephemeral greeting on every fresh open (explicit UX: the user always
+	// sees a welcome on open), never on resume (would duplicate). Only a
+	// genuinely new conversation persists the greeting state: implicit
+	// reuse must not clobber an ongoing dialog's BotState.
+	showWelcome := !resumed
+	persistWelcomeState := showWelcome && len(conv.Messages) == 0
+	if showWelcome {
 		welcomeResp := cl.engine.Process("hello", "start")
 		welcome := OutboundMessage{
 			ID:             primitive.NewObjectID().Hex(),
@@ -572,7 +602,9 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 		}
 		data, _ := json.Marshal(welcome)
 		_ = cl.trySend(data)
-		_ = h.repo.UpdateBotState(ctx, conv.ID.Hex(), welcomeResp.NextState)
+		if persistWelcomeState {
+			_ = h.repo.UpdateBotState(ctx, conv.ID.Hex(), welcomeResp.NextState)
+		}
 	}
 	// Sync the client whenever the fallback selected a conversation other
 	// than the requested one (stale/closed/foreign ID, or implicit reuse of
