@@ -188,7 +188,9 @@
         "online": "En línea",
         "placeholder": "Escribe un mensaje…",
         "loginPrompt": "Inicia sesión para chatear con nuestro asistente.",
-        "connecting": "Conectando al chat…"
+        "connecting": "Conectando al chat…",
+        "reconnectFailed": "Conexión perdida. Revisa tu red e inténtalo de nuevo.",
+        "retry": "Reintentar"
     },
     "relatedDoctors": {
         "title": "Médicos Relacionados",

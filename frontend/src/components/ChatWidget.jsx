@@ -22,7 +22,7 @@ const ChatWidget = () => {
     const { token } = useContext(AppContext)
     const { t, i18n } = useTranslation()
     const navigate = useNavigate()
-    const { messages, status, send, sendOption, isConnected } = useChat(token, i18n.language)
+    const { messages, status, send, sendOption, isConnected, needsManualRetry, manualRetry } = useChat(token, i18n.language)
     const [open, setOpen] = useState(false)
     const [input, setInput] = useState('')
     const bottomRef = useRef(null)
@@ -45,6 +45,7 @@ const ChatWidget = () => {
         connecting: 'bg-yellow-400 animate-pulse',
         error: 'bg-red-400',
         closed: 'bg-red-400',
+        failed: 'bg-red-400',
         idle: 'bg-slate-300',
     }[status] ?? 'bg-slate-300'
 
@@ -114,6 +115,17 @@ const ChatWidget = () => {
                         </svg>
                     </button>
                 </div>
+                {needsManualRetry && (
+                    <div className="px-4 py-2 bg-red-50 border-b border-red-100 flex items-center justify-between gap-2 shrink-0">
+                        <span className="text-xs text-red-600">{t('chat.reconnectFailed')}</span>
+                        <button
+                            onClick={manualRetry}
+                            className="text-xs px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full cursor-pointer transition-colors font-medium shrink-0"
+                        >
+                            {t('chat.retry')}
+                        </button>
+                    </div>
+                )}
                 <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 bg-slate-50">
                     {messages.length === 0 && !isConnected && (
                         <div className="flex items-center justify-center h-full text-slate-400 text-sm text-center px-6">

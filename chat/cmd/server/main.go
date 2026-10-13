@@ -67,7 +67,9 @@ func main() {
 
 	e := echo.New()
 	e.HideBanner = true
-	e.Use(middleware.Logger())
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+  	    Format: "method=${method} status=${status} latency=${latency_human}\n",
+	}))
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: cfg.AllowedOrigins,
@@ -167,14 +169,7 @@ func handlePending(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 		atoken = c.QueryParam("atoken")
 	}
 
-	masked := atoken
-	if len(masked) > 12 {
-		masked = masked[:8] + "..."
-	}
-	log.Printf("chat: handlePending received atoken (masked)=%s len=%d", masked, len(atoken))
-
 	if _, err := v.ValidateAdmin(atoken); err != nil {
-		log.Printf("chat: handlePending ValidateAdmin error=%v", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}
 
@@ -204,7 +199,6 @@ func handleHistory(c echo.Context, repo *repository.Repo, v *auth.Validator) err
 			atoken = c.QueryParam("atoken")
 		}
 		if _, err2 := v.ValidateAdmin(atoken); err2 != nil {
-			log.Printf("chat: handleHistory ValidateAdmin error=%v", err2)
 			return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 		}
 		claims = nil
@@ -282,7 +276,6 @@ func handleClose(c echo.Context, repo *repository.Repo, v *auth.Validator) error
 		atoken = c.QueryParam("atoken")
 	}
 	if _, err := v.ValidateAdmin(atoken); err != nil {
-		log.Printf("chat: handleClose ValidateAdmin error=%v", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}
 

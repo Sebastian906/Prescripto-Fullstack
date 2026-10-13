@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"hash/fnv"
-	"log"
+	// "log"
 	"net/http"
 	"strings"
 	"sync"
@@ -85,7 +85,7 @@ type InboundMessage struct {
 }
 
 type OutboundMessage struct {
-	ID             string                 `json:"id"`
+	ID             string                 `json:"id,omitempty"`
 	ConversationID string                 `json:"conversationId"`
 	Sender         string                 `json:"sender"`
 	SenderID       string                 `json:"senderId"`
@@ -190,7 +190,7 @@ func (c *client) readPump() {
 		_, rawMsg, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("ws read error [%s]: %v", c.conversationID, err)
+				// log.Printf("ws read error [%s]: %v", c.conversationID, err)
 			}
 			break
 		}
@@ -406,58 +406,48 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 
 	conv, err := h.repo.FindByID(ctx, c.conversationID)
 	if err != nil {
-		log.Printf("hub: conversation not found %s: %v", c.conversationID, err)
 		return
 	}
-
-	// Debug: show conversation state and inbound content
-	log.Printf("hub: inbound conv=%s status=%s botState=%s user=%s content=%q", conv.ID.Hex(), conv.Status, conv.BotState, c.userID, content)
 
 	now := time.Now()
 
 	userMsg := repository.Message{
+		ID:        primitive.NewObjectID(),
 		Sender:    c.role,
 		SenderID:  c.userID,
 		Content:   content,
 		CreatedAt: now,
 	}
-	if err := h.repo.AppendMessage(ctx, c.conversationID, userMsg); err != nil {
-		log.Printf("hub: AppendMessage error: %v", err)
-	}
-	log.Printf("hub: appended user message conv=%s user=%s", c.conversationID, c.userID)
+	_ = h.repo.AppendMessage(ctx, c.conversationID, userMsg)
 
 	h.broadcast(c.conversationID, OutboundMessage{
+		ID:             userMsg.ID.Hex(),
 		ConversationID: c.conversationID,
 		Sender:         c.role,
 		SenderID:       c.userID,
 		Content:        content,
 		CreatedAt:      now,
 	})
-	log.Printf("hub: broadcasted user message conv=%s user=%s", c.conversationID, c.userID)
 
 	if conv.Status == repository.StatusWithAdmin {
-		log.Printf("hub: conv=%s has admin present; skipping bot processing", c.conversationID)
 		return
 	}
 
 	if conv.Status == repository.StatusWaitingAdmin {
-		log.Printf("hub: conv=%s is waiting admin; skipping bot processing", c.conversationID)
 		return
 	}
 
 	botResp := c.engine.Process(content, conv.BotState)
-	log.Printf("hub: bot processed conv=%s user=%s botState=%s -> intent=%s nextState=%s text=%q", c.conversationID, c.userID, conv.BotState, botResp.Metadata.Intent, botResp.NextState, botResp.Text)
 
 	if botResp.NextState == "waiting_admin" {
-		log.Printf("hub: conv=%s bot requested human escalation -> setting waiting_admin", c.conversationID)
 		_ = h.repo.UpdateStatus(ctx, c.conversationID, repository.StatusWaitingAdmin)
 		_ = h.repo.UpdateBotState(ctx, c.conversationID, "waiting_admin")
 	} else {
-		log.Printf("hub: conv=%s updating botState -> %s", c.conversationID, botResp.NextState)
 		_ = h.repo.UpdateBotState(ctx, c.conversationID, botResp.NextState)
 	}
 
 	botMsg := repository.Message{
+		ID:       primitive.NewObjectID(),
 		Sender:   "bot",
 		SenderID: "bot",
 		Content:  botResp.Text,
@@ -468,11 +458,10 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		},
 		CreatedAt: time.Now(),
 	}
-	if err := h.repo.AppendMessage(ctx, c.conversationID, botMsg); err != nil {
-		log.Printf("hub: AppendMessage bot error: %v", err)
-	}
+	_ = h.repo.AppendMessage(ctx, c.conversationID, botMsg)
 
 	h.broadcast(c.conversationID, OutboundMessage{
+		ID:             botMsg.ID.Hex(),
 		ConversationID: c.conversationID,
 		Sender:         "bot",
 		SenderID:       "bot",
@@ -481,7 +470,6 @@ func (h *Hub) handleInbound(evt inboundEvent) {
 		Metadata:       convertMetadata(botResp.Metadata),
 		CreatedAt:      botMsg.CreatedAt,
 	})
-	log.Printf("hub: broadcasted bot message conv=%s text=%q", c.conversationID, botResp.Text)
 }
 
 func (h *Hub) broadcast(conversationID string, msg OutboundMessage) {
@@ -566,10 +554,10 @@ func (h *Hub) HandleUserWS(c echo.Context, v *auth.Validator) error {
 	go cl.writePump()
 	go cl.readPump()
 
-	// Only a brand-new conversation gets a bot welcome. On resume the client
-	// keeps its messages (plus GET /api/chat/history/:conversationId), so
-	// emitting anything renderable here would duplicate the welcome.
-	isNew := !resumed && len(conv.Messages) == 0
+	// Welcome on every fresh open (brand-new or implicit reuse), never on
+	// resume: the client keeps its messages there, so anything renderable
+	// would duplicate the greeting. The welcome is ephemeral (not persisted).
+	isNew := !resumed
 	if isNew {
 		welcomeResp := cl.engine.Process("hello", "start")
 		welcome := OutboundMessage{
@@ -622,15 +610,8 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 		c.Request().Header.Get(echo.HeaderAuthorization),
 	)
 
-	masked := atoken
-	if len(masked) > 12 {
-		masked = masked[:8] + "..."
-	}
-	log.Printf("chat: HandleAdminWS received atoken (masked)=%s len=%d conv=%s", masked, len(atoken), c.Param("conversationId"))
-
 	claims, err := v.ValidateAdmin(atoken)
 	if err != nil {
-		log.Printf("chat: HandleAdminWS ValidateAdmin error=%v", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"message": "unauthorized"})
 	}
 
@@ -669,6 +650,7 @@ func (h *Hub) HandleAdminWS(c echo.Context, v *auth.Validator) error {
 
 	trans := bot.GetTranslation(lang)
 	joinMsg := OutboundMessage{
+		ID:             primitive.NewObjectID().Hex(),
 		ConversationID: convID,
 		Sender:         "bot",
 		SenderID:       "bot",
