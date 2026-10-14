@@ -14,6 +14,7 @@
 - [Alta Disponibilidad](#alta-disponibilidad)
 - [Arquitectura de Seguridad](#arquitectura-de-seguridad)
 - [Consideraciones de Desempeño](#consideraciones-de-desempeño)
+- [ADR-01: SOA híbrida se mantiene](#adr-01-soa-híbrida-se-mantiene)
 - [Extensibilidad Futura](#extensibilidad-futura)
 
 ## Resumen Ejecutivo
@@ -1164,6 +1165,64 @@ Optimización de Recursos:
 ├─ Tree shaking para código no usado
 └─ Compresión Gzip para respuestas
 ```
+
+## ADR-01: SOA híbrida se mantiene
+
+Estado: Aceptado
+Fecha: 2026-10-14
+Autor: Sebastian906
+
+### Contexto
+
+SOA híbrida sana: monolito modular NestJS (`backend/src/app.module.ts`)
+más chat Go standalone (`chat/cmd/server/main.go`, `GET /ws/chat`,
+`GET /ws/admin/:conversationId`, `GET /api/chat/pending`,
+`GET /api/chat/history/:conversationId`, `PATCH /api/chat/close/:conversationId`).
+Sin ADR que registre la decisión; la presión de partir a microservicios no tiene barra escrita.
+
+### Decisión
+
+Se mantiene el estilo actual. Sin partir a microservicios sin evidencia de escala.
+Ports-and-adapters SOLO en módulos nuevos (Availability / Waitlist /
+Notification) vía ports `AvailabilityRepository` y `Notifier`
+(`backend/src/shared/ports/`). Sin reescribir el monolito, sin retrofit
+de módulos viejos (auth, users, doctors, appointments, scheduling,
+specialities, reports, admin, migration).
+
+### Disparadores de split (medibles, cualquiera abre la discusión)
+
+- Equipo > 8 devs con contención sostenida de merges/deploys en un repo.
+- Dolor de acoplamiento de deploy: un módulo fuerza rollback de módulos
+  no relacionados de forma repetida (visible en notas de release).
+- El chat necesita escalar CPU independiente del proceso NestJS (brecha
+  sostenida del umbral p95 de latencia WS con backend ocioso, según `/metrics`).
+- Saturación del proceso único (event-loop lag / pausas GC) no resuelta
+  con escalado vertical ni índices/caché.
+- Límites de dominio estables y bien definidos, probados por los ports.
+
+### Consecuencias
+
+Positivas: coste operativo bajo, dev local simple (`pnpm` por paquete,
+puertos fijos 3000/5173/5174/4000), evolutivo tras los ports.
+Negativas: el deploy es atómico (sin deploys independientes), riesgo de
+vecino ruidoso entre módulos, futura extracción exigirá trabajo de adapters.
+
+### Alternativas consideradas
+
+- Microservicios ahora: rechazado, sin señal de escala, multiplica coste ops.
+- Retrofit hexagonal de módulos viejos: rechazado, alto churn sin valor de usuario.
+- Archivo ADR separado (`docs/ADR-01-hybrid-soa.md`): rechazado a favor de
+  este registro embebido para evitar proliferación de `.md` comprometidos;
+  extraer a `docs/adr/` solo cuando haya 3+ ADRs.
+
+### Ports
+
+- `AvailabilityRepository`: `claimSlot` / `releaseSlot` / `getBookedSlots`
+  (`session?: unknown`; el adapter Mongoose castea a `ClientSession`).
+- `Notifier`: `notify({to, subject, html, text?})`; el adapter SMTP reutiliza
+  el patrón nodemailer de `password-reset.service.ts` vía `ConfigService`.
+- Los tests mockean los ports (ver `backend/src/tests/ports.spec.ts`);
+  sin import directo de Mongoose en dominio/servicios nuevos.
 
 ## Extensibilidad Futura
 
