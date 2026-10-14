@@ -29,24 +29,42 @@ describe('shared ports contract (mocked, no Mongoose)', () => {
       releaseSlot: jest.fn().mockResolvedValue(undefined),
       getBookedSlots: jest.fn().mockResolvedValue([]),
     };
-    const notifier: Notifier = { notify: jest.fn().mockResolvedValue(undefined) };
-    const ok = await bookAndNotify(repo, notifier, 'doc1', '5_11_2026', '02:30 PM', 'a@test.com');
+    const notifyMock = jest.fn().mockResolvedValue(undefined);
+    const notifier: Notifier = { notify: notifyMock };
+    const ok = await bookAndNotify(
+      repo,
+      notifier,
+      'doc1',
+      '5_11_2026',
+      '02:30 PM',
+      'a@test.com',
+    );
     expect(ok).toBe(true);
-    expect(notifier.notify).toHaveBeenCalledTimes(1);
-    expect(notifier.notify).toHaveBeenCalledWith(
+    expect(notifyMock).toHaveBeenCalledTimes(1);
+    expect(notifyMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'a@test.com' }),
     );
   });
 
   it('taken/capped slot sends nothing', async () => {
     const repo: AvailabilityRepository = {
-      claimSlot: jest.fn().mockResolvedValue({ claimed: false, reason: 'taken' }),
+      claimSlot: jest
+        .fn()
+        .mockResolvedValue({ claimed: false, reason: 'taken' }),
       releaseSlot: jest.fn().mockResolvedValue(undefined),
       getBookedSlots: jest.fn().mockResolvedValue(['02:30 PM']),
     };
-    const notifier: Notifier = { notify: jest.fn().mockResolvedValue(undefined) };
-    const ok = await bookAndNotify(repo, notifier, 'doc1', '5_11_2026', '02:30 PM', 'a@test.com');
+    const notifyMock = jest.fn().mockResolvedValue(undefined);
+    const notifier: Notifier = { notify: notifyMock };
+    const ok = await bookAndNotify(
+      repo,
+      notifier,
+      'doc1',
+      '5_11_2026',
+      '02:30 PM',
+      'a@test.com',
+    );
     expect(ok).toBe(false);
-    expect(notifier.notify).not.toHaveBeenCalled();
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 });

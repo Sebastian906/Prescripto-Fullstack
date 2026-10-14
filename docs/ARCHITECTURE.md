@@ -1167,8 +1167,8 @@ Asset Optimization:
 ## ADR-01: Hybrid SOA stays
 
 Status: Accepted
-Date: <!-- YYYY-MM-DD -->
-Author: <!-- your name -->
+Date: 2026-10-14
+Author: Sebastian906
 
 ### Context
 
@@ -1219,7 +1219,7 @@ between modules, future extraction needs adapter work.
   (`session?: unknown`; Mongoose adapter casts to `ClientSession`).
 - `Notifier`: `notify({to, subject, html, text?})`; SMTP adapter reuses
   the `password-reset.service.ts` nodemailer pattern via `ConfigService`.
-- Tests mock the ports (see `backend/src/shared/ports/ports.spec.ts`);
+- Tests mock the ports (see `backend/src/tests/ports.spec.ts`);
   no direct Mongoose import in domain/services of new modules.
 
 ## Future Extensibility

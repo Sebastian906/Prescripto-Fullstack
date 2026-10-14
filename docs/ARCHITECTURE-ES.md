@@ -1169,8 +1169,8 @@ Optimización de Recursos:
 ## ADR-01: SOA híbrida se mantiene
 
 Estado: Aceptado
-Fecha: <!-- AAAA-MM-DD -->
-Autor: <!-- tu nombre -->
+Fecha: 2026-10-14
+Autor: Sebastian906
 
 ### Contexto
 
@@ -1194,8 +1194,8 @@ specialities, reports, admin, migration).
 - Equipo > 8 devs con contención sostenida de merges/deploys en un repo.
 - Dolor de acoplamiento de deploy: un módulo fuerza rollback de módulos
   no relacionados de forma repetida (visible en notas de release).
-- El chat necesita escalar CPU independiente del proceso NestJS (p95 de
-  latencia WS roto con backend ocioso, según `/metrics`).
+- El chat necesita escalar CPU independiente del proceso NestJS (brecha
+  sostenida del umbral p95 de latencia WS con backend ocioso, según `/metrics`).
 - Saturación del proceso único (event-loop lag / pausas GC) no resuelta
   con escalado vertical ni índices/caché.
 - Límites de dominio estables y bien definidos, probados por los ports.
@@ -1221,7 +1221,7 @@ vecino ruidoso entre módulos, futura extracción exigirá trabajo de adapters.
   (`session?: unknown`; el adapter Mongoose castea a `ClientSession`).
 - `Notifier`: `notify({to, subject, html, text?})`; el adapter SMTP reutiliza
   el patrón nodemailer de `password-reset.service.ts` vía `ConfigService`.
-- Los tests mockean los ports (ver `src/tests/ports.spec.ts`);
+- Los tests mockean los ports (ver `backend/src/tests/ports.spec.ts`);
   sin import directo de Mongoose en dominio/servicios nuevos.
 
 ## Extensibilidad Futura
