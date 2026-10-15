@@ -24,6 +24,8 @@ import { HttpRequestIdFilter } from './shared/filters/http-request-id.filter';
 import { WaitlistModule } from './waitlist/waitlist.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { AvailabilityModule } from './availability/availability.module';
+import { CacheModule } from './shared/cache/cache.module';
+import { CacheInterceptor } from './shared/cache/cache.interceptor';
 
 @Module({
   imports: [
@@ -45,12 +47,14 @@ import { AvailabilityModule } from './availability/availability.module';
     WaitlistModule,
     ReferralsModule,
     AvailabilityModule,
+    CacheModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     PostgresService,
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: CacheInterceptor },
     { provide: APP_FILTER, useClass: HttpRequestIdFilter },
   ],
 })

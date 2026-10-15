@@ -16,6 +16,7 @@ import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { CompleteAppointmentDto } from './dto/complete-appointment.dto';
 import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
+import { CacheTtl } from 'src/shared/cache/cache.interceptor';
 
 @ApiTags('Doctors')
 @Controller('api/doctors')
@@ -36,6 +37,7 @@ export class DoctorsController {
 
   @Get('list')
   @ApiOperation({ summary: 'Get list of doctors' })
+  @CacheTtl(60_000, () => 'doctors:list')
   async getDoctorsList() {
     return this.doctorsService.doctorList();
   }

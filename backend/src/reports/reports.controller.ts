@@ -15,6 +15,7 @@ import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
 import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
 import { BackfillMonthlyStatsDto } from './dto/get-report.dto';
 import { annualReportToCsv } from './utils/annual-report-csv.util';
+import { CacheTtl } from 'src/shared/cache/cache.interceptor';
 
 @ApiTags('Reports')
 @Controller('api/reports')
@@ -35,6 +36,12 @@ export class ReportsController {
   @ApiQuery({ name: 'docId', required: false })
   @ApiQuery({ name: 'format', required: false, enum: ['csv', 'json'] })
   @UseGuards(AuthAdminGuard)
+  @CacheTtl(300_000, (req) => {
+    // CSV = streaming (res.send): no cacheable.
+    if (String(req.query.format ?? '').toLowerCase() === 'csv') return undefined;
+    const docId = (req.query.docId as string) ?? GLOBAL_DOC_ID;
+    return `reports:annual:${docId}:${req.query.year}`;
+  })
   async getAnnualAdmin(
     @Query('year') year: string,
     @Query('docId') docId?: string,

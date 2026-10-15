@@ -3,6 +3,7 @@ import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import { ReportsService, GLOBAL_DOC_ID } from './reports.service';
 import { MonthlyStats } from './schemas/monthly-stats.schema';
 import { MonthlyStatsPatient } from './schemas/monthly-stats-patient.schema';
+import { CacheService } from 'src/shared/cache/cache.service';
 
 function makeStatsModel(state: {
   inline: string[] | null;
@@ -79,6 +80,7 @@ describe('ReportsService spill (cap 5000)', () => {
           provide: getConnectionToken(),
           useValue: { collection: jest.fn() },
         },
+        { provide: CacheService, useValue: { invalidatePrefix: jest.fn() } },
       ],
     }).compile();
     return {
@@ -346,6 +348,7 @@ describe('ReportsService spill (cap 5000)', () => {
           provide: getConnectionToken(),
           useValue: { collection: jest.fn() },
         },
+        { provide: CacheService, useValue: { invalidatePrefix: jest.fn() } },
       ],
     }).compile();
     const service = module.get<ReportsService>(ReportsService);
@@ -486,6 +489,7 @@ describe('ReportsService spill (cap 5000)', () => {
           provide: getConnectionToken(),
           useValue: { collection: jest.fn() },
         },
+        { provide: CacheService, useValue: { invalidatePrefix: jest.fn() } },
       ],
     }).compile();
     const svc = mod.get<ReportsService>(ReportsService);

@@ -10,6 +10,7 @@ import {
   MonthlyStatsPatientDocument,
 } from './schemas/monthly-stats-patient.schema';
 import { Connection, Model } from 'mongoose';
+import { CacheService } from 'src/shared/cache/cache.service';
 
 // Constante para métricas globales del sistema
 export const GLOBAL_DOC_ID = '__global__';
@@ -32,6 +33,7 @@ export class ReportsService {
     private readonly spillModel: Model<MonthlyStatsPatientDocument>,
     @InjectConnection()
     private readonly connection: Connection,
+    private readonly cacheService: CacheService,
   ) {}
 
   /**
@@ -56,6 +58,7 @@ export class ReportsService {
         patientId: userId,
       }),
     ]);
+    this.invalidateStatsCache(docId);
   }
 
   /**
@@ -80,6 +83,7 @@ export class ReportsService {
         earnings: amount,
       }),
     ]);
+    this.invalidateStatsCache(docId);
   }
 
   /**
@@ -96,6 +100,18 @@ export class ReportsService {
         cancelledAppointments: 1,
       }),
     ]);
+    this.invalidateStatsCache(docId);
+  }
+
+  /**
+   * Invalida las entradas cacheadas del reporte anual afectadas por una
+   * mutación de stats: la fila del doctor y la global (ambas se $inc juntas).
+   * `invalidatePrefix` sin `year` borra todas las variantes anuales de esas
+   * dos filas; el conjunto es acotado (doctores × años).
+   */
+  private invalidateStatsCache(docId: string): void {
+    this.cacheService.invalidatePrefix(`reports:annual:${docId}:`);
+    this.cacheService.invalidatePrefix(`reports:annual:${GLOBAL_DOC_ID}:`);
   }
 
   /**
