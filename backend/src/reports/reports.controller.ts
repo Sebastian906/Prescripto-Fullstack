@@ -15,6 +15,11 @@ import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
 import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
 import { BackfillMonthlyStatsDto } from './dto/get-report.dto';
 import { annualReportToCsv } from './utils/annual-report-csv.util';
+import { CacheTtl } from 'src/shared/cache/cache.interceptor';
+
+// Express tipa query como string | string[] | ParsedQs; aquí solo aceptamos string.
+const asQueryString = (v: unknown): string | undefined =>
+  typeof v === 'string' ? v : undefined;
 
 @ApiTags('Reports')
 @Controller('api/reports')
@@ -35,6 +40,16 @@ export class ReportsController {
   @ApiQuery({ name: 'docId', required: false })
   @ApiQuery({ name: 'format', required: false, enum: ['csv', 'json'] })
   @UseGuards(AuthAdminGuard)
+  @CacheTtl(300_000, (req) => {
+    // CSV = streaming (res.send): no cacheable.
+    const format = asQueryString(req.query.format);
+    if (format?.toLowerCase() === 'csv') return undefined;
+    const docId = asQueryString(req.query.docId) ?? GLOBAL_DOC_ID;
+    const year = asQueryString(req.query.year);
+    // year inválido (array/objeto/no 4 dígitos): no cachear.
+    if (!year || !/^\d{4}$/.test(year)) return undefined;
+    return `reports:annual:${docId}:${year}`;
+  })
   async getAnnualAdmin(
     @Query('year') year: string,
     @Query('docId') docId?: string,
