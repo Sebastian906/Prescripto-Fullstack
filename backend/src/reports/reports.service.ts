@@ -48,17 +48,22 @@ export class ReportsService {
     date: Date,
   ): Promise<void> {
     const { year, month } = this.extractYearMonth(date);
-    await Promise.all([
-      this.incrementStats(docId, year, month, {
-        totalAppointments: 1,
-        patientId: userId,
-      }),
-      this.incrementStats(GLOBAL_DOC_ID, year, month, {
-        totalAppointments: 1,
-        patientId: userId,
-      }),
-    ]);
-    this.invalidateStatsCache(docId);
+    try {
+      await Promise.all([
+        this.incrementStats(docId, year, month, {
+          totalAppointments: 1,
+          patientId: userId,
+        }),
+        this.incrementStats(GLOBAL_DOC_ID, year, month, {
+          totalAppointments: 1,
+          patientId: userId,
+        }),
+      ]);
+    } finally {
+      // finally: si el $inc falla a medias, invalidar igual es más seguro
+      // que arriesgar servir un agregado stale.
+      this.invalidateStatsCache(docId);
+    }
   }
 
   /**
@@ -73,17 +78,20 @@ export class ReportsService {
     date: Date,
   ): Promise<void> {
     const { year, month } = this.extractYearMonth(date);
-    await Promise.all([
-      this.incrementStats(docId, year, month, {
-        completedAppointments: 1,
-        earnings: amount,
-      }),
-      this.incrementStats(GLOBAL_DOC_ID, year, month, {
-        completedAppointments: 1,
-        earnings: amount,
-      }),
-    ]);
-    this.invalidateStatsCache(docId);
+    try {
+      await Promise.all([
+        this.incrementStats(docId, year, month, {
+          completedAppointments: 1,
+          earnings: amount,
+        }),
+        this.incrementStats(GLOBAL_DOC_ID, year, month, {
+          completedAppointments: 1,
+          earnings: amount,
+        }),
+      ]);
+    } finally {
+      this.invalidateStatsCache(docId);
+    }
   }
 
   /**
@@ -92,15 +100,18 @@ export class ReportsService {
    */
   async onAppointmentCancelled(docId: string, date: Date): Promise<void> {
     const { year, month } = this.extractYearMonth(date);
-    await Promise.all([
-      this.incrementStats(docId, year, month, {
-        cancelledAppointments: 1,
-      }),
-      this.incrementStats(GLOBAL_DOC_ID, year, month, {
-        cancelledAppointments: 1,
-      }),
-    ]);
-    this.invalidateStatsCache(docId);
+    try {
+      await Promise.all([
+        this.incrementStats(docId, year, month, {
+          cancelledAppointments: 1,
+        }),
+        this.incrementStats(GLOBAL_DOC_ID, year, month, {
+          cancelledAppointments: 1,
+        }),
+      ]);
+    } finally {
+      this.invalidateStatsCache(docId);
+    }
   }
 
   /**
@@ -108,6 +119,10 @@ export class ReportsService {
    * mutación de stats: la fila del doctor y la global (ambas se $inc juntas).
    * `invalidatePrefix` sin `year` borra todas las variantes anuales de esas
    * dos filas; el conjunto es acotado (doctores × años).
+   * Race aceptada: un `getAnnualReport` concurrente que lea antes del $inc y
+   * repoble la entrada después de este `invalidatePrefix` puede dejar un
+   * agregado stale hasta que expire su TTL. Aceptable: el TTL es de 5 min y
+   * el dato corrige en el siguiente refresh.
    */
   private invalidateStatsCache(docId: string): void {
     this.cacheService.invalidatePrefix(`reports:annual:${docId}:`);
@@ -420,6 +435,9 @@ export class ReportsService {
       }
     }
     await flushStats();
+    // Un backfill reescribe stats: invalida el agregado anual cacheado. En
+    // dryRun no se tocó nada, así que se deja la caché intacta.
+    if (!opts.dryRun) this.cacheService.invalidatePrefix('reports:annual:');
     return {
       buckets: buckets.size,
       upserted,

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -19,6 +20,7 @@ import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
 import { ReportsService } from 'src/reports/reports.service';
 import { AuditService } from 'src/audit/audit.service';
 import { AvailabilityService } from 'src/availability/availability.service';
+import { CacheService } from 'src/shared/cache/cache.service';
 
 @Injectable()
 export class DoctorsService {
@@ -32,6 +34,8 @@ export class DoctorsService {
     private readonly reportsService: ReportsService,
     private readonly auditService: AuditService,
     private readonly availabilityService: AvailabilityService,
+    // @Optional: los specs construyen el service sin CacheService.
+    @Optional() private readonly cacheService?: CacheService,
   ) {}
 
   async getAllDoctors() {
@@ -52,6 +56,7 @@ export class DoctorsService {
       available: !doctor.available,
     });
 
+    this.invalidateDoctorsList();
     return { success: true, message: 'Availability changed' };
   }
 
@@ -245,6 +250,12 @@ export class DoctorsService {
       available,
     });
 
+    this.invalidateDoctorsList();
     return { success: true, message: 'Profile Updated' };
+  }
+
+  // El listado público se cachea 60s; cualquier mutación lo invalida al instante.
+  private invalidateDoctorsList(): void {
+    this.cacheService?.invalidatePrefix('doctors:list');
   }
 }

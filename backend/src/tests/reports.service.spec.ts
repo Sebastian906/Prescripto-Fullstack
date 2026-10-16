@@ -57,4 +57,26 @@ describe('ReportsService', () => {
       `reports:annual:${GLOBAL_DOC_ID}:`,
     );
   });
+
+  it('onAppointmentCompleted invalida la caché del doctor y la global', async () => {
+    statsModel.updateOne.mockResolvedValue({});
+
+    await service.onAppointmentCompleted('d1', 'u1', 100, new Date(2026, 0, 5));
+
+    expect(cache.invalidatePrefix).toHaveBeenCalledWith('reports:annual:d1:');
+    expect(cache.invalidatePrefix).toHaveBeenCalledWith(
+      `reports:annual:${GLOBAL_DOC_ID}:`,
+    );
+  });
+
+  it('onAppointmentCancelled invalida la caché del doctor y la global', async () => {
+    statsModel.updateOne.mockResolvedValue({});
+
+    await service.onAppointmentCancelled('d1', new Date(2026, 0, 5));
+
+    expect(cache.invalidatePrefix).toHaveBeenCalledWith('reports:annual:d1:');
+    expect(cache.invalidatePrefix).toHaveBeenCalledWith(
+      `reports:annual:${GLOBAL_DOC_ID}:`,
+    );
+  });
 });

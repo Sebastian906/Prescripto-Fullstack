@@ -3,6 +3,7 @@ import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import { ReportsService, GLOBAL_DOC_ID } from 'src/reports/reports.service';
 import { MonthlyStats } from 'src/reports/schemas/monthly-stats.schema';
 import { MonthlyStatsPatient } from 'src/reports/schemas/monthly-stats-patient.schema';
+import { CacheService } from 'src/shared/cache/cache.service';
 
 type Appt = {
   docId: string;
@@ -228,6 +229,7 @@ describe('ReportsService concurrency (50 bookings)', () => {
           useValue: h.spillModel,
         },
         { provide: getConnectionToken(), useValue: h.connection },
+        { provide: CacheService, useValue: { invalidatePrefix: jest.fn() } },
       ],
     }).compile();
     const service = module.get<ReportsService>(ReportsService);
@@ -365,6 +367,7 @@ describe('ReportsService concurrency (50 bookings)', () => {
           useValue: h.spillModel,
         },
         { provide: getConnectionToken(), useValue: h.connection },
+        { provide: CacheService, useValue: { invalidatePrefix: jest.fn() } },
       ],
     }).compile();
     const service = module.get<ReportsService>(ReportsService);

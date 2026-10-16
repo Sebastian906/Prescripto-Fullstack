@@ -45,7 +45,8 @@ describe('CacheInterceptor', () => {
   it('miss: ejecuta el handler, emite ETag y X-Cache: MISS', async () => {
     withOptions({ ttlMs: 60_000, key: () => 'doctors:list' });
     const r = res();
-    const next: CallHandler = { handle: jest.fn(() => of({ ok: 1 })) };
+    const handle = jest.fn(() => of({ ok: 1 }));
+    const next: CallHandler = { handle };
 
     const out = await firstValueFrom(
       await interceptor.intercept(
@@ -55,7 +56,7 @@ describe('CacheInterceptor', () => {
     );
 
     expect(out).toEqual({ ok: 1 });
-    expect(next.handle).toHaveBeenCalledTimes(1);
+    expect(handle).toHaveBeenCalledTimes(1);
     expect(r.setHeader).toHaveBeenCalledWith('ETag', expect.any(String));
     expect(r.setHeader).toHaveBeenCalledWith('X-Cache', 'MISS');
   });
@@ -69,11 +70,10 @@ describe('CacheInterceptor', () => {
       ),
     );
 
-    const next: CallHandler = {
-      handle: jest.fn(() => {
-        throw new Error('no debe ejecutarse');
-      }),
-    };
+    const handle = jest.fn(() => {
+      throw new Error('no debe ejecutarse');
+    });
+    const next: CallHandler = { handle };
     const out = await firstValueFrom(
       await interceptor.intercept(
         context({ method: 'GET', originalUrl: '/x', headers: {} }, res()),
@@ -82,7 +82,7 @@ describe('CacheInterceptor', () => {
     );
 
     expect(out).toEqual({ ok: 1 });
-    expect(next.handle).not.toHaveBeenCalled();
+    expect(handle).not.toHaveBeenCalled();
   });
 
   it('304 cuando If-None-Match coincide con el ETag', async () => {
@@ -94,7 +94,81 @@ describe('CacheInterceptor', () => {
     const out = await firstValueFrom(
       await interceptor.intercept(
         context(
-          { method: 'GET', originalUrl: '/x', headers: { 'if-none-match': etag } },
+          {
+            method: 'GET',
+            originalUrl: '/x',
+            headers: { 'if-none-match': etag },
+          },
+          r,
+        ),
+        { handle: jest.fn(() => of({ ok: 1 })) },
+      ),
+    );
+
+    expect(out).toBeUndefined();
+    expect(r.status).toHaveBeenCalledWith(304);
+  });
+
+  it('200 normal cuando If-None-Match no coincide', async () => {
+    withOptions({ ttlMs: 60_000, key: () => 'k' });
+    cache.set('k', { ok: 1 }, 60_000);
+    const r = res();
+
+    const out = await firstValueFrom(
+      await interceptor.intercept(
+        context(
+          {
+            method: 'GET',
+            originalUrl: '/x',
+            headers: { 'if-none-match': '"otro"' },
+          },
+          r,
+        ),
+        { handle: jest.fn(() => of({ ok: 1 })) },
+      ),
+    );
+
+    expect(out).toEqual({ ok: 1 });
+    expect(r.status).not.toHaveBeenCalled();
+  });
+
+  it('304 con lista separada por comas y tag débil W/', async () => {
+    withOptions({ ttlMs: 60_000, key: () => 'k' });
+    cache.set('k', { ok: 1 }, 60_000);
+    const etag = cache.get('k')!.etag;
+    const r = res();
+
+    const out = await firstValueFrom(
+      await interceptor.intercept(
+        context(
+          {
+            method: 'GET',
+            originalUrl: '/x',
+            headers: { 'if-none-match': `W/"x", ${etag}` },
+          },
+          r,
+        ),
+        { handle: jest.fn(() => of({ ok: 1 })) },
+      ),
+    );
+
+    expect(out).toBeUndefined();
+    expect(r.status).toHaveBeenCalledWith(304);
+  });
+
+  it('304 cuando If-None-Match es *', async () => {
+    withOptions({ ttlMs: 60_000, key: () => 'k' });
+    cache.set('k', { ok: 1 }, 60_000);
+    const r = res();
+
+    const out = await firstValueFrom(
+      await interceptor.intercept(
+        context(
+          {
+            method: 'GET',
+            originalUrl: '/x',
+            headers: { 'if-none-match': '*' },
+          },
           r,
         ),
         { handle: jest.fn(() => of({ ok: 1 })) },
@@ -123,7 +197,8 @@ describe('CacheInterceptor', () => {
 
   it('ignora métodos no-GET', async () => {
     withOptions({ ttlMs: 60_000, key: () => 'k' });
-    const next: CallHandler = { handle: jest.fn(() => of('x')) };
+    const handle = jest.fn(() => of('x'));
+    const next: CallHandler = { handle };
     const out = await firstValueFrom(
       await interceptor.intercept(
         context({ method: 'POST', originalUrl: '/x', headers: {} }, res()),
@@ -131,6 +206,6 @@ describe('CacheInterceptor', () => {
       ),
     );
     expect(out).toBe('x');
-    expect(next.handle).toHaveBeenCalledTimes(1);
+    expect(handle).toHaveBeenCalledTimes(1);
   });
 });

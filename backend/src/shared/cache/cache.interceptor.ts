@@ -26,7 +26,7 @@ export interface CacheTtlOptions {
  *              (p. ej. respuestas en streaming/CSV).
  */
 export const CacheTtl = (ttlMs: number, key?: CacheKeyFn) =>
-  SetMetadata(CACHE_TTL_METADATA, { ttlMs, key } as CacheTtlOptions);
+  SetMetadata(CACHE_TTL_METADATA, { ttlMs, key });
 
 @Injectable()
 export class CacheInterceptor implements NestInterceptor {
@@ -57,13 +57,18 @@ export class CacheInterceptor implements NestInterceptor {
     // key undefined (p. ej. format=csv) -> no cachear.
     if (!key) return next.handle();
 
-    const ifNoneMatch = req.headers['if-none-match'] as string | undefined;
+    const ifNoneMatch = req.headers['if-none-match'];
     const hit = this.cache.get(key);
     if (hit) {
       return this.reply(res, hit, ifNoneMatch, true);
     }
 
-    const value = await firstValueFrom(next.handle());
+    // defaultValue: un handler que completa sin emitir (p. ej. res.send en un
+    // stream) no debe lanzar EmptyError; se responde sin cachear.
+    const value = await firstValueFrom(next.handle() as Observable<unknown>, {
+      defaultValue: undefined,
+    });
+    if (value === undefined) return of(undefined);
     const fresh = this.cache.set(key, value, options.ttlMs);
     return this.reply(res, fresh, ifNoneMatch, false);
   }
@@ -87,7 +92,9 @@ export class CacheInterceptor implements NestInterceptor {
   }
 
   private matches(header: string, etag: string): boolean {
-    return header
+    const value = header.trim();
+    if (value === '*') return true; // If-None-Match: * → siempre coincide
+    return value
       .split(',')
       .map((v) => v.trim().replace(/^W\//, ''))
       .includes(etag);

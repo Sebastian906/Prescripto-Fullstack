@@ -50,7 +50,8 @@ export class CacheService implements OnModuleDestroy {
       return null;
     }
     return {
-      value: entry.value as T,
+      // Clon: evita que el caller mute el payload almacenado (y su ETag).
+      value: structuredClone(entry.value) as T,
       etag: entry.etag,
       expiresAt: entry.expiresAt,
       maxAgeSec: entry.maxAgeSec,
@@ -59,7 +60,8 @@ export class CacheService implements OnModuleDestroy {
 
   set<T>(key: string, value: T, ttlMs: number): CacheSnapshot<T> {
     const entry: CacheEntry = {
-      value,
+      // Clon al escribir: el objeto del caller queda desacoplado del store.
+      value: structuredClone(value),
       etag: this.etagOf(value),
       expiresAt: Date.now() + ttlMs,
       maxAgeSec: Math.max(0, Math.floor(ttlMs / 1000)),
