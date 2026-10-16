@@ -43,13 +43,47 @@ export interface OutboxEventRecord {
   createdAt: Date;
 }
 
-// session is opaque on purpose (same as AvailabilityRepository): the adapter
-// casts it to ClientSession, keeping this port free of Mongoose imports.
+// Runtime allowlist per event: enforces the IDs + timestamps-only rule.
+// (TS types are erased; the Mongoose payload field is Mixed.)
+export const OUTBOX_PAYLOAD_KEYS: Record<OutboxEventName, readonly string[]> = {
+  booked: [
+    'appointmentId',
+    'patientId',
+    'doctorId',
+    'scheduledAt',
+    'createdAt',
+  ],
+  cancelled: ['appointmentId', 'patientId', 'doctorId', 'cancelledAt'],
+  completed: ['appointmentId', 'patientId', 'doctorId', 'completedAt'],
+};
+
+export function assertSafeOutboxPayload<E extends OutboxEventName>(
+  event: E,
+  payload: OutboxEventMap[E],
+): void {
+  const allowed = OUTBOX_PAYLOAD_KEYS[event];
+  const entries = Object.entries(payload as unknown as Record<string, unknown>);
+  for (const [key, value] of entries) {
+    if (!allowed.includes(key)) {
+      throw new Error(`Outbox ${event} payload has unexpected key: ${key}`);
+    }
+    const isAllowedValue = typeof value === 'string' || value instanceof Date;
+    if (!isAllowedValue) {
+      throw new Error(
+        `Outbox ${event} payload key ${key} must be a string or a Date`,
+      );
+    }
+  }
+}
+
+// session is REQUIRED on purpose: an outbox row only makes sense committed
+// atomically with the appointment. The adapter casts it to ClientSession,
+// keeping this port free of Mongoose imports.
 export interface Outbox {
   append<E extends OutboxEventName>(
     event: E,
     payload: OutboxEventMap[E],
-    session?: unknown,
+    session: unknown,
   ): Promise<void>;
   findUndispatched(limit?: number): Promise<OutboxEventRecord[]>;
 }

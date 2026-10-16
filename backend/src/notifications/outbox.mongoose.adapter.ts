@@ -6,6 +6,7 @@ import {
   OutboxEventMap,
   OutboxEventName,
   OutboxEventRecord,
+  assertSafeOutboxPayload,
 } from 'src/shared/ports/outbox.port';
 import {
   OutboxEvent,
@@ -22,21 +23,22 @@ export class OutboxMongooseAdapter implements Outbox {
   async append<E extends OutboxEventName>(
     event: E,
     payload: OutboxEventMap[E],
-    session?: unknown,
+    session: unknown,
   ): Promise<void> {
+    // Fail fast: never persist clinical text under a Mixed payload.
+    assertSafeOutboxPayload(event, payload);
+
     // create([...], { session }) keeps the write inside the caller's tx.
-    await this.outboxModel.create(
-      [{ event, payload, dispatchedAt: null }],
-      { session: session as ClientSession | undefined },
-    );
+    await this.outboxModel.create([{ event, payload, dispatchedAt: null }], {
+      session: session as ClientSession | undefined,
+    });
   }
 
   async findUndispatched(limit = 100): Promise<OutboxEventRecord[]> {
-    const rows = await this.outboxModel
+    return this.outboxModel
       .find({ dispatchedAt: null })
       .sort({ createdAt: 1 })
       .limit(limit)
       .lean();
-    return rows as unknown as OutboxEventRecord[];
   }
 }

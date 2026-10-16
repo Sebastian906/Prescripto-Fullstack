@@ -103,8 +103,9 @@ Until then, outbox rows simply accumulate as an audit of intent.
 - Standalone MongoDB (no replica set) breaks `withTransaction` — document before
   any environment change.
 - `payload` is a Mongoose `Mixed` field: its shape is enforced at compile time by
-  the `Outbox` port types in `backend/src/shared/ports/outbox.port.ts`. Keep a
-  guard so clinical text can never be added.
+  the `Outbox` port types and at runtime by `assertSafeOutboxPayload`
+  (`backend/src/shared/ports/outbox.port.ts`), which allowlists keys and accepts
+  only string or Date values. Extra keys, including clinical text, throw.
 
 ## Files
 

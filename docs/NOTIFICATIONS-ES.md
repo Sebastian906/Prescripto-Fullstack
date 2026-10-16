@@ -104,9 +104,10 @@ Hasta entonces, las filas de outbox se acumulan como registro de intencion.
 - MongoDB standalone (sin replica set) rompe `withTransaction` — documentar antes
   de cualquier cambio de entorno.
 - `payload` es un campo `Mixed` de Mongoose: su forma se garantiza en tiempo de
-  compilacion via los tipos del puerto `Outbox` en
-  `backend/src/shared/ports/outbox.port.ts`. Mantener una guarda para que nunca
-  se agregue texto clinico.
+  compilacion via los tipos del puerto `Outbox` y en runtime via
+  `assertSafeOutboxPayload` (`backend/src/shared/ports/outbox.port.ts`), que
+  valida contra una lista de claves permitidas y acepta solo string o Date.
+  Claves extra, incluido texto clinico, lanzan error.
 
 ## Archivos
 

@@ -11,11 +11,12 @@ function fakeModel(rows: unknown[] = []) {
   return { model: { create, find } as any, create, find, sort, limit, lean };
 }
 
-describe('OutboxMongooseAdapter (transactional outbox writer)', () => {
-  it('append forwards the caller session so the row commits with the booking', async () => {
+const session = { id: 'tx-1' };
+
+describe('OutboxMongooseAdapter (outbox writer)', () => {
+  it('append forwards the session', async () => {
     const { model, create } = fakeModel();
     const adapter = new OutboxMongooseAdapter(model);
-    const session = { id: 'tx-1' };
 
     await adapter.append(
       'booked',
@@ -35,29 +36,26 @@ describe('OutboxMongooseAdapter (transactional outbox writer)', () => {
     expect(docs[0]).toMatchObject({ event: 'booked', dispatchedAt: null });
   });
 
-  it('booked payload stays IDs + timestamps only', async () => {
+  it('rejects clinical text in the payload', async () => {
     const { model, create } = fakeModel();
     const adapter = new OutboxMongooseAdapter(model);
-
-    await adapter.append('booked', {
+    const unsafePayload = {
       appointmentId: 'a1',
       patientId: 'u1',
       doctorId: 'd1',
       scheduledAt: new Date(),
       createdAt: new Date(),
-    });
+      diagnosis: 'flu',
+    };
 
-    const payload = create.mock.calls[0][0][0].payload;
-    expect(Object.keys(payload).sort()).toEqual([
-      'appointmentId',
-      'createdAt',
-      'doctorId',
-      'patientId',
-      'scheduledAt',
-    ]);
+    await expect(
+      adapter.append('booked', unsafePayload as any, session),
+    ).rejects.toThrow('unexpected key: diagnosis');
+
+    expect(create).not.toHaveBeenCalled();
   });
 
-  it('findUndispatched filters dispatchedAt:null, FIFO by createdAt, respects limit', async () => {
+  it('findUndispatched filters and limits', async () => {
     const { model, find, sort, limit } = fakeModel([
       { event: 'booked', dispatchedAt: null },
     ]);
