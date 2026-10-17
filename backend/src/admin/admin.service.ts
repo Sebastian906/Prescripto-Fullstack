@@ -1,7 +1,9 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -23,8 +25,16 @@ import {
   Speciality,
   SpecialityDocument,
 } from 'src/specialities/schemas/speciality.schema';
+import {
+  Notification,
+  NotificationDocument,
+} from 'src/notifications/schemas/notification.schema';
 import { AuditService } from 'src/audit/audit.service';
 import { AvailabilityService } from 'src/availability/availability.service';
+import * as outboxPort from 'src/shared/ports/outbox.port';
+import { NotificationsFanout } from 'src/notifications/notifications.fanout';
+
+const NOTIFICATIONS_LOG_LIMIT = 200;
 
 @Injectable()
 export class AdminService {
@@ -42,6 +52,13 @@ export class AdminService {
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
     private readonly availabilityService: AvailabilityService,
+    // Al final para no desplazar los args posicionales que usa cancel-audit.spec.
+    @InjectModel(Notification.name)
+    private readonly notificationModel: Model<NotificationDocument>,
+    // Opcionales: el spec construye el service con 10 args → quedan undefined.
+    @Optional() @Inject(outboxPort.OUTBOX) private readonly outbox?: outboxPort.Outbox,
+    @Optional()
+    private readonly notificationsFanout?: NotificationsFanout,
   ) {}
 
   async addDoctor(
@@ -153,6 +170,21 @@ export class AdminService {
     return { success: true, appointments };
   }
 
+  // Log operativo (solo lectura) de las notificaciones emitidas a todos los
+  // usuarios. Sin joins: la fila ya trae IDs + timestamps + copy estatico.
+  async getAllNotifications(): Promise<{
+    success: boolean;
+    notifications: NotificationDocument[];
+  }> {
+    const notifications = await this.notificationModel
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(NOTIFICATIONS_LOG_LIMIT)
+      .lean()
+      .exec();
+    return { success: true, notifications };
+  }
+
   async cancelAppointment(
     appointmentId: string,
   ): Promise<{ success: boolean; message: string }> {
@@ -170,6 +202,19 @@ export class AdminService {
       cancelled: true,
     });
 
+    // Productor del outbox: sin transaccion → best-effort (session undefined).
+    const cancelledPayload: outboxPort.CancelledPayload = {
+      appointmentId: String(appointment._id),
+      patientId: appointment.userId,
+      doctorId: appointment.docId,
+      cancelledAt: new Date(),
+    };
+    try {
+      await this.outbox?.append('cancelled', cancelledPayload, undefined);
+    } catch (e) {
+      console.log('outbox append failed:', e);
+    }
+
     const { docId, slotDate, slotTime } = appointment;
     // slots_booked read-only: solo Availability.
     await this.availabilityService.releaseSlot(docId, slotDate, slotTime);
@@ -186,6 +231,13 @@ export class AdminService {
     } catch (e) {
       console.log('audit record failed:', e);
     }
+
+    // Entrega best-effort: nunca rompe el cancel.
+    await this.notificationsFanout?.dispatchSafe(
+      'cancelled',
+      cancelledPayload,
+      String(appointment.userData?.email ?? ''),
+    );
 
     return { success: true, message: 'Appointment Cancelled' };
   }

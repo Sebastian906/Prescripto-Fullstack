@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next"
 
 const MyAppointments = () => {
 
-    const { backendUrl, token, getDoctorsData } = useContext(AppContext)
+    const { backendUrl, token, getDoctorsData, doctors } = useContext(AppContext)
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
     const { t } = useTranslation()
@@ -25,8 +25,7 @@ const MyAppointments = () => {
         try {
             const { data } = await axios.get(backendUrl + '/api/appointments/user-appointments', {headers: {token}})
             if (data.success) {
-                setAppointments(data.appointments.reverse())
-                console.log(data.appointments);
+                setAppointments(data.appointments)
             }
         } catch (error) {
             console.log(error);
@@ -130,20 +129,26 @@ const MyAppointments = () => {
                 {t('myAppointments.title')}
             </p>
             <div>
-                {appointments.slice(0, 3).map((item, index) => (
+                {appointments.slice(0, 3).map((item, index) => {
+                    // Snapshot del doctor al reservar; si viene incompleto (filas antiguas)
+                    // cae al doctor actual cargado en el contexto, buscado por docId.
+                    const doc = item.docData?.name
+                        ? item.docData
+                        : (doctors.find((d) => d._id === item.docId) || {})
+                    return (
                     <div
                         className="grid grid-cols-[1fr_2fr] gap-4 sm:flex sm:gap-6 py-2 border-b border-slate-300"
                         key={index}
                     >
                         <div>
-                            <img className="w-32 bg-indigo-200" src={item.docData.image} alt="" />
+                            <img className="w-32 bg-indigo-200" src={doc.image} alt="" />
                         </div>
                         <div className="flex-1 text-sm text-zinc-600">
-                            <p className="text-neutral-800 font-semibold">{item.docData.name}</p>
-                            <p>{item.docData.speciality}</p>
+                            <p className="text-neutral-800 font-semibold">{doc.name}</p>
+                            <p>{doc.speciality}</p>
                             <p className="text-zinc-700 font-medium mt-1">{t('myAppointments.address')}</p>
-                            <p className="text-xs">{item.docData.address.line1}</p>
-                            <p className="text-xs">{item.docData.address.line2}</p>
+                            <p className="text-xs">{doc.address?.line1}</p>
+                            <p className="text-xs">{doc.address?.line2}</p>
                             <p className="text-xs mt-1">
                                 <span className="text-sm text-neutral-700 font-medium">{t('myAppointments.dateTime')}</span>{' '}
                                 {slotDateFormat(item.slotDate)} | {item.slotTime}
@@ -183,7 +188,7 @@ const MyAppointments = () => {
                                     {t('myAppointments.paid')}
                                 </button>
                             )}
-                            {!item.cancelled && !item.isCompleted && (
+                            {!item.cancelled && !item.isCompleted && !item.payment && (
                                 <button
                                     onClick={() => cancelAppointment(item._id)}
                                     className="text-sm text-stone-500 text-center sm:min-w-48 py-2 border rounded hover:bg-red-600 hover:text-white transition-all duration-300 cursor-pointer"
@@ -196,6 +201,11 @@ const MyAppointments = () => {
                                     {t('myAppointments.appointmentCancelled')}
                                 </button>
                             )}
+                            {item.cancelled && item.cancellationReason && (
+                                <p className="text-xs text-stone-400 text-center mt-1">
+                                    {t('myAppointments.cancellationReason')}: {item.cancellationReason}
+                                </p>
+                            )}
                             {item.isCompleted && (
                                 <button className="sm:min-w-48 py-2 border border-green-600 rounded text-green-600">
                                     {t('myAppointments.completed')}
@@ -203,7 +213,8 @@ const MyAppointments = () => {
                             )}
                         </div>
                     </div>
-                ))}
+                    )
+                })}
             </div>
         </div>
     )

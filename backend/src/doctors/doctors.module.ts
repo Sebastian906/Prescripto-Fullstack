@@ -13,6 +13,7 @@ import { AuthDoctorModule } from 'src/shared/guards/auth-doctor.module';
 import { ReportsModule } from 'src/reports/reports.module';
 import { AuditModule } from 'src/audit/audit.module';
 import { AvailabilityModule } from 'src/availability/availability.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AvailabilityModule } from 'src/availability/availability.module';
     ReportsModule,
     AuditModule,
     AvailabilityModule,
+    NotificationsModule,
   ],
   controllers: [DoctorsController],
   providers: [DoctorsService],

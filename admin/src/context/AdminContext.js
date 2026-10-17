@@ -15,6 +15,7 @@ export function provideAdminContext() {
     const annualReport = ref(null)
     const monthlyTrend = ref([])
     const reportYear = ref(new Date().getFullYear())
+    const notifications = ref([])
 
     const setAToken = (token) => {
         aToken.value = token
@@ -57,6 +58,20 @@ export function provideAdminContext() {
             const { data } = await axios.get(backendUrl + '/api/admin/appointments', { headers: { atoken: aToken.value } })
             if (data.success) {
                 appointments.value = data.appointments
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    // Log operativo de notificaciones (solo lectura, todos los usuarios).
+    const getAllNotifications = async () => {
+        try {
+            const { data } = await axios.get(backendUrl + '/api/admin/notifications', { headers: { atoken: aToken.value } })
+            if (data.success) {
+                notifications.value = data.notifications
             } else {
                 toast.error(data.message)
             }
@@ -122,7 +137,7 @@ export function provideAdminContext() {
         }
     }
 
-    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment, dashData, getDashData, annualReport, monthlyTrend, reportYear, getAnnualReport, getMonthlyTrend })
+    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment, notifications, getAllNotifications, dashData, getDashData, annualReport, monthlyTrend, reportYear, getAnnualReport, getMonthlyTrend })
 }
 
 export function useAdminContext() {

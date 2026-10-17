@@ -47,3 +47,27 @@ export function generateDaySlots(
 export function dateToSlotKey(date: Date): string {
   return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
 }
+
+/**
+ * Combina `slotDate` ("D/M/YYYY" legacy o "D_M_YYYY" normalizado) con
+ * `slotTime` ("hh:mm AM/PM", o 24h si falta el meridiano) en un `Date` local.
+ * Inverso de `dateToSlotKey`; lo usa el productor del outbox para `scheduledAt`.
+ * Best-effort: si `slotTime` no parsea, devuelve la medianoche de esa fecha.
+ * @complexity O(1).
+ */
+export function slotDateTime(slotDate: string, slotTime: string): Date {
+  const [day, month, year] = slotDate.replace(/\//g, '_').split('_').map(Number);
+
+  const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i.exec(slotTime.trim());
+  let hours = 0;
+  let minutes = 0;
+  if (match) {
+    hours = Number(match[1]);
+    minutes = Number(match[2]);
+    const meridiem = match[3]?.toUpperCase();
+    if (meridiem === 'AM') hours = hours % 12;
+    else if (meridiem === 'PM') hours = (hours % 12) + 12;
+  }
+
+  return new Date(year, month - 1, day, hours, minutes);
+}

@@ -4,6 +4,10 @@ import { toast } from "react-toastify";
 
 export const AppContext = createContext()
 
+// Refresco del badge del buzon. Solo lectura (GET) y solo con la pestana
+// visible: no toca la logica de negocio de notificaciones (docs/NOTIFICATIONS.md).
+const NOTIFICATIONS_POLL_MS = 30000
+
 const AppcontextProvider = (props) => {
 
     const currencySymbol = "$"
@@ -11,6 +15,8 @@ const AppcontextProvider = (props) => {
     const [doctors, setDoctors] = useState([])
     const [token, setToken] = useState(localStorage.getItem('token') ? localStorage.getItem('token') : false)
     const [userData, setUserData] = useState(false)
+    const [notifications, setNotifications] = useState([])
+    const [unreadCount, setUnreadCount] = useState(0)
 
     const getDoctorsData = async () => {
         try {
@@ -40,6 +46,40 @@ const AppcontextProvider = (props) => {
         }
     }
 
+    // Buzon in-app (Fase 3): se recarga al iniciar sesion y cada 30s con la
+    // pestana visible. Sin push en tiempo real (docs/NOTIFICATIONS.md).
+    const loadNotifications = async () => {
+        if (!token) {
+            setNotifications([])
+            setUnreadCount(0)
+            return
+        }
+        try {
+            const { data } = await axios.get(backendUrl + '/api/notifications', { headers: { token } })
+            if (data.success) {
+                setNotifications(data.notifications)
+                setUnreadCount(data.unreadCount)
+            }
+        } catch (error) {
+            // Silencioso a proposito: un fallo del buzon no debe llenar de toasts.
+            console.log(error)
+        }
+    }
+
+    const markNotificationRead = async (id) => {
+        const target = notifications.find((n) => n._id === id)
+        if (!target || target.readAt) return
+        try {
+            await axios.patch(backendUrl + `/api/notifications/${id}/read`, {}, { headers: { token } })
+            setNotifications((prev) =>
+                prev.map((n) => (n._id === id ? { ...n, readAt: new Date().toISOString() } : n)),
+            )
+            setUnreadCount((prev) => Math.max(0, prev - 1))
+        } catch (error) {
+            console.log(error)
+        }
+    }
+
     const value = {
         doctors,
         getDoctorsData,
@@ -49,7 +89,11 @@ const AppcontextProvider = (props) => {
         backendUrl,
         userData,
         setUserData,
-        loadUserProfileData
+        loadUserProfileData,
+        notifications,
+        unreadCount,
+        loadNotifications,
+        markNotificationRead
     }
 
     useEffect(() => {
@@ -62,6 +106,15 @@ const AppcontextProvider = (props) => {
         } else {
             setUserData(false)
         }
+    }, [token])
+
+    useEffect(() => {
+        loadNotifications()
+        const intervalId = setInterval(() => {
+            // Pausa el polling si la pestana no esta visible.
+            if (token && document.visibilityState === 'visible') loadNotifications()
+        }, NOTIFICATIONS_POLL_MS)
+        return () => clearInterval(intervalId)
     }, [token])
 
     return (

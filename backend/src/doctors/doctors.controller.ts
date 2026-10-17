@@ -95,6 +95,7 @@ export class DoctorsController {
     return this.doctorsService.cancelAppointmentDoctor(
       docId,
       dto.appointmentId,
+      dto.reason,
     );
   }
 

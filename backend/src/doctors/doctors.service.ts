@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
@@ -21,6 +22,8 @@ import { ReportsService } from 'src/reports/reports.service';
 import { AuditService } from 'src/audit/audit.service';
 import { AvailabilityService } from 'src/availability/availability.service';
 import { CacheService } from 'src/shared/cache/cache.service';
+import * as outboxPort from 'src/shared/ports/outbox.port';
+import { NotificationsFanout } from 'src/notifications/notifications.fanout';
 
 @Injectable()
 export class DoctorsService {
@@ -36,6 +39,10 @@ export class DoctorsService {
     private readonly availabilityService: AvailabilityService,
     // @Optional: los specs construyen el service sin CacheService.
     @Optional() private readonly cacheService?: CacheService,
+    // @Optional: los specs construyen el service sin outbox ni fan-out.
+    @Optional() @Inject(outboxPort.OUTBOX) private readonly outbox?: outboxPort.Outbox,
+    @Optional()
+    private readonly notificationsFanout?: NotificationsFanout,
   ) {}
 
   async getAllDoctors() {
@@ -127,6 +134,22 @@ export class DoctorsService {
       throw new NotFoundException('Appointment not found');
     }
 
+    // Productor del outbox: este metodo NO corre en transaccion, asi que la
+    // fila 'completed' es best-effort y NO atomica (session undefined).
+    // ponytail: envolver en withTransaction si el worker (Fase 4) exige
+    // atomicidad estricta para 'completed'.
+    const completedPayload: outboxPort.CompletedPayload = {
+      appointmentId: String(appt._id),
+      patientId: appt.userId,
+      doctorId: docId,
+      completedAt: new Date(),
+    };
+    try {
+      await this.outbox?.append('completed', completedPayload, undefined);
+    } catch (e) {
+      console.log('outbox append failed:', e);
+    }
+
     await this.reportsService.onAppointmentCompleted(
       docId,
       appt.userId,
@@ -146,12 +169,20 @@ export class DoctorsService {
       console.log('audit record failed:', e);
     }
 
+    // Entrega best-effort: nunca rompe el "marcar completada".
+    await this.notificationsFanout?.dispatchSafe(
+      'completed',
+      completedPayload,
+      String(appt.userData?.email ?? ''),
+    );
+
     return { success: true, message: 'Appointment Completed' };
   }
 
   async cancelAppointmentDoctor(
     docId: string,
     appointmentId: string,
+    reason?: string,
   ): Promise<{ success: boolean; message: string }> {
     const appointment = await this.appointmentModel.findById(appointmentId);
 
@@ -165,6 +196,7 @@ export class DoctorsService {
 
     await this.appointmentModel.findByIdAndUpdate(appointmentId, {
       cancelled: true,
+      cancellationReason: reason ?? '',
     });
 
     // slots_booked is read-only: release only via Availability ($pull atómico).
@@ -179,6 +211,21 @@ export class DoctorsService {
       new Date(appointment.date),
     );
 
+    // Productor del outbox: este metodo NO corre en transaccion → best-effort.
+    // El payload lleva SOLO IDs + timestamp; el motivo (texto libre) queda en el
+    // documento, NUNCA aqui (assertSafeOutboxPayload lo rechazaria).
+    const cancelledPayload: outboxPort.CancelledPayload = {
+      appointmentId: String(appointment._id),
+      patientId: appointment.userId,
+      doctorId: appointment.docId,
+      cancelledAt: new Date(),
+    };
+    try {
+      await this.outbox?.append('cancelled', cancelledPayload, undefined);
+    } catch (e) {
+      console.log('outbox append failed:', e);
+    }
+
     try {
       await this.auditService?.record({
         actorId: docId,
@@ -190,6 +237,13 @@ export class DoctorsService {
     } catch (e) {
       console.log('audit record failed:', e);
     }
+
+    // Entrega best-effort: nunca rompe el cancel.
+    await this.notificationsFanout?.dispatchSafe(
+      'cancelled',
+      cancelledPayload,
+      String(appointment.userData?.email ?? ''),
+    );
 
     return { success: true, message: 'Appointment Cancelled' };
   }

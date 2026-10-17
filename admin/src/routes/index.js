@@ -11,6 +11,7 @@ import SpecialitiesManager from '../pages/Admin/SpecialitiesManager.vue'
 import AdminReports from '../pages/Admin/AdminReports.vue'
 import DoctorReports from '../pages/Doctor/DoctorReports.vue'
 import AdminChat from '../pages/Admin/AdminChat.vue'
+import AdminNotifications from '../pages/Admin/AdminNotifications.vue'
 
 const routes = [
     {
@@ -52,6 +53,11 @@ const routes = [
         path: '/admin-chat',
         name: 'AdminChat',
         component: AdminChat,
+    },
+    {
+        path: '/admin-notifications',
+        name: 'AdminNotifications',
+        component: AdminNotifications,
     },
     // Doctor routes
     {

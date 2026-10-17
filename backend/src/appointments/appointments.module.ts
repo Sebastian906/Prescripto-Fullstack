@@ -11,6 +11,7 @@ import { ReportsModule } from 'src/reports/reports.module';
 import { AuditModule } from 'src/audit/audit.module';
 import { WaitlistModule } from 'src/waitlist/waitlist.module';
 import { AvailabilityModule } from 'src/availability/availability.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AvailabilityModule } from 'src/availability/availability.module';
     AuditModule,
     WaitlistModule,
     AvailabilityModule,
+    NotificationsModule,
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],

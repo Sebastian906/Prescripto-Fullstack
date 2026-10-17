@@ -11,6 +11,7 @@
         "doctorsList": "Doctors List",
         "specialities": "Specialities",
         "reports": "Reports",
+        "notifications": "Notifications",
         "liveChat": "Live Chat",
         "profile": "Profile"
     },
@@ -182,6 +183,24 @@
         "user": "User",
         "admin": "You"
     },
+    "notifications": {
+        "title": "Notifications Log",
+        "refresh": "Refresh",
+        "typeLabel": "Type",
+        "appointment": "Appointment",
+        "doctor": "Doctor",
+        "when": "When",
+        "status": "Status",
+        "read": "Read",
+        "unread": "Unread",
+        "empty": "No notifications found.",
+        "type": {
+            "booked": "Booked",
+            "cancelled": "Cancelled",
+            "completed": "Completed",
+            "paid": "Paid"
+        }
+    },
     "forgotPasswordModal": {
         "title": "Reset Password",
         "subtitle": "Enter your email and new password.",
@@ -224,6 +243,12 @@
         "appointments": "appointments",
         "cancelAppointment": "Cancel appointment",
         "markCompleted": "Mark as completed"
+    },
+    "cancelReason": {
+        "title": "Cancellation reason",
+        "placeholder": "Briefly explain why the appointment is cancelled",
+        "confirm": "Cancel appointment",
+        "dismiss": "Back"
     },
     "adminReports": {
         "title": "Annual Reports",

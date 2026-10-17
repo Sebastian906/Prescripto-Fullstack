@@ -32,6 +32,9 @@ export class Appointment {
   @Prop({ default: false })
   cancelled!: boolean;
 
+  @Prop({ default: '' })
+  cancellationReason!: string;
+
   @Prop({ default: false })
   payment!: boolean;
 

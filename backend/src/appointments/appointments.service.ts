@@ -2,8 +2,10 @@ import {
   BadRequestException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
   InternalServerErrorException,
 } from '@nestjs/common';
@@ -23,7 +25,10 @@ import {
   compareSlots,
   getAvailableSlotsByMinutes,
 } from 'src/shared/utils/binary-search.util';
-import { generateDaySlots } from 'src/shared/utils/slot-generator.util';
+import {
+  generateDaySlots,
+  slotDateTime,
+} from 'src/shared/utils/slot-generator.util';
 import { ReportsService } from 'src/reports/reports.service';
 import { AuditService } from 'src/audit/audit.service';
 import { Logger } from '@nestjs/common';
@@ -32,6 +37,8 @@ import {
   AvailabilityService,
   MAX_SLOTS_PER_DAY,
 } from 'src/availability/availability.service';
+import * as outboxPort from 'src/shared/ports/outbox.port';
+import { NotificationsFanout } from 'src/notifications/notifications.fanout';
 
 @Injectable()
 export class AppointmentsService {
@@ -48,6 +55,11 @@ export class AppointmentsService {
     private readonly auditService: AuditService,
     private readonly waitlistService: WaitlistService,
     private readonly availabilityService: AvailabilityService,
+    // @Optional: los specs (TestingModule / cancel-audit) construyen el service
+    // sin outbox ni fan-out; en runtime NotificationsModule los provee.
+    @Optional() @Inject(outboxPort.OUTBOX) private readonly outbox?: outboxPort.Outbox,
+    @Optional()
+    private readonly notificationsFanout?: NotificationsFanout,
   ) {}
 
   async bookAppointment(
@@ -59,6 +71,9 @@ export class AppointmentsService {
     const session = await this.connection.startSession();
 
     let bookedFees = 0;
+    // `!` (definite assignment): TS no ve las asignaciones hechas dentro del
+    // callback de withTransaction, por eso el `if` de abajo es el guard real.
+    let bookedNotification!: { payload: outboxPort.BookedPayload; email: string };
 
     try {
       let result: { success: boolean; message: string };
@@ -66,7 +81,7 @@ export class AppointmentsService {
       await session.withTransaction(async () => {
         const doctor = await this.doctorModel
           .findById(docId)
-          .select('_id available fees')
+          .select('-password -slots_booked')
           .session(session)
           .lean();
 
@@ -122,7 +137,7 @@ export class AppointmentsService {
         const { slots_booked: _ignored, ...docDataSnapshot } =
           doctor as unknown as Record<string, unknown>;
 
-        await this.appointmentModel.create(
+        const [created] = await this.appointmentModel.create(
           [
             {
               userId,
@@ -138,6 +153,21 @@ export class AppointmentsService {
           { session },
         );
 
+        // Productor del outbox: la fila se sella DENTRO de la tx (atomica con
+        // la cita). El email es dato de ENTREGA, no entra al payload.
+        const bookedPayload: outboxPort.BookedPayload = {
+          appointmentId: String(created._id),
+          patientId: userId,
+          doctorId: docId,
+          scheduledAt: slotDateTime(slotDate, slotTime),
+          createdAt: new Date(),
+        };
+        await this.outbox?.append('booked', bookedPayload, session);
+        bookedNotification = {
+          payload: bookedPayload,
+          email: String(user.email ?? ''),
+        };
+
         bookedFees = doctor.fees;
         result = { success: true, message: 'Appointment booked successfully' };
       });
@@ -148,6 +178,15 @@ export class AppointmentsService {
         bookedFees,
         new Date(),
       );
+
+      // Entrega best-effort FUERA de la tx: nunca rompe la reserva.
+      if (bookedNotification) {
+        await this.notificationsFanout?.dispatchSafe(
+          'booked',
+          bookedNotification.payload,
+          bookedNotification.email,
+        );
+      }
 
       return result!;
     } catch (error) {
@@ -170,7 +209,9 @@ export class AppointmentsService {
   async getUserAppointments(
     userId: string,
   ): Promise<{ success: boolean; appointments: AppointmentDocument[] }> {
-    const appointments = await this.appointmentModel.find({ userId });
+    const appointments = await this.appointmentModel
+      .find({ userId })
+      .sort({ date: -1 });
     return { success: true, appointments };
   }
 
@@ -187,6 +228,8 @@ export class AppointmentsService {
     let freedSlotTime = '';
     let promotedWaitlistId = '';
     let promotedUserId = '';
+    // `!` (definite assignment): idem booked — asignado dentro del callback.
+    let cancelledNotification!: { payload: outboxPort.CancelledPayload; email: string };
 
     try {
       let result: { success: boolean; message: string };
@@ -215,6 +258,19 @@ export class AppointmentsService {
           appointment.slotTime,
           session,
         );
+
+        // Productor del outbox: fila atomica con el cancel.
+        const cancelledPayload: outboxPort.CancelledPayload = {
+          appointmentId: String(appointment._id),
+          patientId: appointment.userId,
+          doctorId: appointment.docId,
+          cancelledAt: new Date(),
+        };
+        await this.outbox?.append('cancelled', cancelledPayload, session);
+        cancelledNotification = {
+          payload: cancelledPayload,
+          email: String(appointment.userData?.email ?? ''),
+        };
 
         // FIFO promotion: mismo tx. Normaliza claves legacy "D/M/YYYY" a "D_M_YYYY".
         freedSlotDateKey = appointment.slotDate.replace(/\//g, '_');
@@ -280,6 +336,15 @@ export class AppointmentsService {
         });
       } catch (e) {
         console.error('audit record failed:', e);
+      }
+
+      // Entrega best-effort FUERA de la tx.
+      if (cancelledNotification) {
+        await this.notificationsFanout?.dispatchSafe(
+          'cancelled',
+          cancelledNotification.payload,
+          cancelledNotification.email,
+        );
       }
 
       return result!;
@@ -355,6 +420,24 @@ export class AppointmentsService {
     await this.appointmentModel.findByIdAndUpdate(appointmentId, {
       payment: true,
     });
+
+    const paidPayload: outboxPort.PaidPayload = {
+      appointmentId: String(appointment._id),
+      patientId: appointment.userId,
+      doctorId: appointment.docId,
+      paidAt: new Date(),
+    };
+    try {
+      await this.outbox?.append('paid', paidPayload, undefined);
+    } catch (e) {
+      console.log('outbox append failed:', e);
+    }
+
+    await this.notificationsFanout?.dispatchSafe(
+      'paid',
+      paidPayload,
+      String(appointment.userData?.email ?? ''),
+    );
 
     return { success: true, message: 'Payment confirmed (Cash on Delivery)' };
   }
@@ -441,9 +524,33 @@ export class AppointmentsService {
       const appointmentId = session.metadata?.appointmentId;
 
       if (appointmentId) {
-        await this.appointmentModel.findByIdAndUpdate(appointmentId, {
-          payment: true,
-        });
+        const appointment = await this.appointmentModel.findById(appointmentId);
+
+        // Idempotencia: el webhook puede repetirse → emitir solo en la transicion.
+        if (appointment && !appointment.payment) {
+          const paidPayload: outboxPort.PaidPayload = {
+            appointmentId: String(appointment._id),
+            patientId: appointment.userId,
+            doctorId: appointment.docId,
+            paidAt: new Date(),
+          };
+
+          await this.appointmentModel.findByIdAndUpdate(appointmentId, {
+            payment: true,
+          });
+
+          try {
+            await this.outbox?.append('paid', paidPayload, undefined);
+          } catch (e) {
+            console.log('outbox append failed:', e);
+          }
+
+          await this.notificationsFanout?.dispatchSafe(
+            'paid',
+            paidPayload,
+            String(appointment.userData?.email ?? ''),
+          );
+        }
       }
     }
 

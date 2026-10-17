@@ -7,6 +7,7 @@
         "createAccount": "Create Account",
         "myProfile": "My Profile",
         "myAppointments": "My Appointments",
+        "notifications": "Notifications",
         "logout": "Logout"
     },
     "home": {
@@ -93,10 +94,33 @@
         "payOnline": "Pay Online",
         "paid": "Paid",
         "cancelAppointment": "Cancel appointment",
+        "cancellationReason": "Cancellation reason",
         "appointmentCancelled": "Appointment cancelled",
         "completed": "Completed",
         "payWithStripe": "Pay with Stripe",
         "cashOnDelivery": "Cash on Delivery"
+    },
+    "notifications": {
+        "title": "Notifications",
+        "empty": "You have no notifications.",
+        "type": {
+            "booked": {
+                "title": "Appointment booked",
+                "body": "Your appointment was booked successfully."
+            },
+            "cancelled": {
+                "title": "Appointment cancelled",
+                "body": "Your appointment was cancelled."
+            },
+            "completed": {
+                "title": "Appointment completed",
+                "body": "Your appointment was marked as completed."
+            },
+            "paid": {
+                "title": "Appointment paid",
+                "body": "Your appointment payment was registered."
+            }
+        }
     },
     "myProfile": {
         "contactInfo": "CONTACT INFORMATION",
