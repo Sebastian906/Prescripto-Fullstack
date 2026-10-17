@@ -41,7 +41,7 @@ describe('payWithCOD paid transition is atomic', () => {
       _id: 'a1',
     });
 
-    await svc.payWithCOD('u1', { appointmentId: 'a1' } as any);
+    await svc.payWithCOD('u1', { appointmentId: 'a1' });
 
     expect(appointmentModel.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: 'a1', payment: false },
@@ -55,7 +55,7 @@ describe('payWithCOD paid transition is atomic', () => {
     const { svc, outbox, fanout } = makeAppointments(null);
 
     await expect(
-      svc.payWithCOD('u1', { appointmentId: 'a1' } as any),
+      svc.payWithCOD('u1', { appointmentId: 'a1' }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(outbox.append).not.toHaveBeenCalled();
     expect(fanout.dispatchSafe).not.toHaveBeenCalled();
