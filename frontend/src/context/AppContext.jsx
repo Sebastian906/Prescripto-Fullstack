@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState } from "react";
+import { createContext, useEffect, useRef, useState } from "react";
 import axios from 'axios';
 import { toast } from "react-toastify";
 
@@ -17,6 +17,12 @@ const AppcontextProvider = (props) => {
     const [userData, setUserData] = useState(false)
     const [notifications, setNotifications] = useState([])
     const [unreadCount, setUnreadCount] = useState(0)
+    // Token vigente: descarta respuestas que llegan tras un logout/cambio de
+    // usuario (no instala datos de otra sesion).
+    const latestToken = useRef(token)
+    useEffect(() => {
+        latestToken.current = token
+    }, [token])
 
     const getDoctorsData = async () => {
         try {
@@ -55,7 +61,9 @@ const AppcontextProvider = (props) => {
             return
         }
         try {
-            const { data } = await axios.get(backendUrl + '/api/notifications', { headers: { token } })
+            const requestToken = token
+        const { data } = await axios.get(backendUrl + '/api/notifications', { headers: { token } })
+            if (requestToken !== latestToken.current) return
             if (data.success) {
                 setNotifications(data.notifications)
                 setUnreadCount(data.unreadCount)
@@ -66,9 +74,15 @@ const AppcontextProvider = (props) => {
         }
     }
 
+    // IDs con un PATCH en vuelo: evita requests duplicados por doble clic y
+    // que el contador de no leidas baje mas de una vez por la misma transicion.
+    const readInFlight = useRef(new Set())
+
     const markNotificationRead = async (id) => {
+        if (readInFlight.current.has(id)) return
         const target = notifications.find((n) => n._id === id)
         if (!target || target.readAt) return
+        readInFlight.current.add(id)
         try {
             await axios.patch(backendUrl + `/api/notifications/${id}/read`, {}, { headers: { token } })
             setNotifications((prev) =>
@@ -77,6 +91,8 @@ const AppcontextProvider = (props) => {
             setUnreadCount((prev) => Math.max(0, prev - 1))
         } catch (error) {
             console.log(error)
+        } finally {
+            readInFlight.current.delete(id)
         }
     }
 

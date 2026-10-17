@@ -56,7 +56,10 @@ export function dateToSlotKey(date: Date): string {
  * @complexity O(1).
  */
 export function slotDateTime(slotDate: string, slotTime: string): Date {
-  const [day, month, year] = slotDate.replace(/\//g, '_').split('_').map(Number);
+  const [day, month, year] = slotDate
+    .replace(/\//g, '_')
+    .split('_')
+    .map(Number);
 
   const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i.exec(slotTime.trim());
   let hours = 0;

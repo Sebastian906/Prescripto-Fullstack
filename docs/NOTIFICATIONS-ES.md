@@ -15,9 +15,10 @@ worker:
 - Puerto `Notifier` implementado por un adaptador SMTP (`notifier.smtp.adapter.ts`).
 - Canal in-app: coleccion `notification` + API REST de buzon (`NotificationsModule`).
 - Pipeline de fan-out (`NotificationsFanout`) guiado por el catalogo de eventos.
-- Productores cableados: los tres eventos se emiten desde los hooks de citas
-  (ver *Puntos de hook*), con `booked`/`cancelled` atomicos y `completed`
-  best-effort.
+- Productores cableados: cuatro eventos se emiten desde los hooks de citas,
+  doctores y admin (ver *Puntos de hook*). Solo los hooks de cita `booked` y
+  `cancelled` del paciente son atomicos; `cancelled` de doctor/admin, `completed`
+  y `paid` son best-effort.
 
 La entrega es **best-effort, despues** de la transaccion (refleja
 `ReportsService.onAppointmentBooked`). La Fase 4 cambia la llamada inline por el
@@ -27,7 +28,7 @@ worker; el contrato `dispatch(record, recipientEmail)` no cambia.
 
 | campo          | tipo                                      | notas                                          |
 |----------------|-------------------------------------------|------------------------------------------------|
-| `event`        | `'booked' \| 'cancelled' \| 'completed'`  | requerido, enum                                |
+| `event`        | `'booked' \| 'cancelled' \| 'completed' \| 'paid'` | requerido, enum                       |
 | `payload`      | objeto                                    | **solo IDs + timestamps** — nunca texto clinico |
 | `dispatchedAt` | `Date \| null`                            | `null` = pendiente; lo setea el worker futuro  |
 | `createdAt`    | `Date`                                    | default `now`; orden FIFO para el worker       |
@@ -42,8 +43,10 @@ Una fila de outbox debe commitear **atomicamente** con la cita que describe.
 set), por lo que el writer acepta la misma `ClientSession`. Si MongoDB fuera
 standalone (sin replica set), las transacciones fallarian en runtime.
 
-`DoctorsService.completeAppointment` es la excepcion: **no** abre transaccion,
-asi que su fila `completed` es best-effort y **no atomica** (ver *Puntos de hook*).
+`DoctorsService.completeAppointment`/`cancelAppointment`,
+`AdminService.cancelAppointment` y los productores de `paid` son la excepcion:
+**no** abren transaccion, asi que sus filas son best-effort y **no atomicas**
+(ver *Puntos de hook*).
 
 ## Coleccion: `notifications`
 
@@ -52,7 +55,7 @@ Buzon in-app por usuario.
 | campo       | tipo                                      | notas                             |
 |-------------|-------------------------------------------|-----------------------------------|
 | `userId`    | string                                    | destinatario (paciente)           |
-| `type`      | `'booked' \| 'cancelled' \| 'completed'`  | nombre del evento origen          |
+| `type`      | `'booked' \| 'cancelled' \| 'completed' \| 'paid'` | nombre del evento origen  |
 | `title`     | string                                    | copy estatico del catalogo        |
 | `body`      | string                                    | copy estatico del catalogo        |
 | `data`      | objeto                                    | **solo IDs + timestamps**         |
@@ -105,6 +108,17 @@ Se emite desde el modulo de doctores (`completeAppointment`).
       "completedAt": "<fecha ISO>"
     }
 
+### `paid`
+Se emite desde el modulo de citas (`payWithCOD` y el webhook de Stripe
+`verifyStripePayment`).
+
+    {
+      "appointmentId": "<Appointment._id como string>",
+      "patientId": "<userId>",
+      "doctorId": "<docId>",
+      "paidAt": "<fecha ISO>"
+    }
+
 ## Catalogo de fan-out
 
 `backend/src/notifications/notifications.catalog.ts` mapea cada evento a sus
@@ -116,12 +130,22 @@ filtrarse.
 
 - `booked` — `backend/src/appointments/appointments.service.ts`, dentro de
   `withTransaction`, tras `appointmentModel.create`. Fila **atomica** con la cita.
-- `cancelled` — `backend/src/appointments/appointments.service.ts`, dentro de
-  `withTransaction`, tras el update de estado. Fila **atomica**.
+- `cancelled` — cancelacion del paciente en
+  `backend/src/appointments/appointments.service.ts`, dentro de `withTransaction`,
+  tras el update de estado. Fila **atomica**.
+- `cancelled` — cancelacion del doctor en `backend/src/doctors/doctors.service.ts`
+  (`cancelAppointment`) y del admin en
+  `backend/src/admin/admin.service.ts` (`cancelAppointment`). Ninguno abre
+  transaccion, asi que la fila es best-effort y **no atomica**.
 - `completed` — `backend/src/doctors/doctors.service.ts`, en
   `completeAppointment`. El metodo **no** corre en transaccion, asi que la fila es
   best-effort y **no atomica** (se commitea tras el update de estado). Envolver en
   `withTransaction` cuando el worker (Fase 4) exija atomicidad estricta.
+- `paid` — `backend/src/appointments/appointments.service.ts`, en `payWithCOD` y
+  `verifyStripePayment`. `payment` cambia con un update condicional atomico
+  (`false → true`) y el evento se emite solo si ese update tiene exito, asi que
+  llamadas concurrentes o repetidas nunca emiten `paid` dos veces. Sin
+  transaccion → best-effort.
 
 La entrega refleja `ReportsService`: `outbox.append(...)` corre **dentro** de la
 transaccion (donde exista) y `NotificationsFanout.dispatchSafe(...)` corre

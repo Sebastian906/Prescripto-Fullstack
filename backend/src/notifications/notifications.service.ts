@@ -28,7 +28,7 @@ export class NotificationsService {
       ...(unreadOnly ? { readAt: null } : {}),
     };
 
-    const [notifications, unreadCount] = await Promise.all([
+    const [page, unreadCount] = await Promise.all([
       this.model
         .find(filter)
         .sort({ createdAt: -1 })
@@ -37,6 +37,25 @@ export class NotificationsService {
         .exec(),
       this.model.countDocuments({ userId, readAt: null }).exec(),
     ]);
+
+    let notifications = page;
+
+    // Las no leidas mas antiguas que la pagina deben seguir siendo alcanzables
+    // (si no, el badge cuenta elementos que la lista nunca muestra).
+    if (!unreadOnly) {
+      const pageUnread = page.filter((n) => n.readAt == null).length;
+      if (unreadCount > pageUnread) {
+        const seen = page.map((n) => n._id);
+        const extra = await this.model
+          .find({ userId, readAt: null, _id: { $nin: seen } })
+          .sort({ createdAt: -1 })
+          .lean()
+          .exec();
+        // `page` son las mas recientes; `extra` es mas antiguo, asi que
+        // concatenar conserva el orden descendente.
+        notifications = [...page, ...extra];
+      }
+    }
 
     return { success: true, notifications, unreadCount };
   }

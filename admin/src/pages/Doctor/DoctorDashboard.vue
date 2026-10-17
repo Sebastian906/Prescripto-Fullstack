@@ -28,6 +28,7 @@ const openCancel = (id) => {
 const confirmCancel = async () => {
     if (!cancelTarget.value) return
     await cancelAppointment(cancelTarget.value, cancelReason.value.trim())
+    await getDashData()
     cancelTarget.value = null
     cancelReason.value = ''
 }

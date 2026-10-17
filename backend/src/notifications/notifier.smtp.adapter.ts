@@ -7,10 +7,10 @@ import { Notifier, NotifyInput } from 'src/shared/ports/notifier.port';
 // password-reset.service.ts (createTransport + sendMail) sin tocar ese archivo.
 @Injectable()
 export class NotifierSmtpAdapter implements Notifier {
-  constructor(private readonly configService: ConfigService) {}
+  private readonly transporter: nodemailer.Transporter;
 
-  async notify(input: NotifyInput): Promise<void> {
-    const transporter = nodemailer.createTransport({
+  constructor(private readonly configService: ConfigService) {
+    this.transporter = nodemailer.createTransport({
       host: this.configService.get<string>('SMTP_HOST'),
       port: Number(this.configService.get<string>('SMTP_PORT') ?? 587),
       secure: false,
@@ -19,8 +19,10 @@ export class NotifierSmtpAdapter implements Notifier {
         pass: this.configService.get<string>('SMTP_PASS'),
       },
     });
+  }
 
-    await transporter.sendMail({
+  async notify(input: NotifyInput): Promise<void> {
+    await this.transporter.sendMail({
       from: `"Prescripto" <${this.configService.get<string>('EMAIL_FROM')}>`,
       to: input.to,
       subject: input.subject,

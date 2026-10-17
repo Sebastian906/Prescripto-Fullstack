@@ -40,7 +40,9 @@ export class DoctorsService {
     // @Optional: los specs construyen el service sin CacheService.
     @Optional() private readonly cacheService?: CacheService,
     // @Optional: los specs construyen el service sin outbox ni fan-out.
-    @Optional() @Inject(outboxPort.OUTBOX) private readonly outbox?: outboxPort.Outbox,
+    @Optional()
+    @Inject(outboxPort.OUTBOX)
+    private readonly outbox?: outboxPort.Outbox,
     @Optional()
     private readonly notificationsFanout?: NotificationsFanout,
   ) {}

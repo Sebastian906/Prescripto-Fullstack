@@ -57,7 +57,9 @@ export class AppointmentsService {
     private readonly availabilityService: AvailabilityService,
     // @Optional: los specs (TestingModule / cancel-audit) construyen el service
     // sin outbox ni fan-out; en runtime NotificationsModule los provee.
-    @Optional() @Inject(outboxPort.OUTBOX) private readonly outbox?: outboxPort.Outbox,
+    @Optional()
+    @Inject(outboxPort.OUTBOX)
+    private readonly outbox?: outboxPort.Outbox,
     @Optional()
     private readonly notificationsFanout?: NotificationsFanout,
   ) {}
@@ -73,7 +75,10 @@ export class AppointmentsService {
     let bookedFees = 0;
     // `!` (definite assignment): TS no ve las asignaciones hechas dentro del
     // callback de withTransaction, por eso el `if` de abajo es el guard real.
-    let bookedNotification!: { payload: outboxPort.BookedPayload; email: string };
+    let bookedNotification!: {
+      payload: outboxPort.BookedPayload;
+      email: string;
+    };
 
     try {
       let result: { success: boolean; message: string };
@@ -229,7 +234,10 @@ export class AppointmentsService {
     let promotedWaitlistId = '';
     let promotedUserId = '';
     // `!` (definite assignment): idem booked — asignado dentro del callback.
-    let cancelledNotification!: { payload: outboxPort.CancelledPayload; email: string };
+    let cancelledNotification!: {
+      payload: outboxPort.CancelledPayload;
+      email: string;
+    };
 
     try {
       let result: { success: boolean; message: string };
@@ -417,9 +425,16 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment is already paid');
     }
 
-    await this.appointmentModel.findByIdAndUpdate(appointmentId, {
-      payment: true,
-    });
+    // Transicion atomica: solo quien pasa `payment` de false a true emite el
+    // evento, asi dos requests concurrentes no generan `paid` duplicado.
+    const updated = await this.appointmentModel.findOneAndUpdate(
+      { _id: appointmentId, payment: false },
+      { payment: true },
+    );
+
+    if (!updated) {
+      throw new BadRequestException('Appointment is already paid');
+    }
 
     const paidPayload: outboxPort.PaidPayload = {
       appointmentId: String(appointment._id),
@@ -526,30 +541,35 @@ export class AppointmentsService {
       if (appointmentId) {
         const appointment = await this.appointmentModel.findById(appointmentId);
 
-        // Idempotencia: el webhook puede repetirse → emitir solo en la transicion.
-        if (appointment && !appointment.payment) {
-          const paidPayload: outboxPort.PaidPayload = {
-            appointmentId: String(appointment._id),
-            patientId: appointment.userId,
-            doctorId: appointment.docId,
-            paidAt: new Date(),
-          };
-
-          await this.appointmentModel.findByIdAndUpdate(appointmentId, {
-            payment: true,
-          });
-
-          try {
-            await this.outbox?.append('paid', paidPayload, undefined);
-          } catch (e) {
-            console.log('outbox append failed:', e);
-          }
-
-          await this.notificationsFanout?.dispatchSafe(
-            'paid',
-            paidPayload,
-            String(appointment.userData?.email ?? ''),
+        if (appointment) {
+          // Transicion atomica: solo quien ve `payment: false` y lo cambia
+          // emite el evento. Un webhook repetido o concurrente ya no encuentra
+          // `payment: false`, asi que no vuelve a emitir `paid`.
+          const updated = await this.appointmentModel.findOneAndUpdate(
+            { _id: appointmentId, payment: false },
+            { payment: true },
           );
+
+          if (updated) {
+            const paidPayload: outboxPort.PaidPayload = {
+              appointmentId: String(appointment._id),
+              patientId: appointment.userId,
+              doctorId: appointment.docId,
+              paidAt: new Date(),
+            };
+
+            try {
+              await this.outbox?.append('paid', paidPayload, undefined);
+            } catch (e) {
+              console.log('outbox append failed:', e);
+            }
+
+            await this.notificationsFanout?.dispatchSafe(
+              'paid',
+              paidPayload,
+              String(appointment.userData?.email ?? ''),
+            );
+          }
         }
       }
     }

@@ -56,7 +56,9 @@ export class AdminService {
     @InjectModel(Notification.name)
     private readonly notificationModel: Model<NotificationDocument>,
     // Opcionales: el spec construye el service con 10 args → quedan undefined.
-    @Optional() @Inject(outboxPort.OUTBOX) private readonly outbox?: outboxPort.Outbox,
+    @Optional()
+    @Inject(outboxPort.OUTBOX)
+    private readonly outbox?: outboxPort.Outbox,
     @Optional()
     private readonly notificationsFanout?: NotificationsFanout,
   ) {}

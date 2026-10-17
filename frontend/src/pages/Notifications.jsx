@@ -41,19 +41,24 @@ const Notifications = () => {
                     {notifications.map((n) => (
                         <li
                             key={n._id}
-                            onClick={() => openNotification(n)}
-                            className={`flex items-start gap-3 py-4 border-b border-slate-300 cursor-pointer ${n.readAt ? 'opacity-60' : ''}`}
+                            className={`border-b border-slate-300 ${n.readAt ? 'opacity-60' : ''}`}
                         >
-                            <span
-                                className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${n.readAt ? 'bg-transparent' : 'bg-indigo-600'}`}
-                            />
-                            <div className="text-sm">
-                                <p className="font-semibold text-neutral-800">{itemTitle(n)}</p>
-                                <p className="text-zinc-600">{itemBody(n)}</p>
-                                <p className="text-xs text-zinc-400 mt-1">
-                                    {new Date(n.createdAt).toLocaleString()}
-                                </p>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => openNotification(n)}
+                                className="flex items-start gap-3 py-4 w-full text-left cursor-pointer"
+                            >
+                                <span
+                                    className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${n.readAt ? 'bg-transparent' : 'bg-indigo-600'}`}
+                                />
+                                <div className="text-sm">
+                                    <p className="font-semibold text-neutral-800">{itemTitle(n)}</p>
+                                    <p className="text-zinc-600">{itemBody(n)}</p>
+                                    <p className="text-xs text-zinc-400 mt-1">
+                                        {new Date(n.createdAt).toLocaleString()}
+                                    </p>
+                                </div>
+                            </button>
                         </li>
                     ))}
                 </ul>

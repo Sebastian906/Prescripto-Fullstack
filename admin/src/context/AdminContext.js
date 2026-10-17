@@ -23,6 +23,8 @@ export function provideAdminContext() {
             localStorage.setItem('aToken', token)
         } else {
             localStorage.removeItem('aToken')
+            // Sin sesion admin no deben quedar notificaciones retenidas visibles.
+            notifications.value = []
         }
     }
 

@@ -14,8 +14,10 @@ Phase 3 (this change) adds the delivery side **before** the worker exists:
 - `Notifier` port implemented by an SMTP adapter (`notifier.smtp.adapter.ts`).
 - In-app channel: `notification` collection + inbox REST API (`NotificationsModule`).
 - Fan-out pipeline (`NotificationsFanout`) driven by the outbox event catalog.
-- Producers wired: the three events are emitted from the appointment hooks (see
-  *Hook points*), with `booked`/`cancelled` atomic and `completed` best-effort.
+- Producers wired: four events are emitted from the appointment, doctor and admin
+  hooks (see *Hook points*). Only the patient `booked`/`cancelled` appointment
+  hooks are atomic; doctor/admin `cancelled`, `completed` and `paid` are
+  best-effort.
 
 Delivery is **best-effort, after** the transaction (mirrors
 `ReportsService.onAppointmentBooked`). Phase 4 swaps the inline call for the
@@ -25,7 +27,7 @@ worker; the `dispatch(record, recipientEmail)` contract does not change.
 
 | field          | type                                      | notes                                      |
 |----------------|-------------------------------------------|--------------------------------------------|
-| `event`        | `'booked' \| 'cancelled' \| 'completed'`  | required, enum                             |
+| `event`        | `'booked' \| 'cancelled' \| 'completed' \| 'paid'` | required, enum                    |
 | `payload`      | object                                    | **IDs + timestamps only** — never clinical |
 | `dispatchedAt` | `Date \| null`                            | `null` = pending; set by the future worker |
 | `createdAt`    | `Date`                                    | default `now`; FIFO order for the worker   |
@@ -40,9 +42,10 @@ An outbox row must commit **atomically** with the appointment it describes.
 replica set), so the writer accepts the same `ClientSession`. If MongoDB were
 ever a standalone (no replica set), transactions would fail at runtime.
 
-`DoctorsService.completeAppointment` is the exception: it opens **no**
-transaction, so its `completed` row is best-effort and **not atomic** (see
-*Hook points*).
+`DoctorsService.completeAppointment`/`cancelAppointment`,
+`AdminService.cancelAppointment` and the `paid` producers are the exceptions:
+they open **no** transaction, so their rows are best-effort and **not atomic**
+(see *Hook points*).
 
 ## Collection: `notifications`
 
@@ -51,7 +54,7 @@ Per-user in-app inbox.
 | field       | type                                      | notes                              |
 |-------------|-------------------------------------------|------------------------------------|
 | `userId`    | string                                    | recipient (patient)                |
-| `type`      | `'booked' \| 'cancelled' \| 'completed'`  | source event name                  |
+| `type`      | `'booked' \| 'cancelled' \| 'completed' \| 'paid'` | source event name         |
 | `title`     | string                                    | static copy from the catalog       |
 | `body`      | string                                    | static copy from the catalog       |
 | `data`      | object                                    | **IDs + timestamps only**          |
@@ -104,6 +107,17 @@ Emitted by the doctors module (`completeAppointment`).
       "completedAt": "<ISO date>"
     }
 
+### `paid`
+Emitted by the appointments module (`payWithCOD` and the Stripe webhook
+`verifyStripePayment`).
+
+    {
+      "appointmentId": "<Appointment._id as string>",
+      "patientId": "<userId>",
+      "doctorId": "<docId>",
+      "paidAt": "<ISO date>"
+    }
+
 ## Fan-out catalog
 
 `backend/src/notifications/notifications.catalog.ts` maps each event to its
@@ -115,12 +129,22 @@ the event type — never on patient data — so no clinical text can leak.
 - `booked` — `backend/src/appointments/appointments.service.ts`, inside
   `withTransaction`, after `appointmentModel.create`. Row is **atomic** with the
   appointment.
-- `cancelled` — `backend/src/appointments/appointments.service.ts`, inside
-  `withTransaction`, after the status update. Row is **atomic**.
+- `cancelled` — patient cancel in
+  `backend/src/appointments/appointments.service.ts`, inside `withTransaction`,
+  after the status update. Row is **atomic**.
+- `cancelled` — doctor cancel in `backend/src/doctors/doctors.service.ts`
+  (`cancelAppointment`) and admin cancel in
+  `backend/src/admin/admin.service.ts` (`cancelAppointment`). Neither opens a
+  transaction, so the row is best-effort and **not atomic**.
 - `completed` — `backend/src/doctors/doctors.service.ts`, in
   `completeAppointment`. The method has **no transaction**, so the row is
   best-effort and **not atomic** (committed after the status update). Wrap it in
   `withTransaction` when the Phase 4 worker needs strict atomicity.
+- `paid` — `backend/src/appointments/appointments.service.ts`, in `payWithCOD`
+  and `verifyStripePayment`. `payment` flips with an atomic conditional update
+  (`false → true`) and the event is emitted only when that update succeeds, so
+  concurrent or repeated calls never emit `paid` twice. No transaction →
+  best-effort.
 
 Delivery mirrors `ReportsService`: `outbox.append(...)` runs **inside** the
 transaction (where one exists) and `NotificationsFanout.dispatchSafe(...)` runs
