@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useDoctorContext } from '../../context/DoctorContext'
 import { useAppContext } from '../../context/AppContext'
 import { assets } from '../../assets/assets'
+import CancelReasonModal from '../../components/CancelReasonModal.vue'
 
 const { dToken, dashData, getDashData, completeAppointment, cancelAppointment, schedulingSuggestions, getSchedulingSuggestions } = useDoctorContext()
 const { currency, slotDateFormat } = useAppContext()
@@ -17,6 +18,20 @@ const statCards = computed(() => [
 
 const selectedPriority = ref('normal')
 const loadingSlots = ref(false)
+const cancelTarget = ref(null)
+const cancelReason = ref('')
+
+const openCancel = (id) => {
+    cancelTarget.value = id
+    cancelReason.value = ''
+}
+const confirmCancel = async () => {
+    if (!cancelTarget.value) return
+    await cancelAppointment(cancelTarget.value, cancelReason.value.trim())
+    await getDashData()
+    cancelTarget.value = null
+    cancelReason.value = ''
+}
 
 const next7Dates = computed(() => {
     return Array.from({ length: 7 }, (_, i) => {
@@ -80,7 +95,7 @@ onMounted(() => {
                     <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">{{
                         t('doctorDashboard.completed') }}</p>
                     <template v-else>
-                        <img @click="cancelAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.cancel_icon"
+                        <img @click="openCancel(item._id)" class="w-10 cursor-pointer" :src="assets.cancel_icon"
                             alt="Cancel" :title="t('doctorDashboard.cancelAppointment')" />
                         <img @click="completeAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.tick_icon"
                             alt="Complete" :title="t('doctorDashboard.markCompleted')" />
@@ -152,4 +167,6 @@ onMounted(() => {
     <div v-else class="flex items-center justify-center h-64 text-slate-400 text-sm">
         {{ t('doctorDashboard.loading') }}
     </div>
+    <CancelReasonModal :open="!!cancelTarget" :reason="cancelReason"
+        @update:reason="cancelReason = $event" @confirm="confirmCancel" @close="cancelTarget = null" />
 </template>

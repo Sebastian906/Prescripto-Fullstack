@@ -16,6 +16,7 @@ const adminNavItems = [
     { to: '/doctor-list', icon: assets.people_icon, labelKey: 'sidebar.doctorsList' },
     { to: '/specialities', icon: assets.list_icon, labelKey: 'sidebar.specialities' },
     { to: '/admin-reports', icon: assets.list_icon, labelKey: 'sidebar.reports' },
+    { to: '/admin-notifications', icon: assets.list_icon, labelKey: 'sidebar.notifications' },
     { to: '/admin-chat', icon: assets.appointment_icon, labelKey: 'sidebar.liveChat' },
 ]
 

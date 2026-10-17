@@ -56,7 +56,7 @@ import { isEmail as isEmailFormat } from 'class-validator';
 export const SLOT_DATE_PATTERN = /^\d{2}\/\d{2}\/\d{4}$/;
 
 // D_M_YYYY con guiones bajos: contrato actual de book-appointment.
-export const BOOK_SLOT_DATE_PATTERN = /^\d{1,2}_\d{1,2}_\d{4}$/;
+export const BOOK_SLOT_DATE_PATTERN = /^\d{1,2}[_/]\d{1,2}[_/]\d{4}$/;
 
 // HH:MM AM/PM con hora 1..12: contrato de slotTime.
 export const SLOT_TIME_PATTERN = /^([1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;

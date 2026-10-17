@@ -26,6 +26,7 @@ import { ReferralsModule } from './referrals/referrals.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { CacheModule } from './shared/cache/cache.module';
 import { CacheInterceptor } from './shared/cache/cache.interceptor';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { CacheInterceptor } from './shared/cache/cache.interceptor';
     ReferralsModule,
     AvailabilityModule,
     CacheModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

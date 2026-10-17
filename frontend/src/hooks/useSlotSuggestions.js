@@ -12,7 +12,7 @@ export function useSlotSuggestions(backendUrl, token) {
         if (!token || !docId) return
         setLoading(true)
         try {
-            const preferredDates = dateRange.map(d => `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`)
+            const preferredDates = dateRange.map(d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`)
             const { data } = await axios.post(`${backendUrl}/api/scheduling/suggest-slot`, { docId, preferredDates, priorityLevel }, { headers: { token } })
             if (data.suggestions) {
                 setSuggestions(data.suggestions)

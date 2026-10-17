@@ -51,9 +51,9 @@ export function provideDoctorContext() {
         }
     }
 
-    const cancelAppointment = async (appointmentId) => {
+    const cancelAppointment = async (appointmentId, reason) => {
         try {
-            const { data } = await axios.patch(backendUrl + '/api/doctors/cancel-appointment', { appointmentId }, { headers: { dtoken: dToken.value } })
+            const { data } = await axios.patch(backendUrl + '/api/doctors/cancel-appointment', { appointmentId, reason }, { headers: { dtoken: dToken.value } })
             if (data.success) {
                 toast.success(data.message)
                 await getAppointments()

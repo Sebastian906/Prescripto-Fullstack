@@ -13,6 +13,7 @@ import { ToastContainer } from 'react-toastify';
 import OAuthCallback from './pages/OAuthCallback'
 import ResetPassword from './pages/ResetPassword'
 import ChatWidget from './components/ChatWidget'
+import Notifications from './pages/Notifications'
 
 const App = () => {
   return (
@@ -29,6 +30,7 @@ const App = () => {
           <Route path='/contact' element={<Contact />} />
           <Route path='/my-profile' element={<MyProfile />} />
           <Route path='/my-appointments' element={<MyAppointments />} />
+          <Route path='/notifications' element={<Notifications />} />
           <Route path='/appointment/:docId' element={<Appointment />} />
           <Route path='/oauth-callback' element={<OAuthCallback />} />
           <Route path='/reset-password' element={<ResetPassword />} />

@@ -7,6 +7,7 @@
         "createAccount": "Crear cuenta",
         "myProfile": "Mi Perfil",
         "myAppointments": "Mis Citas",
+        "notifications": "Notificaciones",
         "logout": "Cerrar sesión"
     },
     "home": {
@@ -93,10 +94,33 @@
         "payOnline": "Pagar en línea",
         "paid": "Pagado",
         "cancelAppointment": "Cancelar cita",
+        "cancellationReason": "Motivo de cancelación",
         "appointmentCancelled": "Cita cancelada",
         "completed": "Completada",
         "payWithStripe": "Pagar con Stripe",
         "cashOnDelivery": "Pago en efectivo"
+    },
+    "notifications": {
+        "title": "Notificaciones",
+        "empty": "No tienes notificaciones.",
+        "type": {
+            "booked": {
+                "title": "Cita reservada",
+                "body": "Tu cita se reservó correctamente."
+            },
+            "cancelled": {
+                "title": "Cita cancelada",
+                "body": "Tu cita fue cancelada."
+            },
+            "completed": {
+                "title": "Cita completada",
+                "body": "Tu cita se marcó como completada."
+            },
+            "paid": {
+                "title": "Cita pagada",
+                "body": "El pago de tu cita se registró correctamente."
+            }
+        }
     },
     "myProfile": {
         "contactInfo": "INFORMACIÓN DE CONTACTO",

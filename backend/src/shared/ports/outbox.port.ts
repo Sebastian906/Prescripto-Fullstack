@@ -3,7 +3,7 @@
 // Redis) drains them. Payloads are IDs + timestamps ONLY — never clinical text.
 // Design doc: docs/NOTIFICATIONS.md.
 
-export type OutboxEventName = 'booked' | 'cancelled' | 'completed';
+export type OutboxEventName = 'booked' | 'cancelled' | 'completed' | 'paid';
 
 // No patient/doctor snapshot here: identifiers only.
 export interface BookedPayload {
@@ -28,10 +28,18 @@ export interface CompletedPayload {
   completedAt: Date;
 }
 
+export interface PaidPayload {
+  appointmentId: string;
+  patientId: string;
+  doctorId: string;
+  paidAt: Date;
+}
+
 export interface OutboxEventMap {
   booked: BookedPayload;
   cancelled: CancelledPayload;
   completed: CompletedPayload;
+  paid: PaidPayload;
 }
 
 export type OutboxPayload = OutboxEventMap[OutboxEventName];
@@ -55,6 +63,7 @@ export const OUTBOX_PAYLOAD_KEYS: Record<OutboxEventName, readonly string[]> = {
   ],
   cancelled: ['appointmentId', 'patientId', 'doctorId', 'cancelledAt'],
   completed: ['appointmentId', 'patientId', 'doctorId', 'completedAt'],
+  paid: ['appointmentId', 'patientId', 'doctorId', 'paidAt'],
 };
 
 export function assertSafeOutboxPayload<E extends OutboxEventName>(

@@ -11,6 +11,7 @@
         "doctorsList": "Lista de Médicos",
         "specialities": "Especialidades",
         "reports": "Informes",
+        "notifications": "Notificaciones",
         "liveChat": "Chat en Vivo",
         "profile": "Perfil"
     },
@@ -182,6 +183,24 @@
         "user": "Usuario",
         "admin": "Tú"
     },
+    "notifications": {
+        "title": "Registro de Notificaciones",
+        "refresh": "Actualizar",
+        "typeLabel": "Tipo",
+        "appointment": "Cita",
+        "doctor": "Médico",
+        "when": "Fecha",
+        "status": "Estado",
+        "read": "Leída",
+        "unread": "No leída",
+        "empty": "No se encontraron notificaciones.",
+        "type": {
+            "booked": "Reservada",
+            "cancelled": "Cancelada",
+            "completed": "Completada",
+            "paid": "Pagada"
+        }
+    },
     "forgotPasswordModal": {
         "title": "Restablecer contraseña",
         "subtitle": "Ingresa tu correo y nueva contraseña.",
@@ -224,6 +243,12 @@
         "appointments": "citas",
         "cancelAppointment": "Cancelar cita",
         "markCompleted": "Marcar como completada"
+    },
+    "cancelReason": {
+        "title": "Motivo de cancelación",
+        "placeholder": "Explica brevemente por qué se cancela la cita",
+        "confirm": "Cancelar cita",
+        "dismiss": "Volver"
     },
     "adminReports": {
         "title": "Informes Anuales",

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 const Navbar = () => {
 
     const navigate = useNavigate();
-    const { token, setToken, userData } = useContext(AppContext)
+    const { token, setToken, userData, unreadCount } = useContext(AppContext)
     const [showMenu, setShowMenu] = useState(false);
     const { t } = useTranslation()
 
@@ -43,6 +43,34 @@ const Navbar = () => {
             </ul>
             <div className='flex items-center gap-4'>
                 <LanguageSwitcher />
+                {token && userData && (
+                    <button
+                        onClick={() => navigate('/notifications')}
+                        className="relative cursor-pointer"
+                        aria-label={t('nav.notifications')}
+                        title={t('nav.notifications')}
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="w-6 h-6 text-slate-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"
+                            />
+                        </svg>
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 text-[10px] leading-none bg-red-500 text-white rounded-full px-1.5 py-0.5">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                        )}
+                    </button>
+                )}
                 {token && userData ? (
                     <div className="flex items-center gap-2 cursor-pointer group relative">
                         <img className="w-8 rounded-full" src={userData.image} alt="" />

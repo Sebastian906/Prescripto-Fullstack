@@ -1,22 +1,33 @@
-# NOTIFICATIONS — Transactional Outbox (design only)
+# NOTIFICATIONS — Transactional Outbox + Notification inbox
 
 > Source of truth for the notification outbox design. Tracked document.
 > Spanish mirror: `NOTIFICATIONS-ES.md`.
 
-## Status: design only (no worker)
+## Status: pre-worker (no worker, no realtime push)
 
-We design — but do **not** build — a transactional `outbox` collection written
-inside the appointment transaction. Today a "notification" is a log line; there
-is **no** `Notification` entity and **no** queue producer. No event bus, message
-queue, or Redis exists in the runtime stack yet.
+The transactional `outbox` collection is written inside the appointment
+transaction. A future worker (Phase 4, Redis) drains undispatched rows. The
+**worker stays out of scope**.
 
-The Mongoose writer and its unit test ship now. The **worker stays out of scope**.
+Phase 3 (this change) adds the delivery side **before** the worker exists:
+
+- `Notifier` port implemented by an SMTP adapter (`notifier.smtp.adapter.ts`).
+- In-app channel: `notification` collection + inbox REST API (`NotificationsModule`).
+- Fan-out pipeline (`NotificationsFanout`) driven by the outbox event catalog.
+- Producers wired: four events are emitted from the appointment, doctor and admin
+  hooks (see *Hook points*). Only the patient `booked`/`cancelled` appointment
+  hooks are atomic; doctor/admin `cancelled`, `completed` and `paid` are
+  best-effort.
+
+Delivery is **best-effort, after** the transaction (mirrors
+`ReportsService.onAppointmentBooked`). Phase 4 swaps the inline call for the
+worker; the `dispatch(record, recipientEmail)` contract does not change.
 
 ## Collection: `outbox`
 
 | field          | type                                      | notes                                      |
 |----------------|-------------------------------------------|--------------------------------------------|
-| `event`        | `'booked' \| 'cancelled' \| 'completed'`  | required, enum                             |
+| `event`        | `'booked' \| 'cancelled' \| 'completed' \| 'paid'` | required, enum                    |
 | `payload`      | object                                    | **IDs + timestamps only** — never clinical |
 | `dispatchedAt` | `Date \| null`                            | `null` = pending; set by the future worker |
 | `createdAt`    | `Date`                                    | default `now`; FIFO order for the worker   |
@@ -31,10 +42,35 @@ An outbox row must commit **atomically** with the appointment it describes.
 replica set), so the writer accepts the same `ClientSession`. If MongoDB were
 ever a standalone (no replica set), transactions would fail at runtime.
 
+`DoctorsService.completeAppointment`/`cancelAppointment`,
+`AdminService.cancelAppointment` and the `paid` producers are the exceptions:
+they open **no** transaction, so their rows are best-effort and **not atomic**
+(see *Hook points*).
+
+## Collection: `notifications`
+
+Per-user in-app inbox.
+
+| field       | type                                      | notes                              |
+|-------------|-------------------------------------------|------------------------------------|
+| `userId`    | string                                    | recipient (patient)                |
+| `type`      | `'booked' \| 'cancelled' \| 'completed' \| 'paid'` | source event name         |
+| `title`     | string                                    | static copy from the catalog       |
+| `body`      | string                                    | static copy from the catalog       |
+| `data`      | object                                    | **IDs + timestamps only**          |
+| `readAt`    | `Date \| null`                            | `null` = unread                    |
+| `createdAt` | `Date`                                    | timestamps: true                   |
+
+Index: `{ userId: 1, createdAt: -1 }` (inbox listing).
+
+`data` is projected with `OUTBOX_PAYLOAD_KEYS` (`idsOnlyPayload`), so the same
+runtime allowlist that protects the outbox protects the inbox: extra keys,
+including clinical text, are dropped.
+
 ## Event catalog
 
 Payloads carry identifiers and timestamps only. Names, diagnosis, clinical
-notes, reason for visit, etc. are **forbidden** in this collection.
+notes, reason for visit, etc. are **forbidden** in both collections.
 
 ### `booked`
 Emitted inside the `bookAppointment` transaction, after the appointment insert.
@@ -48,7 +84,8 @@ Emitted inside the `bookAppointment` transaction, after the appointment insert.
     }
 
 `scheduledAt` is derived at hook time from the appointment's `slotDate` plus
-`slotTime` (the schema stores them separately).
+`slotTime` via `slotDateTime`
+(`backend/src/shared/utils/slot-generator.util.ts`).
 
 ### `cancelled`
 Emitted inside the `cancelAppointment` transaction, after the status update.
@@ -70,23 +107,56 @@ Emitted by the doctors module (`completeAppointment`).
       "completedAt": "<ISO date>"
     }
 
-## Hook points (future — NOT implemented in this change)
+### `paid`
+Emitted by the appointments module (`payWithCOD` and the Stripe webhook
+`verifyStripePayment`).
+
+    {
+      "appointmentId": "<Appointment._id as string>",
+      "patientId": "<userId>",
+      "doctorId": "<docId>",
+      "paidAt": "<ISO date>"
+    }
+
+## Fan-out catalog
+
+`backend/src/notifications/notifications.catalog.ts` maps each event to its
+channels (`in-app`, `email`) and its **static** copy. The copy depends only on
+the event type — never on patient data — so no clinical text can leak.
+
+## Hook points (implemented — pre-worker)
 
 - `booked` — `backend/src/appointments/appointments.service.ts`, inside
-  `withTransaction`, after `appointmentModel.create` (~L125-143).
-- `cancelled` — `backend/src/appointments/appointments.service.ts`, inside
-  `withTransaction`, after `findByIdAndUpdate` (~L207).
+  `withTransaction`, after `appointmentModel.create`. Row is **atomic** with the
+  appointment.
+- `cancelled` — patient cancel in
+  `backend/src/appointments/appointments.service.ts`, inside `withTransaction`,
+  after the status update. Row is **atomic**.
+- `cancelled` — doctor cancel in `backend/src/doctors/doctors.service.ts`
+  (`cancelAppointment`) and admin cancel in
+  `backend/src/admin/admin.service.ts` (`cancelAppointment`). Neither opens a
+  transaction, so the row is best-effort and **not atomic**.
 - `completed` — `backend/src/doctors/doctors.service.ts`, in
-  `completeAppointment` (~L107-130).
+  `completeAppointment`. The method has **no transaction**, so the row is
+  best-effort and **not atomic** (committed after the status update). Wrap it in
+  `withTransaction` when the Phase 4 worker needs strict atomicity.
+- `paid` — `backend/src/appointments/appointments.service.ts`, in `payWithCOD`
+  and `verifyStripePayment`. `payment` flips with an atomic conditional update
+  (`false → true`) and the event is emitted only when that update succeeds, so
+  concurrent or repeated calls never emit `paid` twice. No transaction →
+  best-effort.
 
-Reporting is already called **after** the transaction (best-effort). Mirror that
-pattern: call `outbox.append(...)` **inside** the transaction; never call the
-notifier inline.
+Delivery mirrors `ReportsService`: `outbox.append(...)` runs **inside** the
+transaction (where one exists) and `NotificationsFanout.dispatchSafe(...)` runs
+**after** it with the delivery email the caller already has — never the notifier
+inline. `dispatchSafe` never propagates to the request (a down channel cannot
+break booking/cancel/complete).
 
 ## Not building the worker now
 
 The worker (poll, claim, send, retry/DLQ) is intentionally deferred. Do not
-build it opportunistically.
+build it opportunistically. WebSocket push and read receipts are likewise out
+of scope.
 
 ## Phase 4 trigger
 
@@ -96,21 +166,37 @@ one of these holds:
 - Reminders are required (e.g. a T-24h appointment reminder).
 - Event volume makes inline dispatch risky or unobservable.
 
-Until then, outbox rows simply accumulate as an audit of intent.
+Until then, outbox rows simply accumulate as an audit of intent, and delivery
+runs best-effort from the fan-out.
 
 ## Risks
 
 - Standalone MongoDB (no replica set) breaks `withTransaction` — document before
   any environment change.
-- `payload` is a Mongoose `Mixed` field: its shape is enforced at compile time by
-  the `Outbox` port types and at runtime by `assertSafeOutboxPayload`
-  (`backend/src/shared/ports/outbox.port.ts`), which allowlists keys and accepts
-  only string or Date values. Extra keys, including clinical text, throw.
+- The `completed` row is not atomic (no transaction in `completeAppointment`).
+  Acceptable pre-worker (the row is an audit of intent); revisit in Phase 4.
+- `payload` / `data` are Mongoose `Mixed` fields: their shape is enforced at
+  compile time by the port types and at runtime by `assertSafeOutboxPayload` /
+  `idsOnlyPayload` (`backend/src/shared/ports/outbox.port.ts`). Extra keys,
+  including clinical text, throw or are dropped.
 
 ## Files
 
 - `backend/src/shared/ports/outbox.port.ts`
+- `backend/src/shared/ports/notifier.port.ts`
 - `backend/src/notifications/schemas/outbox-event.schema.ts`
+- `backend/src/notifications/schemas/notification.schema.ts`
 - `backend/src/notifications/outbox.mongoose.adapter.ts`
+- `backend/src/notifications/notifier.smtp.adapter.ts`
+- `backend/src/notifications/in-app.adapter.ts`
+- `backend/src/notifications/notifications.catalog.ts`
+- `backend/src/notifications/notifications.fanout.ts`
+- `backend/src/notifications/notifications.service.ts`
+- `backend/src/notifications/notifications.controller.ts`
 - `backend/src/notifications/notifications.module.ts`
+- `backend/src/shared/utils/slot-generator.util.ts`
+- `backend/src/appointments/appointments.service.ts` (producer)
+- `backend/src/doctors/doctors.service.ts` (producer)
 - `backend/src/tests/outbox-writer.spec.ts`
+- `backend/src/tests/notifications-fanout.spec.ts`
+- `backend/src/tests/slot-datetime.spec.ts`

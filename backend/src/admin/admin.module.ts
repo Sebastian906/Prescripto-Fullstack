@@ -16,8 +16,13 @@ import {
   Speciality,
   SpecialitySchema,
 } from 'src/specialities/schemas/speciality.schema';
+import {
+  Notification,
+  NotificationSchema,
+} from 'src/notifications/schemas/notification.schema';
 import { AuditModule } from 'src/audit/audit.module';
-import { AvailabilityModule } from 'src/availability/availability.module'; // ‚Üê ADD
+import { AvailabilityModule } from 'src/availability/availability.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +31,7 @@ import { AvailabilityModule } from 'src/availability/availability.module'; // ‚Ü
       { name: Appointment.name, schema: AppointmentSchema },
       { name: User.name, schema: UserSchema },
       { name: Speciality.name, schema: SpecialitySchema },
+      { name: Notification.name, schema: NotificationSchema },
     ]),
     CloudinaryModule,
     ConfigModule,
@@ -33,6 +39,7 @@ import { AvailabilityModule } from 'src/availability/availability.module'; // ‚Ü
     DoctorsModule,
     AuditModule,
     AvailabilityModule,
+    NotificationsModule,
   ],
   providers: [AdminService],
   controllers: [AdminController],

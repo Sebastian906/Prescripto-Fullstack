@@ -1,5 +1,6 @@
 <script setup>
 import { useDoctorContext } from '../../context/DoctorContext'
+import CancelReasonModal from '../../components/CancelReasonModal.vue'
 import { useAppContext } from '../../context/AppContext'
 import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted } from 'vue'
@@ -11,6 +12,19 @@ const { t } = useI18n()
 
 const PAGE_SIZE = 8
 const currentPage = ref(1)
+const cancelTarget = ref(null)
+const cancelReason = ref('')
+
+const openCancel = (id) => {
+    cancelTarget.value = id
+    cancelReason.value = ''
+}
+const confirmCancel = async () => {
+    if (!cancelTarget.value) return
+    await cancelAppointment(cancelTarget.value, cancelReason.value.trim())
+    cancelTarget.value = null
+    cancelReason.value = ''
+}
 
 const totalPages = computed(() => Math.ceil(appointments.value.length / PAGE_SIZE))
 
@@ -68,7 +82,7 @@ onMounted(() => {
                     <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">{{
                         t('doctorAppointments.completed') }}</p>
                     <template v-else>
-                        <img @click="cancelAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.cancel_icon"
+                        <img @click="openCancel(item._id)" class="w-10 cursor-pointer" :src="assets.cancel_icon"
                             alt="Cancel" :title="t('doctorAppointments.cancelAppointment')" />
                         <img @click="completeAppointment(item._id)" class="w-10 cursor-pointer" :src="assets.tick_icon"
                             alt="Complete" :title="t('doctorAppointments.markCompleted')" />
@@ -108,5 +122,7 @@ onMounted(() => {
             appointments.length) }}
             {{ t('doctorAppointments.of') }} {{ appointments.length }} {{ t('doctorAppointments.appointments') }}
         </p>
+        <CancelReasonModal :open="!!cancelTarget" :reason="cancelReason"
+            @update:reason="cancelReason = $event" @confirm="confirmCancel" @close="cancelTarget = null" />
     </div>
 </template>

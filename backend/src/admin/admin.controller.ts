@@ -80,6 +80,20 @@ export class AdminController {
     return this.adminService.cancelAppointment(body.appointmentId);
   }
 
+  @Get('notifications')
+  @ApiOperation({
+    summary: 'Get the notification log across users (admin panel)',
+  })
+  @ApiHeader({
+    name: 'atoken',
+    description: 'Admin authentication token',
+    required: true,
+  })
+  @UseGuards(AuthAdminGuard)
+  async getAllNotifications() {
+    return this.adminService.getAllNotifications();
+  }
+
   @Get('dashboard')
   @ApiOperation({
     summary:
