@@ -12,7 +12,7 @@ export type AppliedStatsEventDocument = HydratedDocument<AppliedStatsEvent>;
  */
 @Schema({ collection: 'applied_stats_events', timestamps: true })
 export class AppliedStatsEvent {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
   key!: string;
 
   @Prop({ required: true })
@@ -27,3 +27,8 @@ export class AppliedStatsEvent {
 
 export const AppliedStatsEventSchema =
   SchemaFactory.createForClass(AppliedStatsEvent);
+
+// Índice único explícito (mismo patrón que MonthlyStats): el cerrojo de
+// idempotencia. Mongoose lo sincroniza en startup vía autoIndex; su provisión
+// por migración de despliegue queda fuera de este módulo.
+AppliedStatsEventSchema.index({ key: 1 }, { unique: true });

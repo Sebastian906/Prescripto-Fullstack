@@ -127,9 +127,9 @@ export class ReportsService {
    * Idempotencia + atomicidad: el ledger se escribe con la clave `booked:<id>`
    * DENTRO de la misma transacción local que los `$inc`. El índice único de
    * `key` aborta el tx en una re-entrega (E11000) → no-op.
-   * Transacción LOCAL (un solo cluster Mongo), NO 2PC (ver
-   * docs/SAGA-COMPENSATIONS.md). Secuencial (no Promise.all): una sesión Mongo
-   * no admite operaciones concurrentes.
+   * Transacción LOCAL (un solo cluster Mongo), NO 2PC (convergencia por
+   * idempotency key). Secuencial (no Promise.all): una sesión Mongo no admite
+   * operaciones concurrentes.
    */
   async applyBookedStatsIdempotent(
     appointmentId: string,
@@ -167,9 +167,7 @@ export class ReportsService {
         applied = true;
       });
     } catch (err) {
-      const code = (err as { code?: number }).code;
-      const msg = err instanceof Error ? err.message : String(err);
-      if (code === 11000 || /duplicate/i.test(msg)) return { applied: false };
+      if (this.isLedgerDuplicate(err)) return { applied: false };
       throw err;
     } finally {
       if (applied) this.invalidateStatsCache(docId);
@@ -185,8 +183,8 @@ export class ReportsService {
    * para derivar docId/date (ReportsService no inyecta el modelo Appointment).
    * NO restaura uniquePatients/inline: es un set, no un contador; el backfill
    * idempotente (backfillMonthlyStats) reconcilia su valor exacto.
-   * Invocación: ops/retry manual o futuro worker (Fase 4). Ver
-   * docs/SAGA-COMPENSATIONS.md.
+   * Invocación: ops/retry manual o futuro worker (Fase 4). Solo revierte si el
+   * forward `booked:` ya se aplicó (si no, no-op idempotente).
    */
   async decrementStatsForAppointment(
     appointmentId: string,
@@ -208,6 +206,15 @@ export class ReportsService {
     let applied = false;
     try {
       await session.withTransaction(async () => {
+        // Compensación válida solo si el forward `booked:` se aplicó; si no, no
+        // hay nada que revertir (no-op idempotente).
+        const forward = await ledger
+          .findOne({ key: `booked:${appointmentId}` })
+          .session(session)
+          .select('_id')
+          .lean();
+        if (!forward) return;
+
         await ledger.create(
           [
             {
@@ -237,15 +244,31 @@ export class ReportsService {
         applied = true;
       });
     } catch (err) {
-      const code = (err as { code?: number }).code;
-      const msg = err instanceof Error ? err.message : String(err);
-      if (code === 11000 || /duplicate/i.test(msg)) return { applied: false };
+      if (this.isLedgerDuplicate(err)) return { applied: false };
       throw err;
     } finally {
       if (applied) this.invalidateStatsCache(docId);
       await session.endSession();
     }
     return { applied };
+  }
+
+  /**
+   * true solo si `err` es E11000 sobre el índice único del ledger
+   * (`applied_stats_events.key`). Cualquier otro duplicado (p.ej. el índice
+   * {docId,year,month} de monthly_stats o el spill) NO es una re-entrega y se
+   * re-lanza.
+   */
+  private isLedgerDuplicate(err: unknown): boolean {
+    if ((err as { code?: number }).code !== 11000) return false;
+    const keyPattern = (err as { keyPattern?: Record<string, unknown> })
+      .keyPattern;
+    if (keyPattern && Object.prototype.hasOwnProperty.call(keyPattern, 'key')) {
+      return true;
+    }
+    return (err instanceof Error ? err.message : String(err)).includes(
+      'applied_stats_events',
+    );
   }
 
   /**
