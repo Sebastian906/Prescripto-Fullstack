@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import {
   MAX_INLINE_PATIENT_IDS,
@@ -9,7 +9,11 @@ import {
   MonthlyStatsPatient,
   MonthlyStatsPatientDocument,
 } from './schemas/monthly-stats-patient.schema';
-import { Connection, Model } from 'mongoose';
+import {
+  AppliedStatsEvent,
+  AppliedStatsEventDocument,
+} from './schemas/applied-stats-event.schema';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { CacheService } from 'src/shared/cache/cache.service';
 
 // Constante para métricas globales del sistema
@@ -34,6 +38,9 @@ export class ReportsService {
     @InjectConnection()
     private readonly connection: Connection,
     private readonly cacheService: CacheService,
+    @Optional()
+    @InjectModel(AppliedStatsEvent.name)
+    private readonly appliedEventModel?: Model<AppliedStatsEventDocument>,
   ) {}
 
   /**
@@ -112,6 +119,133 @@ export class ReportsService {
     } finally {
       this.invalidateStatsCache(docId);
     }
+  }
+
+  /**
+   * Paso 2 de la saga (post-tx, retryable): aplica el evento `booked` a la
+   * tabla DP de forma IDEMPOTENTE por `appointmentId`.
+   * Idempotencia + atomicidad: el ledger se escribe con la clave `booked:<id>`
+   * DENTRO de la misma transacción local que los `$inc`. El índice único de
+   * `key` aborta el tx en una re-entrega (E11000) → no-op.
+   * Transacción LOCAL (un solo cluster Mongo), NO 2PC (ver
+   * docs/SAGA-COMPENSATIONS.md). Secuencial (no Promise.all): una sesión Mongo
+   * no admite operaciones concurrentes.
+   */
+  async applyBookedStatsIdempotent(
+    appointmentId: string,
+    docId: string,
+    userId: string,
+    amount: number,
+    date: Date,
+  ): Promise<{ applied: boolean }> {
+    const ledger = this.appliedEventModel;
+    if (!ledger) throw new Error('AppliedStatsEvent model is not registered');
+    const key = `booked:${appointmentId}`;
+    const session = await this.connection.startSession();
+    let applied = false;
+    try {
+      await session.withTransaction(async () => {
+        await ledger.create(
+          [{ key, appointmentId, type: 'booked', appliedAt: new Date() }],
+          { session },
+        );
+        const { year, month } = this.extractYearMonth(date);
+        await this.incrementStats(
+          docId,
+          year,
+          month,
+          { totalAppointments: 1, patientId: userId },
+          session,
+        );
+        await this.incrementStats(
+          GLOBAL_DOC_ID,
+          year,
+          month,
+          { totalAppointments: 1, patientId: userId },
+          session,
+        );
+        applied = true;
+      });
+    } catch (err) {
+      const code = (err as { code?: number }).code;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (code === 11000 || /duplicate/i.test(msg)) return { applied: false };
+      throw err;
+    } finally {
+      if (applied) this.invalidateStatsCache(docId);
+      await session.endSession();
+    }
+    return { applied };
+  }
+
+  /**
+   * Compensación de `booked` (saga): revierte el `$inc` de totalAppointments
+   * (fila del doctor + global) de la cita dada. Idempotente por la clave
+   * `booked_decrement:<appointmentId>` (mismo ledger, otra clave). Lee la cita
+   * para derivar docId/date (ReportsService no inyecta el modelo Appointment).
+   * NO restaura uniquePatients/inline: es un set, no un contador; el backfill
+   * idempotente (backfillMonthlyStats) reconcilia su valor exacto.
+   * Invocación: ops/retry manual o futuro worker (Fase 4). Ver
+   * docs/SAGA-COMPENSATIONS.md.
+   */
+  async decrementStatsForAppointment(
+    appointmentId: string,
+  ): Promise<{ applied: boolean }> {
+    const ledger = this.appliedEventModel;
+    if (!ledger) throw new Error('AppliedStatsEvent model is not registered');
+    if (!Types.ObjectId.isValid(appointmentId)) {
+      throw new Error('Invalid appointmentId');
+    }
+    const appointment = await this.connection
+      .collection('appointments')
+      .findOne({ _id: new Types.ObjectId(appointmentId) });
+    if (!appointment) throw new Error('Appointment not found');
+
+    const docId = String(appointment.docId);
+    const date = new Date(Number(appointment.date));
+    const key = `booked_decrement:${appointmentId}`;
+    const session = await this.connection.startSession();
+    let applied = false;
+    try {
+      await session.withTransaction(async () => {
+        await ledger.create(
+          [
+            {
+              key,
+              appointmentId,
+              type: 'booked_decrement',
+              appliedAt: new Date(),
+            },
+          ],
+          { session },
+        );
+        const { year, month } = this.extractYearMonth(date);
+        await this.incrementStats(
+          docId,
+          year,
+          month,
+          { totalAppointments: -1 },
+          session,
+        );
+        await this.incrementStats(
+          GLOBAL_DOC_ID,
+          year,
+          month,
+          { totalAppointments: -1 },
+          session,
+        );
+        applied = true;
+      });
+    } catch (err) {
+      const code = (err as { code?: number }).code;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (code === 11000 || /duplicate/i.test(msg)) return { applied: false };
+      throw err;
+    } finally {
+      if (applied) this.invalidateStatsCache(docId);
+      await session.endSession();
+    }
+    return { applied };
   }
 
   /**
@@ -527,11 +661,13 @@ export class ReportsService {
 
   /**
    * Upsert atómico con $inc + cap de uniquePatientIds en 5000.
-   * - Sin patientId: un solo upsert $inc (path complete/cancel).
+   * - Sin patientId: un solo upsert $inc (path complete/cancel/decrement).
    * - Con patientId nuevo e inline con hueco: updateOne con filtro
    *   $ne + $addToSet + $inc uniquePatients:1 (atómico por documento).
    * - Con inline lleno: insert en spill (índice único) + $inc uniquePatients:1;
    *   duplicado concurrente (E11000) → solo $inc de contadores.
+   * `session` opcional: ata todas las ops a la tx del caller (paso 2 de la
+   * saga). Sin session, idéntico al comportamiento previo.
    */
   private async incrementStats(
     docId: string,
@@ -544,6 +680,7 @@ export class ReportsService {
       earnings?: number;
       patientId?: string;
     },
+    session?: ClientSession,
   ): Promise<void> {
     const { patientId, ...numericDeltas } = delta;
 
@@ -559,15 +696,18 @@ export class ReportsService {
       if (Object.keys(updateOp).length === 0) return;
       await this.statsModel.updateOne({ docId, year, month }, updateOp, {
         upsert: true,
+        ...(session ? { session } : {}),
       });
       return;
     }
 
     // Path con paciente: leer cabecera acotada (sin traer 5000 IDs salvo el doc).
-    const existing = await this.statsModel
+    const headerQuery = this.statsModel
       .findOne({ docId, year, month })
-      .select('uniquePatientIds')
-      .lean();
+      .select('uniquePatientIds');
+    const existing = await (
+      session ? headerQuery.session(session) : headerQuery
+    ).lean();
 
     // Documento inexistente: crearlo con el primer paciente inline.
     // El filtro $ne evita doble conteo si el doc apareció entre el find y
@@ -582,7 +722,7 @@ export class ReportsService {
             $inc: { ...incCounters, uniquePatients: 1 },
             $addToSet: { uniquePatientIds: patientId },
           },
-          { upsert: true },
+          { upsert: true, ...(session ? { session } : {}) },
         );
       } catch (err) {
         if ((err as { code?: number }).code !== 11000) throw err;
@@ -590,6 +730,7 @@ export class ReportsService {
           await this.statsModel.updateOne(
             { docId, year, month },
             { $inc: incCounters },
+            session ? { session } : {},
           );
         }
       }
@@ -606,6 +747,7 @@ export class ReportsService {
       await this.statsModel.updateOne(
         { docId, year, month },
         { $inc: incCounters },
+        session ? { session } : {},
       );
       return;
     }
@@ -619,6 +761,7 @@ export class ReportsService {
       await this.statsModel.updateOne(
         { docId, year, month },
         { $inc: incCounters },
+        session ? { session } : {},
       );
       return;
     }
@@ -643,13 +786,16 @@ export class ReportsService {
             : { $inc: { uniquePatients: 1 } }),
           $addToSet: { uniquePatientIds: patientId },
         },
+        session ? { session } : {},
       );
       if ((res.modifiedCount ?? 0) > 0) return;
       // Sin modificación: re-check de membresía inline.
-      const recheck = await this.statsModel
+      const recheckQuery = this.statsModel
         .findOne({ docId, year, month })
-        .select('uniquePatientIds')
-        .lean();
+        .select('uniquePatientIds');
+      const recheck = await (
+        session ? recheckQuery.session(session) : recheckQuery
+      ).lean();
       const reInline: string[] = Array.isArray(recheck?.uniquePatientIds)
         ? recheck.uniquePatientIds
         : [];
@@ -658,6 +804,7 @@ export class ReportsService {
           await this.statsModel.updateOne(
             { docId, year, month },
             { $inc: incCounters },
+            session ? { session } : {},
           );
         }
         return;
@@ -667,24 +814,36 @@ export class ReportsService {
 
     // Inline lleno → spill.
     try {
-      await this.spillModel.create({ docId, year, month, patientId });
+      if (session) {
+        await this.spillModel.create([{ docId, year, month, patientId }], {
+          session,
+        });
+      } else {
+        await this.spillModel.create({ docId, year, month, patientId });
+      }
       // Dedup de carrera: si el paciente también quedó inline mientras
       // tanto, eliminar el spill y no incrementar uniquePatients.
-      const raced = await this.statsModel
+      const racedQuery = this.statsModel
         .findOne({ docId, year, month })
-        .select('uniquePatientIds')
-        .lean();
+        .select('uniquePatientIds');
+      const raced = await (
+        session ? racedQuery.session(session) : racedQuery
+      ).lean();
       const racedInline: string[] = Array.isArray(raced?.uniquePatientIds)
         ? raced.uniquePatientIds
         : [];
       if (racedInline.includes(patientId)) {
         await this.spillModel
-          .deleteOne({ docId, year, month, patientId })
+          .deleteOne(
+            { docId, year, month, patientId },
+            session ? { session } : {},
+          )
           .exec();
         if (Object.keys(incCounters).length > 0) {
           await this.statsModel.updateOne(
             { docId, year, month },
             { $inc: incCounters },
+            session ? { session } : {},
           );
         }
         return;
@@ -696,6 +855,7 @@ export class ReportsService {
             ? { $inc: { ...incCounters, uniquePatients: 1 } }
             : { $inc: { uniquePatients: 1 } }),
         },
+        session ? { session } : {},
       );
     } catch (err) {
       // Duplicado concurrente en spill (E11000): no contar dos veces.
@@ -707,6 +867,7 @@ export class ReportsService {
         await this.statsModel.updateOne(
           { docId, year, month },
           { $inc: incCounters },
+          session ? { session } : {},
         );
       }
     }

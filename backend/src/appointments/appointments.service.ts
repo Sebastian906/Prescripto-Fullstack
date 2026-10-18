@@ -73,6 +73,8 @@ export class AppointmentsService {
     const session = await this.connection.startSession();
 
     let bookedFees = 0;
+    let bookedAppointmentId = '';
+    let bookedDate = new Date();
     // `!` (definite assignment): TS no ve las asignaciones hechas dentro del
     // callback de withTransaction, por eso el `if` de abajo es el guard real.
     let bookedNotification!: {
@@ -174,15 +176,27 @@ export class AppointmentsService {
         };
 
         bookedFees = doctor.fees;
+        bookedAppointmentId = String(created._id);
+        bookedDate = new Date(created.date);
         result = { success: true, message: 'Appointment booked successfully' };
       });
 
-      await this.reportsService.onAppointmentBooked(
-        docId,
-        userId,
-        bookedFees,
-        new Date(),
-      );
+      // Saga step 2 (post-tx, retryable): stats idempotentes por appointmentId.
+      // Best-effort: un fallo de stats no revierte la reserva ya commiteada; la
+      // re-entrega (retry manual o worker Fase 4) converge por idempotency key.
+      try {
+        await this.reportsService.applyBookedStatsIdempotent(
+          bookedAppointmentId,
+          docId,
+          userId,
+          bookedFees,
+          bookedDate,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `stats apply failed for appointment=${bookedAppointmentId}: ${String(e)}`,
+        );
+      }
 
       // Entrega best-effort FUERA de la tx: nunca rompe la reserva.
       if (bookedNotification) {
