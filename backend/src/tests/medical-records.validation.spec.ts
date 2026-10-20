@@ -50,6 +50,39 @@ describe('MedicalRecord validation and encryption', () => {
     expect(decryptField(first)).toBe('sensitive');
   });
 
+  it('rejects malformed encrypted payloads instead of returning them unchanged', () => {
+    expect(decryptField('')).toBe('');
+    expect(() => decryptField('plaintext')).toThrow(
+      'Invalid encrypted field payload',
+    );
+
+    const [iv, tag, ciphertext] = encryptField('sensitive').split(':');
+    expect(isEncryptedField(`${iv}A:${tag}:${ciphertext}`)).toBe(false);
+    expect(isEncryptedField(`${iv}:${tag.slice(0, -1)}:${ciphertext}`)).toBe(
+      false,
+    );
+  });
+
+  it('rejects non-HTTPS attachment URLs', async () => {
+    const errors = await validateDto({
+      appointmentId: '64f1a2b3c4d5e6f7a8b9c0d1',
+      diagnosis: 'upper-respiratory-infection',
+      notes: 'bounded note',
+      attachments: ['http://example.com/scan.pdf'],
+    });
+    expect(errors.some((e) => e.property === 'attachments')).toBe(true);
+  });
+
+  it('accepts HTTPS attachment URLs', async () => {
+    const errors = await validateDto({
+      appointmentId: '64f1a2b3c4d5e6f7a8b9c0d1',
+      diagnosis: 'upper-respiratory-infection',
+      notes: 'bounded note',
+      attachments: ['https://res.cloudinary.com/demo/medical/scan.pdf'],
+    });
+    expect(errors).toHaveLength(0);
+  });
+
   it('strips every clinical key from appointment snapshots (F-02)', () => {
     const input: Record<string, unknown> = { name: 'Patient', email: 'p@x' };
     for (const key of CLINICAL_FIELD_KEYS) input[key] = 'clinical';

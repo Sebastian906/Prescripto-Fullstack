@@ -39,6 +39,7 @@ import {
   isWritableDiagnosisCode,
 } from 'src/medical-records/catalog/diagnosis.catalog';
 import {
+  LEGACY_BACKFILL_SOURCE,
   MedicalRecord,
   MedicalRecordDocument,
 } from 'src/medical-records/schemas/medical-record.schema';
@@ -92,6 +93,17 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function asClinicalText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value == null) return '';
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) return '';
+  return serialized === '{}' || serialized === '[]' ? '' : serialized;
+}
+
 function firstNonEmpty(...values: string[]): string {
   return values.find((value) => value.length > 0) ?? '';
 }
@@ -120,15 +132,15 @@ export async function backfillMedicalRecords(
       const userData = asRecord(raw.userData);
       const docData = asRecord(raw.docData);
       const rawDiagnosis = firstNonEmpty(
-        asString(userData.diagnosis),
-        asString(docData.diagnosis),
+        asClinicalText(userData.diagnosis),
+        asClinicalText(docData.diagnosis),
       );
 
       const noteParts = [
-        asString(userData.notes),
-        asString(userData.clinicalNotes),
-        asString(docData.notes),
-        asString(docData.clinicalNotes),
+        asClinicalText(userData.notes),
+        asClinicalText(userData.clinicalNotes),
+        asClinicalText(docData.notes),
+        asClinicalText(docData.clinicalNotes),
       ].filter((v) => v.length > 0);
 
       const structured = (
@@ -136,22 +148,22 @@ export async function backfillMedicalRecords(
           [
             'prescription',
             firstNonEmpty(
-              asString(userData.prescription),
-              asString(docData.prescription),
+              asClinicalText(userData.prescription),
+              asClinicalText(docData.prescription),
             ),
           ],
           [
             'treatment',
             firstNonEmpty(
-              asString(userData.treatment),
-              asString(docData.treatment),
+              asClinicalText(userData.treatment),
+              asClinicalText(docData.treatment),
             ),
           ],
           [
             'symptoms',
             firstNonEmpty(
-              asString(userData.symptoms),
-              asString(docData.symptoms),
+              asClinicalText(userData.symptoms),
+              asClinicalText(docData.symptoms),
             ),
           ],
         ] as const
@@ -184,14 +196,31 @@ export async function backfillMedicalRecords(
               diagnosis,
               notes: sourceNotes ? encryptField(sourceNotes) : '',
               attachments: [],
+              source: LEGACY_BACKFILL_SOURCE,
             },
           },
           { upsert: true },
         )
         .exec();
 
-      if ((res.upsertedCount ?? 0) > 0) result.migrated++;
-      else result.skipped++;
+      if ((res.upsertedCount ?? 0) > 0) {
+        result.migrated++;
+      } else {
+        const existing = await medicalRecordModel
+          .findOne({ appointmentId })
+          .select('source')
+          .lean()
+          .exec();
+        if (existing?.source !== LEGACY_BACKFILL_SOURCE) {
+          const source = existing?.source ?? 'unknown';
+          result.errors++;
+          (result.errorDetails ??= []).push(
+            `medical_record ${appointmentId}: existing record source "${source}" is not "${LEGACY_BACKFILL_SOURCE}"; legacy clinical fields preserved`,
+          );
+          continue;
+        }
+        result.skipped++;
+      }
 
       await appointmentModel
         .updateOne(

@@ -6,6 +6,7 @@ import {
   IsMongoId,
   IsOptional,
   IsString,
+  IsUrl,
   Length,
   MaxLength,
 } from 'class-validator';
@@ -33,13 +34,18 @@ export class CreateMedicalRecordDto {
 
   @ApiPropertyOptional({
     type: [String],
-    description: 'Attachment URLs (already uploaded elsewhere)',
+    description: 'HTTPS attachment URLs (already uploaded elsewhere)',
     maxItems: 10,
+    example: ['https://res.cloudinary.com/demo/medical/scan.pdf'],
   })
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
   @IsString({ each: true })
+  @IsUrl(
+    { protocols: ['https'], require_protocol: true },
+    { each: true, message: 'each attachment must be a valid HTTPS URL' },
+  )
   @MaxLength(2048, { each: true })
   attachments?: string[];
 }

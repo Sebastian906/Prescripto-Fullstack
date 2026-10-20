@@ -4,9 +4,17 @@ const KEY_ENV = 'MEDICAL_RECORDS_ENC_KEY';
 const ALGORITHM = 'aes-256-gcm';
 const IV_BYTES = 12;
 const KEY_BYTES = 32;
+const TAG_BYTES = 16;
 
-export const ENCRYPTED_FIELD_PATTERN =
-  /^[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]*$/;
+// base64 lengths: 12-byte IV = 16 chars, 16-byte GCM tag = 22 chars + "==".
+const IV_B64 = '[A-Za-z0-9+/]{16}';
+const TAG_B64 = '[A-Za-z0-9+/]{22}==';
+const CIPHERTEXT_B64 =
+  '(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?';
+
+export const ENCRYPTED_FIELD_PATTERN = new RegExp(
+  `^${IV_B64}:${TAG_B64}:${CIPHERTEXT_B64}$`,
+);
 
 function getKey(): Buffer {
   const raw = process.env[KEY_ENV];
@@ -35,14 +43,21 @@ export function isEncryptedField(value: unknown): value is string {
 }
 
 export function decryptField(value: string): string {
-  if (!isEncryptedField(value)) return value;
+  if (value === '') return '';
+  if (!isEncryptedField(value)) {
+    throw new Error('Invalid encrypted field payload');
+  }
   const [iv, tag, ciphertext] = value.split(':');
   const decipher = createDecipheriv(
     ALGORITHM,
     getKey(),
     Buffer.from(iv, 'base64'),
   );
-  decipher.setAuthTag(Buffer.from(tag, 'base64'));
+  const authTag = Buffer.from(tag, 'base64');
+  if (authTag.length !== TAG_BYTES) {
+    throw new Error('Invalid encrypted field authentication tag');
+  }
+  decipher.setAuthTag(authTag);
   return Buffer.concat([
     decipher.update(Buffer.from(ciphertext, 'base64')),
     decipher.final(),

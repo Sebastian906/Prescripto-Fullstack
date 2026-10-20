@@ -4,6 +4,8 @@ import { DIAGNOSIS_CODES } from '../catalog/diagnosis.catalog';
 
 export type MedicalRecordDocument = HydratedDocument<MedicalRecord>;
 
+export const LEGACY_BACKFILL_SOURCE = 'legacy-backfill';
+
 @Schema({ collection: 'medical_records', timestamps: true })
 export class MedicalRecord {
   @Prop({ required: true, index: true })
@@ -14,6 +16,9 @@ export class MedicalRecord {
 
   @Prop({ required: true, unique: true, index: true })
   appointmentId!: string;
+
+  @Prop({ enum: ['manual', LEGACY_BACKFILL_SOURCE], default: 'manual' })
+  source?: string;
 
   @Prop({ required: true, enum: DIAGNOSIS_CODES })
   diagnosis!: string;
