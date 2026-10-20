@@ -54,6 +54,18 @@ export class MigrationController {
     });
   }
 
+  @Post('medical-records')
+  @ApiOperation({
+    summary:
+      'Backfill clinical keys from appointments into medical_records. Admin only.',
+  })
+  @ApiHeader({ name: 'atoken', description: 'Admin token', required: true })
+  @UseGuards(AuthAdminGuard)
+  async migrateMedicalRecords() {
+    const result = await this.migrationService.migrateMedicalRecords();
+    return { success: result.errors === 0, result };
+  }
+
   @Post('collection')
   @ApiOperation({ summary: 'Migrate a single collection. Admin only.' })
   @ApiHeader({ name: 'atoken', description: 'Admin token', required: true })

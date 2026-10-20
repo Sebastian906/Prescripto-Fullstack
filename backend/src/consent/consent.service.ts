@@ -34,4 +34,14 @@ export class ConsentService {
     if (doc.userId !== userId) throw new ForbiddenException('Not your consent');
     return doc;
   }
+
+  // latest consent action for the scope wins
+  async hasGrantedScope(userId: string, scope: string): Promise<boolean> {
+    const latest = await this.model
+      .findOne({ userId, scope })
+      .sort({ updatedAt: -1, _id: -1 })
+      .lean()
+      .exec();
+    return latest?.status === 'granted';
+  }
 }

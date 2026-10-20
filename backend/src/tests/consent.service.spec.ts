@@ -43,3 +43,47 @@ describe('ConsentService (owner-only)', () => {
     await expect(svc.getOwned('u2', 'c1')).rejects.toThrow('Not your consent');
   });
 });
+
+describe('ConsentService.hasGrantedScope (latest action wins)', () => {
+  function buildService(latest: { status: string } | null) {
+    const sort = jest.fn(() => ({
+      lean: () => ({ exec: () => Promise.resolve(latest) }),
+    }));
+    const model = {
+      findOne: jest.fn(() => ({ sort })),
+    } as any;
+    return { service: new ConsentService(model), model, sort };
+  }
+
+  it('returns true when the latest action is granted', async () => {
+    const { service } = buildService({ status: 'granted' });
+    await expect(service.hasGrantedScope('u1', 'treatment')).resolves.toBe(
+      true,
+    );
+  });
+
+  it('returns false when a newer version was revoked', async () => {
+    // v1 granted + v2 revoked: la última acción es revoked.
+    const { service } = buildService({ status: 'revoked' });
+    await expect(service.hasGrantedScope('u1', 'treatment')).resolves.toBe(
+      false,
+    );
+  });
+
+  it('returns false when there is no consent', async () => {
+    const { service } = buildService(null);
+    await expect(service.hasGrantedScope('u1', 'treatment')).resolves.toBe(
+      false,
+    );
+  });
+
+  it('queries the scope and sorts by most recently updated', async () => {
+    const { service, model, sort } = buildService({ status: 'granted' });
+    await service.hasGrantedScope('u1', 'treatment');
+    expect(model.findOne).toHaveBeenCalledWith({
+      userId: 'u1',
+      scope: 'treatment',
+    });
+    expect(sort).toHaveBeenCalledWith({ updatedAt: -1, _id: -1 });
+  });
+});
