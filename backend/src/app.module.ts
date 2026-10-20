@@ -27,6 +27,7 @@ import { AvailabilityModule } from './availability/availability.module';
 import { CacheModule } from './shared/cache/cache.module';
 import { CacheInterceptor } from './shared/cache/cache.interceptor';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MedicalRecordsModule } from './medical-records/medical-records.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AvailabilityModule,
     CacheModule,
     NotificationsModule,
+    MedicalRecordsModule,
   ],
   controllers: [AppController],
   providers: [

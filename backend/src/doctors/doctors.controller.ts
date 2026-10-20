@@ -13,7 +13,7 @@ import { DoctorsService } from './doctors.service';
 import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
 import { LoginDoctorDto } from './dto/login-doctor.dto';
 import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
-import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
+import { CancelAppointmentDoctorDto } from './dto/cancel-appointment.dto';
 import { CompleteAppointmentDto } from './dto/complete-appointment.dto';
 import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
 import { CacheTtl } from 'src/shared/cache/cache.interceptor';
@@ -89,7 +89,7 @@ export class DoctorsController {
   @UseGuards(AuthDoctorGuard)
   async cancelAppointmentDoctor(
     @Req() req: Request,
-    @Body() dto: CancelAppointmentDto,
+    @Body() dto: CancelAppointmentDoctorDto,
   ) {
     const docId = (req as any).docId as string;
     return this.doctorsService.cancelAppointmentDoctor(

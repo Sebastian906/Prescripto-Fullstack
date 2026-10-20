@@ -30,6 +30,10 @@ import {
   Availability,
   AvailabilitySchema,
 } from 'src/availability/schemas/availability.schema';
+import {
+  MedicalRecord,
+  MedicalRecordSchema,
+} from 'src/medical-records/schemas/medical-record.schema';
 import { PostgresService } from './postgres.service';
 
 @Module({
@@ -45,6 +49,7 @@ import { PostgresService } from './postgres.service';
       { name: PasswordResetToken.name, schema: PasswordResetTokenSchema },
       { name: Referral.name, schema: ReferralSchema },
       { name: Availability.name, schema: AvailabilitySchema },
+      { name: MedicalRecord.name, schema: MedicalRecordSchema },
     ]),
   ],
   controllers: [MigrationController],

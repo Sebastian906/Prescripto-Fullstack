@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { AnyBulkWriteOperation, Connection, Model } from 'mongoose';
+import { AnyBulkWriteOperation, Connection, Model, Types } from 'mongoose';
 import {
   Appointment,
   AppointmentDocument,
+  CLINICAL_APPOINTMENT_FILTERS,
+  CLINICAL_UNSET_PATHS,
 } from 'src/appointments/schemas/appointment.schema';
 import {
   PasswordResetToken,
@@ -32,6 +34,16 @@ import {
   AvailabilityDocument,
 } from 'src/availability/schemas/availability.schema';
 import { normalizeSlotDate } from 'src/availability/availability.service';
+import {
+  DiagnosisCode,
+  isWritableDiagnosisCode,
+} from 'src/medical-records/catalog/diagnosis.catalog';
+import {
+  LEGACY_BACKFILL_SOURCE,
+  MedicalRecord,
+  MedicalRecordDocument,
+} from 'src/medical-records/schemas/medical-record.schema';
+import { encryptField } from 'src/shared/utils/encryption.util';
 
 export interface MigrationResult {
   collection: string;
@@ -61,6 +73,172 @@ interface WaitlistRawDoc {
 
 function toWaitlistStr(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+interface ClinicalAppointmentRaw {
+  _id: unknown;
+  userId?: unknown;
+  docId?: unknown;
+  userData?: unknown;
+  docData?: unknown;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function asClinicalText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value == null) return '';
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) return '';
+  return serialized === '{}' || serialized === '[]' ? '' : serialized;
+}
+
+function firstNonEmpty(...values: string[]): string {
+  return values.find((value) => value.length > 0) ?? '';
+}
+
+export async function backfillMedicalRecords(
+  appointmentModel: Model<AppointmentDocument>,
+  medicalRecordModel: Model<MedicalRecordDocument>,
+): Promise<MigrationResult> {
+  const start = Date.now();
+  const result: MigrationResult = {
+    collection: 'medical_records',
+    migrated: 0,
+    skipped: 0,
+    errors: 0,
+    durationMs: 0,
+  };
+
+  const cursor = appointmentModel
+    .find({ isCompleted: true, $or: CLINICAL_APPOINTMENT_FILTERS })
+    .lean()
+    .cursor();
+
+  for await (const raw of cursor as unknown as AsyncIterable<ClinicalAppointmentRaw>) {
+    const appointmentId = String(raw._id);
+    try {
+      const userData = asRecord(raw.userData);
+      const docData = asRecord(raw.docData);
+      const rawDiagnosis = firstNonEmpty(
+        asClinicalText(userData.diagnosis),
+        asClinicalText(docData.diagnosis),
+      );
+
+      const noteParts = [
+        asClinicalText(userData.notes),
+        asClinicalText(userData.clinicalNotes),
+        asClinicalText(docData.notes),
+        asClinicalText(docData.clinicalNotes),
+      ].filter((v) => v.length > 0);
+
+      const structured = (
+        [
+          [
+            'prescription',
+            firstNonEmpty(
+              asClinicalText(userData.prescription),
+              asClinicalText(docData.prescription),
+            ),
+          ],
+          [
+            'treatment',
+            firstNonEmpty(
+              asClinicalText(userData.treatment),
+              asClinicalText(docData.treatment),
+            ),
+          ],
+          [
+            'symptoms',
+            firstNonEmpty(
+              asClinicalText(userData.symptoms),
+              asClinicalText(docData.symptoms),
+            ),
+          ],
+        ] as const
+      )
+        .filter(([, v]) => v.length > 0)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join('\n');
+
+      const sourceNotes = [noteParts.join('\n\n'), structured]
+        .filter(Boolean)
+        .join('\n\n');
+
+      if (!sourceNotes && !rawDiagnosis) {
+        result.skipped++;
+        continue;
+      }
+
+      const diagnosis = isWritableDiagnosisCode(rawDiagnosis)
+        ? rawDiagnosis
+        : DiagnosisCode.UnclassifiedLegacy;
+
+      const res = await medicalRecordModel
+        .updateOne(
+          { appointmentId },
+          {
+            $setOnInsert: {
+              userId: asString(raw.userId),
+              doctorId: asString(raw.docId),
+              appointmentId,
+              diagnosis,
+              notes: sourceNotes ? encryptField(sourceNotes) : '',
+              attachments: [],
+              source: LEGACY_BACKFILL_SOURCE,
+            },
+          },
+          { upsert: true },
+        )
+        .exec();
+
+      if ((res.upsertedCount ?? 0) > 0) {
+        result.migrated++;
+      } else {
+        const existing = await medicalRecordModel
+          .findOne({ appointmentId })
+          .select('source')
+          .lean()
+          .exec();
+        if (existing?.source !== LEGACY_BACKFILL_SOURCE) {
+          const source = existing?.source ?? 'unknown';
+          result.errors++;
+          (result.errorDetails ??= []).push(
+            `medical_record ${appointmentId}: existing record source "${source}" is not "${LEGACY_BACKFILL_SOURCE}"; legacy clinical fields preserved`,
+          );
+          continue;
+        }
+        result.skipped++;
+      }
+
+      await appointmentModel
+        .updateOne(
+          { _id: new Types.ObjectId(String(raw._id)) },
+          { $unset: CLINICAL_UNSET_PATHS },
+        )
+        .exec();
+    } catch (err) {
+      result.errors++;
+      const message = err instanceof Error ? err.message : String(err);
+      (result.errorDetails ??= []).push(
+        `medical_record ${appointmentId}: ${message}`,
+      );
+    }
+  }
+
+  result.durationMs = Date.now() - start;
+  return result;
 }
 
 const SCHEMA_FILES = [
@@ -93,6 +271,8 @@ export class MigrationService {
     private readonly availabilityModel: Model<AvailabilityDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly pg: PostgresService,
+    @InjectModel(MedicalRecord.name)
+    private readonly medicalRecordModel: Model<MedicalRecordDocument>,
   ) {}
 
   async runFullMigration(
@@ -433,6 +613,17 @@ export class MigrationService {
     const start = Date.now();
     await this.migrateAvailabilityMongo(result);
     result.durationMs = Date.now() - start;
+    return result;
+  }
+
+  async migrateMedicalRecords(): Promise<MigrationResult> {
+    const result = await backfillMedicalRecords(
+      this.appointmentModel,
+      this.medicalRecordModel,
+    );
+    this.logger.log(
+      `Medical records backfill: ${result.migrated} migrated, ${result.skipped} skipped, ${result.errors} errors`,
+    );
     return result;
   }
 
