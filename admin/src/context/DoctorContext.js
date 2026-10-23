@@ -14,6 +14,8 @@ export function provideDoctorContext() {
     const schedulingSuggestions = ref(null)
     const doctorReport = ref(null)
     const doctorTrend = ref([])
+    const records = ref([])
+    const recordsLoading = ref(false)
 
     const setDToken = (token) => {
         dToken.value = token
@@ -21,6 +23,7 @@ export function provideDoctorContext() {
             localStorage.setItem('dToken', token)
         } else {
             localStorage.removeItem('dToken')
+            records.value = []
         }
     }
 
@@ -34,6 +37,40 @@ export function provideDoctorContext() {
             }
         } catch (error) {
             toast.error(error.message)
+        }
+    }
+
+    const getRecords = async () => {
+        if (!dToken.value) {
+            records.value = []
+            return
+        }
+        records.value = []
+        recordsLoading.value = true
+        try {
+            const limit = 100
+            let offset = 0
+            const all = []
+            while (true) {
+                const { data } = await axios.get(backendUrl + '/api/medical-records/doctor/mine', {
+                    headers: { dtoken: dToken.value },
+                    params: { limit, offset },
+                })
+                if (!data?.success) {
+                    toast.error(data?.message || 'Could not load medical records')
+                    break
+                }
+                const batch = Array.isArray(data.records) ? data.records : []
+                all.push(...batch)
+                records.value = [...all]
+                if (batch.length < limit) break
+                offset += batch.length
+            }
+        } catch (error) {
+            const msg = error?.response?.data?.message ?? error.message
+            toast.error(msg)
+        } finally {
+            recordsLoading.value = false
         }
     }
 
@@ -148,7 +185,29 @@ export function provideDoctorContext() {
         }
     }
 
-    provide(DOCTOR_CONTEXT_KEY, { dToken, setDToken, backendUrl, appointments, getAppointments, completeAppointment, cancelAppointment, dashData, getDashData, profileData, getProfileData, updateProfileData, schedulingSuggestions, getSchedulingSuggestions, doctorReport, doctorTrend, getDoctorAnnualReport, getDoctorTrend })
+    provide(DOCTOR_CONTEXT_KEY, {
+        dToken,
+        setDToken,
+        backendUrl,
+        appointments,
+        getAppointments,
+        records,
+        recordsLoading,
+        getRecords,
+        completeAppointment,
+        cancelAppointment,
+        dashData,
+        getDashData,
+        profileData,
+        getProfileData,
+        updateProfileData,
+        schedulingSuggestions,
+        getSchedulingSuggestions,
+        doctorReport,
+        doctorTrend,
+        getDoctorAnnualReport,
+        getDoctorTrend,
+    })
 }
 
 export function useDoctorContext() {

@@ -8,7 +8,8 @@
         "myProfile": "Mi Perfil",
         "myAppointments": "Mis Citas",
         "notifications": "Notificaciones",
-        "logout": "Cerrar sesión"
+        "logout": "Cerrar sesión",
+        "myRecords": "Mis Registros"
     },
     "home": {
         "heroTitle1": "Reserva tu Cita",
@@ -98,7 +99,8 @@
         "appointmentCancelled": "Cita cancelada",
         "completed": "Completada",
         "payWithStripe": "Pagar con Stripe",
-        "cashOnDelivery": "Pago en efectivo"
+        "cashOnDelivery": "Pago en efectivo",
+        "viewRecords": "Ver registros médicos"
     },
     "notifications": {
         "title": "Notificaciones",
@@ -285,5 +287,45 @@
         "checkInbox": "¡Revisa tu bandeja de entrada!",
         "successMsg": "Si existe una cuenta con ese correo, recibirás un enlace en breve.",
         "done": "Listo"
+    },
+    "myRecords": {
+        "title": "Mis Registros Médicos",
+        "subtitle": "Los registros son escritos por tus médicos después de citas completadas.",
+        "empty": "Aún no tienes registros médicos.",
+        "emptyCta": "Ver mis citas",
+        "loading": "Cargando registros médicos…",
+        "error": "No se pudieron cargar tus registros médicos.",
+        "retry": "Reintentar",
+        "loadMore": "Cargar más",
+        "recordedOn": "Registrado el",
+        "doctor": "Médico",
+        "patient": "Paciente",
+        "diagnosis": "Diagnóstico",
+        "notes": "Notas",
+        "attachments": "Adjuntos",
+        "noAttachments": "Sin adjuntos",
+        "downloadPdf": "Descargar PDF",
+        "view": "Ver",
+        "close": "Cerrar",
+        "confidential": "Los archivos descargados contienen información médica confidencial.",
+        "unavailable": "Registro no disponible",
+        "pdfTitle": "Registro médico",
+        "pdfConfidential": "Prescripto — Confidencial",
+        "page": "Página",
+        "of": "de",
+        "downloadError": "No se pudo generar el PDF. Inténtalo de nuevo."
+    },
+    "diagnosis": {
+        "general-consultation": "Consulta general",
+        "upper-respiratory-infection": "Infección respiratoria alta",
+        "hypertension": "Hipertensión",
+        "type-2-diabetes": "Diabetes tipo 2",
+        "migraine": "Migraña",
+        "dermatitis": "Dermatitis",
+        "gastroenteritis": "Gastroenteritis",
+        "musculoskeletal-pain": "Dolor musculoesquelético",
+        "anxiety-disorder": "Trastorno de ansiedad",
+        "follow-up": "Seguimiento",
+        "unclassified-legacy": "Sin clasificar (heredado)"
     }
 }

@@ -23,6 +23,7 @@ const adminNavItems = [
 const doctorNavItems = [
     { to: '/doctor-dashboard', icon: assets.home_icon, labelKey: 'sidebar.dashboard' },
     { to: '/doctor-appointments', icon: assets.appointment_icon, labelKey: 'sidebar.appointments' },
+    { to: '/doctor-records', icon: assets.list_icon, labelKey: 'sidebar.medicalRecords' },
     { to: '/doctor-profile', icon: assets.people_icon, labelKey: 'sidebar.profile' },
     { to: '/doctor-reports', icon: assets.list_icon, labelKey: 'sidebar.reports' },
 ]

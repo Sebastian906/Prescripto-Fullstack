@@ -1,11 +1,13 @@
 import { provide, inject, ref } from 'vue'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import axios from 'axios'
 
 const ADMIN_CONTEXT_KEY = Symbol('AdminContext')
 
 export function provideAdminContext() {
     const toast = useToast()
+    const { t } = useI18n()
 
     const aToken = ref(localStorage.getItem('aToken') || '')
     const backendUrl = import.meta.env.VITE_BACKEND_URL
@@ -16,6 +18,8 @@ export function provideAdminContext() {
     const monthlyTrend = ref([])
     const reportYear = ref(new Date().getFullYear())
     const notifications = ref([])
+    const medicalRecordsStatus = ref(null)
+    const medicalRecordsStatusLoading = ref(false)
 
     const setAToken = (token) => {
         aToken.value = token
@@ -25,6 +29,7 @@ export function provideAdminContext() {
             localStorage.removeItem('aToken')
             // Sin sesion admin no deben quedar notificaciones retenidas visibles.
             notifications.value = []
+            medicalRecordsStatus.value = null
         }
     }
 
@@ -79,6 +84,25 @@ export function provideAdminContext() {
             }
         } catch (error) {
             toast.error(error.message)
+        }
+    }
+
+    const getMedicalRecordsStatus = async () => {
+        if (!aToken.value) return
+        medicalRecordsStatusLoading.value = true
+        try {
+            const { data } = await axios.get(backendUrl + '/api/medical-records/status', {
+                headers: { atoken: aToken.value },
+            })
+            medicalRecordsStatus.value = data
+        } catch (error) {
+            console.error('[medical-records] status request failed', {
+                status: error?.response?.status,
+                message: error?.message,
+            })
+            toast.error(t('adminReports.statusUnavailable'))
+        } finally {
+            medicalRecordsStatusLoading.value = false
         }
     }
 
@@ -139,7 +163,29 @@ export function provideAdminContext() {
         }
     }
 
-    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment, notifications, getAllNotifications, dashData, getDashData, annualReport, monthlyTrend, reportYear, getAnnualReport, getMonthlyTrend })
+    provide(ADMIN_CONTEXT_KEY, {
+        aToken,
+        backendUrl,
+        setAToken,
+        doctors,
+        getAllDoctors,
+        changeAvailability,
+        appointments,
+        getAllAppointments,
+        cancelAppointment,
+        notifications,
+        getAllNotifications,
+        medicalRecordsStatus,
+        medicalRecordsStatusLoading,
+        getMedicalRecordsStatus,
+        dashData,
+        getDashData,
+        annualReport,
+        monthlyTrend,
+        reportYear,
+        getAnnualReport,
+        getMonthlyTrend,
+    })
 }
 
 export function useAdminContext() {

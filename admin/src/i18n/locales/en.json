@@ -13,7 +13,8 @@
         "reports": "Reports",
         "notifications": "Notifications",
         "liveChat": "Live Chat",
-        "profile": "Profile"
+        "profile": "Profile",
+        "medicalRecords": "Medical Records"
     },
     "login": {
         "title": "Login",
@@ -269,7 +270,16 @@
         "last6": "Last 6 months",
         "last12": "Last 12 months",
         "last24": "Last 24 months",
-        "loading": "Loading report…"
+        "loading": "Loading report…",
+        "medicalRecordsTitle": "Medical Records",
+        "medicalRecordsHint": "Metadata only. Clinical notes, diagnoses and attachments are never shown here. Pending is an approximation.",
+        "statusLoading": "Loading medical records status…",
+        "statusUnavailable": "Medical records status is not available.",
+        "totalRecords": "Total records",
+        "encryptedRecords": "Encrypted notes",
+        "pendingRecords": "Pending (approx.)",
+        "lastRecord": "Last record",
+        "never": "Never"
     },
     "doctorDashboard": {
         "earnings": "Earnings",
@@ -352,5 +362,55 @@
         "pediatricians": "Pediatricians",
         "neurologist": "Neurologist",
         "gastroenterologist": "Gastroenterologist"
+    },
+    "doctorRecords": {
+        "title": "Medical Records",
+        "subtitle": "Clinical records for your completed appointments.",
+        "refresh": "Refresh",
+        "number": "#",
+        "date": "Date",
+        "patient": "Patient",
+        "doctor": "Doctor",
+        "diagnosis": "Diagnosis",
+        "attachments": "Attachments",
+        "actions": "Actions",
+        "view": "View",
+        "downloadPdf": "Download PDF",
+        "loading": "Loading medical records…",
+        "empty": "No medical records found.",
+        "noRecords": "No medical records found.",
+        "previous": "Previous",
+        "next": "Next",
+        "showing": "Showing",
+        "of": "of",
+        "records": "records",
+        "record": "record",
+        "modalTitle": "Medical record",
+        "close": "Close",
+        "notes": "Notes",
+        "noNotes": "No notes were recorded.",
+        "noAttachments": "No attachments.",
+        "openAttachment": "Open attachment",
+        "attachment": "Attachment",
+        "downloadError": "Could not generate the PDF.",
+        "unknownPatient": "Unknown patient",
+        "unknownDoctor": "Doctor",
+        "pdfTitle": "Medical record",
+        "confidential": "Confidential — contains clinical information",
+        "page": "Page",
+        "ofPages": "of"
+    },
+    "diagnosis": {
+        "general-consultation": "General consultation",
+        "upper-respiratory-infection": "Upper respiratory infection",
+        "hypertension": "Hypertension",
+        "type-2-diabetes": "Type 2 diabetes",
+        "migraine": "Migraine",
+        "dermatitis": "Dermatitis",
+        "gastroenteritis": "Gastroenteritis",
+        "musculoskeletal-pain": "Musculoskeletal pain",
+        "anxiety-disorder": "Anxiety disorder",
+        "follow-up": "Follow-up",
+        "unclassified-legacy": "Unclassified (legacy)"
     }
 }

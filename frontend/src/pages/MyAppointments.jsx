@@ -216,6 +216,14 @@ const MyAppointments = () => {
                     )
                 })}
             </div>
+            <div className="mt-6">
+                <button
+                    onClick={() => navigate('/my-records')}
+                    className="min-h-11 text-sm border border-indigo-500 text-indigo-600 rounded-full px-6 py-2.5 hover:bg-indigo-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                >
+                    {t('myAppointments.viewRecords')}
+                </button>
+            </div>
         </div>
     )
 }
