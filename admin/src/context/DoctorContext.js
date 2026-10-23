@@ -23,6 +23,7 @@ export function provideDoctorContext() {
             localStorage.setItem('dToken', token)
         } else {
             localStorage.removeItem('dToken')
+            records.value = []
         }
     }
 
@@ -40,7 +41,11 @@ export function provideDoctorContext() {
     }
 
     const getRecords = async () => {
-        if (!dToken.value) return
+        if (!dToken.value) {
+            records.value = []
+            return
+        }
+        records.value = []
         recordsLoading.value = true
         try {
             const limit = 100
@@ -57,7 +62,7 @@ export function provideDoctorContext() {
                 }
                 const batch = Array.isArray(data.records) ? data.records : []
                 all.push(...batch)
-                records.value = all
+                records.value = [...all]
                 if (batch.length < limit) break
                 offset += batch.length
             }

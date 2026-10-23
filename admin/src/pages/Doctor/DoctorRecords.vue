@@ -3,9 +3,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { useDoctorContext } from '../../context/DoctorContext'
-import { useMedicalRecordExport } from '../../composables/useMedicalRecordExport'
+import {
+    formatMedicalRecordDate,
+    isSafeMedicalRecordUrl,
+    medicalRecordDiagnosisLabel,
+} from '../../composables/useMedicalRecordExport'
 
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const toast = useToast()
 const {
     dToken,
@@ -43,38 +47,12 @@ const appointmentById = computed(() => {
 const patientFor = (record) => appointmentById.value.get(String(record?.appointmentId))?.userData ?? null
 const patientName = (record) => patientFor(record)?.name || t('doctorRecords.unknownPatient')
 
-const diagnosisLabel = (code) => {
-    if (!code) return '—'
-    const key = `diagnosis.${code}`
-    const label = t(key)
-    return label === key ? code : label
-}
-
-const formatDate = (value) => {
-    if (!value) return '—'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return '—'
-    return date.toLocaleString(locale.value, {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-    })
-}
-
-const isSafeUrl = (value) => {
-    try {
-        const url = new URL(value)
-        return url.protocol === 'http:' || url.protocol === 'https:'
-    } catch {
-        return false
-    }
-}
+const diagnosisLabel = (code) => medicalRecordDiagnosisLabel(code, t, te)
+const formatDate = (value) => formatMedicalRecordDate(value, locale.value)
 
 const selectedAttachments = computed(() => {
     const values = selected.value?.attachments
-    return Array.isArray(values) ? values.filter(isSafeUrl) : []
+    return Array.isArray(values) ? values.filter(isSafeMedicalRecordUrl) : []
 })
 
 const goToPage = (page) => {

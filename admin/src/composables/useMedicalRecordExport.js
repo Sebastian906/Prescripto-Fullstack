@@ -1,38 +1,41 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+export function formatMedicalRecordDate(value, locale) {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleString(locale, {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+}
+
+export function medicalRecordDiagnosisLabel(code, t, te) {
+    const fallbackKey = 'diagnosis.unclassified-legacy'
+    if (!code) return t(fallbackKey)
+    const key = `diagnosis.${code}`
+    return te(key) ? t(key) : t(fallbackKey)
+}
+
+export function isSafeMedicalRecordUrl(value) {
+    try {
+        const url = new URL(value)
+        return url.protocol === 'http:' || url.protocol === 'https:'
+    } catch {
+        return false
+    }
+}
+
 export function useMedicalRecordExport() {
     const exporting = ref(false)
-    const { t, locale } = useI18n()
+    const { t, te, locale } = useI18n()
 
-    function formatDate(value) {
-        if (!value) return '—'
-        const date = new Date(value)
-        if (Number.isNaN(date.getTime())) return '—'
-        return date.toLocaleString(locale.value, {
-            year: 'numeric',
-            month: 'short',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-        })
-    }
-
-    function diagnosisLabel(code) {
-        if (!code) return '—'
-        const key = `diagnosis.${code}`
-        const label = t(key)
-        return label === key ? code : label
-    }
-
-    function isSafeUrl(value) {
-        try {
-            const url = new URL(value)
-            return url.protocol === 'http:' || url.protocol === 'https:'
-        } catch {
-            return false
-        }
-    }
+    const formatDate = (value) => formatMedicalRecordDate(value, locale.value)
+    const diagnosisLabel = (code) => medicalRecordDiagnosisLabel(code, t, te)
 
     async function exportMedicalRecordPDF(record, { patientName, doctorName } = {}) {
         if (!record) return
@@ -116,7 +119,7 @@ export function useMedicalRecordExport() {
             }
 
             const attachments = Array.isArray(record.attachments)
-                ? record.attachments.filter(isSafeUrl)
+                ? record.attachments.filter(isSafeMedicalRecordUrl)
                 : []
 
             if (attachments.length > 0) {

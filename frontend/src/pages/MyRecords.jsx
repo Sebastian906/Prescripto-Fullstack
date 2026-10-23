@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { toast } from 'react-toastify'
@@ -22,12 +22,21 @@ const MyRecords = () => {
     const [unavailable, setUnavailable] = useState(false)
     const [selected, setSelected] = useState(null)
     const [downloadingId, setDownloadingId] = useState(null)
+    const requestIdRef = useRef(0)
 
     const loadRecords = useCallback(async (nextOffset) => {
         if (!token) {
+            requestIdRef.current += 1
+            setRecords([])
+            setOffset(0)
+            setSelected(null)
+            setHasMore(false)
             setLoading(false)
             return
         }
+
+        const requestId = requestIdRef.current + 1
+        requestIdRef.current = requestId
 
         if (nextOffset === 0) {
             setLoading(true)
@@ -42,6 +51,8 @@ const MyRecords = () => {
                 headers: { token },
                 params: { limit: PAGE_SIZE, offset: nextOffset },
             })
+
+            if (requestId !== requestIdRef.current) return
 
             if (data.success) {
                 const batch = Array.isArray(data.records) ? data.records : []
@@ -60,6 +71,7 @@ const MyRecords = () => {
                 setError(true)
             }
         } catch (requestError) {
+            if (requestId !== requestIdRef.current) return
             const status = requestError?.response?.status
             if (status === 403 || status === 404) {
                 setUnavailable(true)
@@ -68,21 +80,18 @@ const MyRecords = () => {
                 setError(true)
             }
         } finally {
-            setLoading(false)
-            setLoadingMore(false)
+            if (requestId === requestIdRef.current) {
+                setLoading(false)
+                setLoadingMore(false)
+            }
         }
     }, [backendUrl, token, i18n])
 
     useEffect(() => {
-        if (!token) {
-            setRecords([])
-            setOffset(0)
-            setSelected(null)
-            setHasMore(false)
-            setLoading(false)
-            return
-        }
         loadRecords(0)
+        return () => {
+            requestIdRef.current += 1
+        }
     }, [token, loadRecords])
 
     const diagnosisLabel = (code) => t(`diagnosis.${code}`, { defaultValue: t('diagnosis.unclassified-legacy') })

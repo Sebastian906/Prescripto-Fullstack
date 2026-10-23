@@ -1,11 +1,13 @@
 import { provide, inject, ref } from 'vue'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import axios from 'axios'
 
 const ADMIN_CONTEXT_KEY = Symbol('AdminContext')
 
 export function provideAdminContext() {
     const toast = useToast()
+    const { t } = useI18n()
 
     const aToken = ref(localStorage.getItem('aToken') || '')
     const backendUrl = import.meta.env.VITE_BACKEND_URL
@@ -94,8 +96,11 @@ export function provideAdminContext() {
             })
             medicalRecordsStatus.value = data
         } catch (error) {
-            const msg = error?.response?.data?.message ?? error.message
-            toast.error(msg)
+            console.error('[medical-records] status request failed', {
+                status: error?.response?.status,
+                message: error?.message,
+            })
+            toast.error(t('adminReports.statusUnavailable'))
         } finally {
             medicalRecordsStatusLoading.value = false
         }
