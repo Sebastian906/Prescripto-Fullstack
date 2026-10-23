@@ -16,6 +16,8 @@ export function provideAdminContext() {
     const monthlyTrend = ref([])
     const reportYear = ref(new Date().getFullYear())
     const notifications = ref([])
+    const medicalRecordsStatus = ref(null)
+    const medicalRecordsStatusLoading = ref(false)
 
     const setAToken = (token) => {
         aToken.value = token
@@ -25,6 +27,7 @@ export function provideAdminContext() {
             localStorage.removeItem('aToken')
             // Sin sesion admin no deben quedar notificaciones retenidas visibles.
             notifications.value = []
+            medicalRecordsStatus.value = null
         }
     }
 
@@ -79,6 +82,22 @@ export function provideAdminContext() {
             }
         } catch (error) {
             toast.error(error.message)
+        }
+    }
+
+    const getMedicalRecordsStatus = async () => {
+        if (!aToken.value) return
+        medicalRecordsStatusLoading.value = true
+        try {
+            const { data } = await axios.get(backendUrl + '/api/medical-records/status', {
+                headers: { atoken: aToken.value },
+            })
+            medicalRecordsStatus.value = data
+        } catch (error) {
+            const msg = error?.response?.data?.message ?? error.message
+            toast.error(msg)
+        } finally {
+            medicalRecordsStatusLoading.value = false
         }
     }
 
@@ -139,7 +158,29 @@ export function provideAdminContext() {
         }
     }
 
-    provide(ADMIN_CONTEXT_KEY, { aToken, backendUrl, setAToken, doctors, getAllDoctors, changeAvailability, appointments, getAllAppointments, cancelAppointment, notifications, getAllNotifications, dashData, getDashData, annualReport, monthlyTrend, reportYear, getAnnualReport, getMonthlyTrend })
+    provide(ADMIN_CONTEXT_KEY, {
+        aToken,
+        backendUrl,
+        setAToken,
+        doctors,
+        getAllDoctors,
+        changeAvailability,
+        appointments,
+        getAllAppointments,
+        cancelAppointment,
+        notifications,
+        getAllNotifications,
+        medicalRecordsStatus,
+        medicalRecordsStatusLoading,
+        getMedicalRecordsStatus,
+        dashData,
+        getDashData,
+        annualReport,
+        monthlyTrend,
+        reportYear,
+        getAnnualReport,
+        getMonthlyTrend,
+    })
 }
 
 export function useAdminContext() {

@@ -5,9 +5,19 @@ import { useAdminContext } from '../../context/AdminContext'
 import { useAppContext } from '../../context/AppContext'
 import ReportExportButtons from '../../components/ReportExportButtons.vue'
 
-const { aToken, backendUrl, annualReport, monthlyTrend, getAnnualReport, getMonthlyTrend } = useAdminContext()
+const {
+    aToken,
+    backendUrl,
+    annualReport,
+    monthlyTrend,
+    getAnnualReport,
+    getMonthlyTrend,
+    medicalRecordsStatus,
+    medicalRecordsStatusLoading,
+    getMedicalRecordsStatus,
+} = useAdminContext()
 const { currency } = useAppContext()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const selectedYear = ref(new Date().getFullYear())
 const trendMonths = ref(12)
@@ -27,11 +37,19 @@ const completionRate = computed(() => {
     return Math.round((tot.completedAppointments / tot.totalAppointments) * 100)
 })
 
+const migratedAtLabel = computed(() => {
+    const value = medicalRecordsStatus.value?.migratedAt
+    if (!value) return t('adminReports.never')
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? t('adminReports.never') : date.toLocaleString(locale.value)
+})
+
 const loadData = async () => {
     loading.value = true
     await Promise.all([
         getAnnualReport(selectedYear.value),
         getMonthlyTrend(trendMonths.value),
+        getMedicalRecordsStatus(),
     ])
     loading.value = false
 }
@@ -82,6 +100,49 @@ onMounted(() => {
                     {{ currency }}{{ totals.totalEarnings?.toLocaleString() }}
                 </p>
             </div>
+        </div>
+
+        <div class="bg-white rounded-lg border p-4 mb-6">
+            <div class="flex items-center justify-between gap-3 mb-1">
+                <p class="text-sm font-medium text-slate-600">{{ t('adminReports.medicalRecordsTitle') }}</p>
+                <button @click="getMedicalRecordsStatus" :disabled="medicalRecordsStatusLoading"
+                    class="text-xs text-indigo-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                    {{ t('adminReports.refresh') }}
+                </button>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">{{ t('adminReports.medicalRecordsHint') }}</p>
+
+            <div v-if="medicalRecordsStatusLoading && !medicalRecordsStatus"
+                class="text-sm text-slate-400 animate-pulse">
+                {{ t('adminReports.statusLoading') }}
+            </div>
+            <div v-else-if="medicalRecordsStatus" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.totalRecords') }}</p>
+                    <p class="text-xl font-semibold text-slate-700 mt-1">
+                        {{ medicalRecordsStatus.total ?? 0 }}
+                    </p>
+                </div>
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.encryptedRecords') }}</p>
+                    <p class="text-xl font-semibold text-indigo-600 mt-1">
+                        {{ medicalRecordsStatus.encrypted ?? 0 }}
+                    </p>
+                </div>
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.pendingRecords') }}</p>
+                    <p class="text-xl font-semibold text-amber-600 mt-1">
+                        {{ medicalRecordsStatus.pending ?? 0 }}
+                    </p>
+                </div>
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.lastRecord') }}</p>
+                    <p class="text-sm font-semibold text-slate-700 mt-1">
+                        {{ migratedAtLabel }}
+                    </p>
+                </div>
+            </div>
+            <p v-else class="text-sm text-slate-400">{{ t('adminReports.statusUnavailable') }}</p>
         </div>
 
         <p class="text-lg font-medium text-slate-600 pb-4">

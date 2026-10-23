@@ -8,7 +8,8 @@
         "myProfile": "Mi Perfil",
         "myAppointments": "Mis Citas",
         "notifications": "Notificaciones",
-        "logout": "Cerrar sesión"
+        "logout": "Cerrar sesión",
+        "myRecords": "Mis Registros"
     },
     "home": {
         "heroTitle1": "Reserva tu Cita",
@@ -98,7 +99,8 @@
         "appointmentCancelled": "Cita cancelada",
         "completed": "Completada",
         "payWithStripe": "Pagar con Stripe",
-        "cashOnDelivery": "Pago en efectivo"
+        "cashOnDelivery": "Pago en efectivo",
+        "viewRecords": "Ver registros médicos"
     },
     "notifications": {
         "title": "Notificaciones",
@@ -285,5 +287,62 @@
         "checkInbox": "¡Revisa tu bandeja de entrada!",
         "successMsg": "Si existe una cuenta con ese correo, recibirás un enlace en breve.",
         "done": "Listo"
+    },
+    "myRecords": {
+        "title": "Mis Registros Médicos",
+        "subtitle": "Consulta los registros clínicos que tus médicos han compartido contigo.",
+        "loading": "Cargando registros médicos…",
+        "error": "No se pudieron cargar tus registros médicos.",
+        "retry": "Reintentar",
+        "empty": "Aún no tienes registros médicos.",
+        "noRecords": "Aún no tienes registros médicos.",
+        "view": "Ver detalles",
+        "viewDetails": "Ver detalles",
+        "download": "Descargar PDF",
+        "downloadPdf": "Descargar PDF",
+        "close": "Cerrar",
+        "modalTitle": "Registro médico",
+        "diagnosis": "Diagnóstico",
+        "date": "Fecha",
+        "doctor": "Médico",
+        "patient": "Paciente",
+        "notes": "Notas",
+        "noNotes": "No se registraron notas.",
+        "attachments": "Adjuntos",
+        "noAttachments": "Sin adjuntos.",
+        "openAttachment": "Abrir adjunto",
+        "attachment": "Adjunto",
+        "pdfTitle": "Registro médico",
+        "pdfConfidential": "Confidencial — contiene información clínica",
+        "confidential": "Confidencial",
+        "page": "Página",
+        "ofPages": "de",
+        "pageOf": "Página {{page}} de {{total}}",
+        "downloadError": "No se pudo generar el PDF.",
+        "unknownDoctor": "Médico",
+        "unknownPatient": "Paciente",
+        "previous": "Anterior",
+        "next": "Siguiente",
+        "showing": "Mostrando",
+        "of": "de",
+        "records": "registros",
+        "record": "registro",
+        "refresh": "Actualizar",
+        "generated": "Generado",
+        "support": "Si tienes dudas sobre un registro, contacta a tu médico.",
+        "privacy": "Por tu privacidad, las notas clínicas solo se muestran en esta sesión."
+    },
+    "diagnosis": {
+        "general-consultation": "Consulta general",
+        "upper-respiratory-infection": "Infección respiratoria alta",
+        "hypertension": "Hipertensión",
+        "type-2-diabetes": "Diabetes tipo 2",
+        "migraine": "Migraña",
+        "dermatitis": "Dermatitis",
+        "gastroenteritis": "Gastroenteritis",
+        "musculoskeletal-pain": "Dolor musculoesquelético",
+        "anxiety-disorder": "Trastorno de ansiedad",
+        "follow-up": "Seguimiento",
+        "unclassified-legacy": "Sin clasificar (heredado)"
     }
 }

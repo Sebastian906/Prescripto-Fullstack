@@ -83,6 +83,9 @@ const Navbar = () => {
                                 <p onClick={() => navigate('my-appointments')} className="hover:text-slate-950 cursor-pointer">
                                     {t('nav.myAppointments')}
                                 </p>
+                                <p onClick={() => navigate('/my-records')} className="hover:text-slate-950 cursor-pointer">
+                                    {t('nav.myRecords')}
+                                </p>
                                 <p onClick={logout} className="hover:text-slate-950 cursor-pointer">
                                     {t('nav.logout')}
                                 </p>

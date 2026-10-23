@@ -13,7 +13,8 @@
         "reports": "Informes",
         "notifications": "Notificaciones",
         "liveChat": "Chat en Vivo",
-        "profile": "Perfil"
+        "profile": "Perfil",
+        "medicalRecords": "Registros Médicos"
     },
     "login": {
         "title": "Iniciar sesión",
@@ -269,7 +270,16 @@
         "last6": "Últimos 6 meses",
         "last12": "Últimos 12 meses",
         "last24": "Últimos 24 meses",
-        "loading": "Cargando informe…"
+        "loading": "Cargando informe…",
+        "medicalRecordsTitle": "Registros Médicos",
+        "medicalRecordsHint": "Solo metadatos. Las notas clínicas, diagnósticos y adjuntos nunca se muestran aquí. Pendientes es una aproximación.",
+        "statusLoading": "Cargando estado de registros médicos…",
+        "statusUnavailable": "El estado de registros médicos no está disponible.",
+        "totalRecords": "Registros totales",
+        "encryptedRecords": "Notas cifradas",
+        "pendingRecords": "Pendientes (aprox.)",
+        "lastRecord": "Último registro",
+        "never": "Nunca"
     },
     "doctorDashboard": {
         "earnings": "Ganancias",
@@ -352,5 +362,55 @@
         "pediatricians": "Pediatras",
         "neurologist": "Neurólogo",
         "gastroenterologist": "Gastroenterólogo"
+    },
+    "doctorRecords": {
+        "title": "Registros Médicos",
+        "subtitle": "Registros clínicos de tus citas completadas.",
+        "refresh": "Actualizar",
+        "number": "#",
+        "date": "Fecha",
+        "patient": "Paciente",
+        "doctor": "Médico",
+        "diagnosis": "Diagnóstico",
+        "attachments": "Adjuntos",
+        "actions": "Acciones",
+        "view": "Ver",
+        "downloadPdf": "Descargar PDF",
+        "loading": "Cargando registros médicos…",
+        "empty": "No se encontraron registros médicos.",
+        "noRecords": "No se encontraron registros médicos.",
+        "previous": "Anterior",
+        "next": "Siguiente",
+        "showing": "Mostrando",
+        "of": "de",
+        "records": "registros",
+        "record": "registro",
+        "modalTitle": "Registro médico",
+        "close": "Cerrar",
+        "notes": "Notas",
+        "noNotes": "No se registraron notas.",
+        "noAttachments": "Sin adjuntos.",
+        "openAttachment": "Abrir adjunto",
+        "attachment": "Adjunto",
+        "downloadError": "No se pudo generar el PDF.",
+        "unknownPatient": "Paciente desconocido",
+        "unknownDoctor": "Médico",
+        "pdfTitle": "Registro médico",
+        "confidential": "Confidencial — contiene información clínica",
+        "page": "Página",
+        "ofPages": "de"
+    },
+    "diagnosis": {
+        "general-consultation": "Consulta general",
+        "upper-respiratory-infection": "Infección respiratoria alta",
+        "hypertension": "Hipertensión",
+        "type-2-diabetes": "Diabetes tipo 2",
+        "migraine": "Migraña",
+        "dermatitis": "Dermatitis",
+        "gastroenteritis": "Gastroenteritis",
+        "musculoskeletal-pain": "Dolor musculoesquelético",
+        "anxiety-disorder": "Trastorno de ansiedad",
+        "follow-up": "Seguimiento",
+        "unclassified-legacy": "Sin clasificar (heredado)"
     }
 }

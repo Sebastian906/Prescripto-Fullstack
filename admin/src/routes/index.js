@@ -5,6 +5,7 @@ import AddDoctor from '../pages/Admin/AddDoctor.vue'
 import DoctorsList from '../pages/Admin/DoctorsList.vue'
 import DoctorDashboard from '../pages/Doctor/DoctorDashboard.vue'
 import DoctorAppointments from '../pages/Doctor/DoctorAppointments.vue'
+import DoctorRecords from '../pages/Doctor/DoctorRecords.vue'
 import DoctorProfile from '../pages/Doctor/DoctorProfile.vue'
 import ResetPassword from '../pages/ResetPassword.vue'
 import SpecialitiesManager from '../pages/Admin/SpecialitiesManager.vue'
@@ -69,6 +70,11 @@ const routes = [
         path: '/doctor-appointments',
         name: 'DoctorAppointments',
         component: DoctorAppointments
+    },
+    {
+        path: '/doctor-records',
+        name: 'DoctorRecords',
+        component: DoctorRecords
     },
     {
         path: '/doctor-profile',

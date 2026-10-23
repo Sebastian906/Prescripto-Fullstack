@@ -8,7 +8,8 @@
         "myProfile": "My Profile",
         "myAppointments": "My Appointments",
         "notifications": "Notifications",
-        "logout": "Logout"
+        "logout": "Logout",
+        "myRecords": "My Records"
     },
     "home": {
         "heroTitle1": "Book Appointment",
@@ -98,7 +99,8 @@
         "appointmentCancelled": "Appointment cancelled",
         "completed": "Completed",
         "payWithStripe": "Pay with Stripe",
-        "cashOnDelivery": "Cash on Delivery"
+        "cashOnDelivery": "Cash on Delivery",
+        "viewRecords": "View my medical records"
     },
     "notifications": {
         "title": "Notifications",
@@ -285,5 +287,45 @@
         "checkInbox": "Check your inbox!",
         "successMsg": "If an account with that email exists, you will receive a reset link shortly.",
         "done": "Done"
+    },
+    "myRecords": {
+        "title": "My Medical Records",
+        "subtitle": "Records are written by your doctors after completed appointments.",
+        "empty": "You don't have any medical records yet.",
+        "emptyCta": "View my appointments",
+        "loading": "Loading medical records…",
+        "error": "Could not load your medical records.",
+        "retry": "Retry",
+        "loadMore": "Load more",
+        "recordedOn": "Recorded on",
+        "doctor": "Doctor",
+        "patient": "Patient",
+        "diagnosis": "Diagnosis",
+        "notes": "Notes",
+        "attachments": "Attachments",
+        "noAttachments": "No attachments",
+        "downloadPdf": "Download PDF",
+        "view": "View",
+        "close": "Close",
+        "confidential": "Downloaded files contain confidential medical information.",
+        "unavailable": "Record not available",
+        "pdfTitle": "Medical Record",
+        "pdfConfidential": "Prescripto — Confidential",
+        "page": "Page",
+        "of": "of",
+        "downloadError": "The PDF could not be generated. Please try again."
+    },
+    "diagnosis": {
+        "general-consultation": "General consultation",
+        "upper-respiratory-infection": "Upper respiratory infection",
+        "hypertension": "Hypertension",
+        "type-2-diabetes": "Type 2 diabetes",
+        "migraine": "Migraine",
+        "dermatitis": "Dermatitis",
+        "gastroenteritis": "Gastroenteritis",
+        "musculoskeletal-pain": "Musculoskeletal pain",
+        "anxiety-disorder": "Anxiety disorder",
+        "follow-up": "Follow-up",
+        "unclassified-legacy": "Legacy record (unclassified)"
     }
 }
