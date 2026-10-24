@@ -28,6 +28,7 @@ import { CacheModule } from './shared/cache/cache.module';
 import { CacheInterceptor } from './shared/cache/cache.interceptor';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MedicalRecordsModule } from './medical-records/medical-records.module';
+import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { MedicalRecordsModule } from './medical-records/medical-records.module';
     CacheModule,
     NotificationsModule,
     MedicalRecordsModule,
+    PrescriptionsModule,
   ],
   controllers: [AppController],
   providers: [

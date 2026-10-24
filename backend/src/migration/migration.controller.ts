@@ -66,6 +66,18 @@ export class MigrationController {
     return { success: result.errors === 0, result };
   }
 
+  @Post('prescriptions')
+  @ApiOperation({
+    summary:
+      'Ensure the prescriptions collection/index. No free-text parsing. Admin only.',
+  })
+  @ApiHeader({ name: 'atoken', description: 'Admin token', required: true })
+  @UseGuards(AuthAdminGuard)
+  async migratePrescriptions() {
+    const result = await this.migrationService.migratePrescriptions();
+    return { success: result.errors === 0, result };
+  }
+
   @Post('collection')
   @ApiOperation({ summary: 'Migrate a single collection. Admin only.' })
   @ApiHeader({ name: 'atoken', description: 'Admin token', required: true })

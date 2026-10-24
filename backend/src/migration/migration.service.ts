@@ -44,6 +44,10 @@ import {
   MedicalRecordDocument,
 } from 'src/medical-records/schemas/medical-record.schema';
 import { encryptField } from 'src/shared/utils/encryption.util';
+import {
+  Prescription,
+  PrescriptionDocument,
+} from 'src/prescriptions/schemas/prescription.schema';
 
 export interface MigrationResult {
   collection: string;
@@ -241,6 +245,31 @@ export async function backfillMedicalRecords(
   return result;
 }
 
+export async function backfillPrescriptions(
+  prescriptionModel: Model<PrescriptionDocument>,
+): Promise<MigrationResult> {
+  const start = Date.now();
+  const result: MigrationResult = {
+    collection: 'prescriptions',
+    migrated: 0,
+    skipped: 0,
+    errors: 0,
+    durationMs: 0,
+  };
+
+  try {
+    await prescriptionModel.createIndexes();
+  } catch (err) {
+    result.errors++;
+    (result.errorDetails ??= []).push(
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  result.durationMs = Date.now() - start;
+  return result;
+}
+
 const SCHEMA_FILES = [
   '001_create_schema.sql',
   '002_advanced_objects.sql',
@@ -273,6 +302,8 @@ export class MigrationService {
     private readonly pg: PostgresService,
     @InjectModel(MedicalRecord.name)
     private readonly medicalRecordModel: Model<MedicalRecordDocument>,
+    @InjectModel(Prescription.name)
+    private readonly prescriptionModel: Model<PrescriptionDocument>,
   ) {}
 
   async runFullMigration(
@@ -623,6 +654,14 @@ export class MigrationService {
     );
     this.logger.log(
       `Medical records backfill: ${result.migrated} migrated, ${result.skipped} skipped, ${result.errors} errors`,
+    );
+    return result;
+  }
+
+  async migratePrescriptions(): Promise<MigrationResult> {
+    const result = await backfillPrescriptions(this.prescriptionModel);
+    this.logger.log(
+      `Prescriptions migration: ${result.migrated} migrated, ${result.skipped} skipped, ${result.errors} errors`,
     );
     return result;
   }
