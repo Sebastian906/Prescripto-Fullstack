@@ -7,6 +7,7 @@ import {
     formatMedicalRecordDate,
     isSafeMedicalRecordUrl,
     medicalRecordDiagnosisLabel,
+    useMedicalRecordExport,
 } from '../../composables/useMedicalRecordExport'
 
 const { t, te, locale } = useI18n()

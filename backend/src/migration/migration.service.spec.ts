@@ -1,15 +1,23 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { MigrationService } from './migration.service';
 
 describe('MigrationService', () => {
   let service: MigrationService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [MigrationService],
-    }).compile();
-
-    service = module.get<MigrationService>(MigrationService);
+  beforeEach(() => {
+    service = new MigrationService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
   });
 
   it('should be defined', () => {

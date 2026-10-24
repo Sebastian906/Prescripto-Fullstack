@@ -55,6 +55,7 @@ describe('Availability migration idempotency', () => {
       availabilityModel as any, // ← 8º param, ya no hace falta el parche
       {} as any,
       {} as any,
+      {} as any,
     );
     const r1 = await svc.backfillAvailabilityFromDoctors();
     const r2 = await svc.backfillAvailabilityFromDoctors();
