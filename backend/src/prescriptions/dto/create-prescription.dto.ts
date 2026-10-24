@@ -8,6 +8,7 @@ import {
   IsMongoId,
   IsString,
   Length,
+  Matches,
   Max,
   Min,
   ValidateNested,
@@ -23,16 +24,19 @@ export class PrescriptionItemDto {
   })
   @IsString()
   @Length(2, 120)
+  @Matches(/\S/, { message: 'drug must not be blank' })
   drug!: string;
 
   @ApiProperty({ example: '500 mg', minLength: 1, maxLength: 80 })
   @IsString()
   @Length(1, 80)
+  @Matches(/\S/, { message: 'dose must not be blank' })
   dose!: string;
 
   @ApiProperty({ example: 'every 8 hours', minLength: 1, maxLength: 80 })
   @IsString()
   @Length(1, 80)
+  @Matches(/\S/, { message: 'frequency must not be blank' })
   frequency!: string;
 
   @ApiProperty({ example: 7, minimum: 1, maximum: 365 })

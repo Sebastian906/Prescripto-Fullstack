@@ -158,9 +158,22 @@ export class PrescriptionsService {
     }
 
     const revokedAt = new Date();
-    await this.model
-      .updateOne({ _id: String(prescription._id) }, { $set: { revokedAt } })
+    const update = await this.model
+      .updateOne(
+        { _id: String(prescription._id), revokedAt: null },
+        { $set: { revokedAt } },
+      )
       .exec();
+
+    if (update.modifiedCount === 0) {
+      const current = await this.findOrFail(String(prescription._id));
+      return {
+        success: true,
+        id: String(current._id),
+        revokedAt: current.revokedAt,
+        alreadyRevoked: true,
+      };
+    }
 
     await this.auditSafe({
       actorId: docId,

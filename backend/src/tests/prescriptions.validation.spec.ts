@@ -60,6 +60,14 @@ describe('Prescription DTO validation', () => {
     expect(errors.some((e) => e.property === 'items')).toBe(true);
   });
 
+  it('rejects whitespace-only dose', async () => {
+    const errors = await validateDto({
+      recordId: RECORD_ID,
+      items: [{ ...validItem, dose: '   ' }],
+    });
+    expect(errors.some((e) => e.property === 'items')).toBe(true);
+  });
+
   it('rejects non-integer days', async () => {
     const errors = await validateDto({
       recordId: RECORD_ID,

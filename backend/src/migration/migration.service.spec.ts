@@ -16,6 +16,7 @@ describe('MigrationService', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
     );
   });
 

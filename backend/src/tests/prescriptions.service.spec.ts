@@ -290,7 +290,7 @@ describe('PrescriptionsService', () => {
     expect(result.alreadyRevoked).toBe(false);
     expect(result.revokedAt).toBeInstanceOf(Date);
     expect(model.updateOne).toHaveBeenCalledWith(
-      { _id: P_ID },
+      { _id: P_ID, revokedAt: null },
       { $set: { revokedAt: expect.any(Date) } },
     );
     expect(audit.record).toHaveBeenCalledWith(
@@ -319,6 +319,33 @@ describe('PrescriptionsService', () => {
     expect(result.alreadyRevoked).toBe(true);
     expect(result.revokedAt).toEqual(revokedAt);
     expect(model.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('revoke returns the concurrent revoked state without auditing twice', async () => {
+    const revokedAt = new Date('2026-01-01T00:00:00.000Z');
+    const active = {
+      _id: P_ID,
+      recordId: RECORD_ID,
+      userId: 'u1',
+      doctorId: 'd1',
+      items,
+      issuedAt: new Date(),
+      revokedAt: null,
+    };
+    const alreadyRevoked = { ...active, revokedAt };
+    const { service, model, audit } = buildService({ prescription: active });
+
+    model.findById = jest
+      .fn()
+      .mockReturnValueOnce({ lean: () => chainExec(active) })
+      .mockReturnValueOnce({ lean: () => chainExec(alreadyRevoked) });
+    model.updateOne = jest.fn(() => chainExec({ modifiedCount: 0 }));
+
+    const result = await service.revoke('d1', P_ID);
+
+    expect(result.alreadyRevoked).toBe(true);
+    expect(result.revokedAt).toEqual(revokedAt);
+    expect(audit.record).not.toHaveBeenCalled();
   });
 
   it('403 when another doctor tries to revoke', async () => {
