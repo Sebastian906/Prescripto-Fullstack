@@ -86,6 +86,9 @@ const Navbar = () => {
                                 <p onClick={() => navigate('/my-records')} className="hover:text-slate-950 cursor-pointer">
                                     {t('nav.myRecords')}
                                 </p>
+                                <p onClick={() => navigate('/my-prescriptions')} className="hover:text-slate-950 cursor-pointer">
+                                    {t('nav.myPrescriptions')}
+                                </p>
                                 <p onClick={logout} className="hover:text-slate-950 cursor-pointer">
                                     {t('nav.logout')}
                                 </p>
@@ -124,6 +127,16 @@ const Navbar = () => {
                         <NavLink onClick={() => setShowMenu(false)} to="/contact">
                             <p className="px-4 py-2 rounded inline-block">{t('nav.contact')}</p>
                         </NavLink>
+                        {token && userData && (
+                            <>
+                                <NavLink onClick={() => setShowMenu(false)} to="/my-records">
+                                    <p className="px-4 py-2 rounded inline-block">{t('nav.myRecords')}</p>
+                                </NavLink>
+                                <NavLink onClick={() => setShowMenu(false)} to="/my-prescriptions">
+                                    <p className="px-4 py-2 rounded inline-block">{t('nav.myPrescriptions')}</p>
+                                </NavLink>
+                            </>
+                        )}
                     </ul>
                     <div className="px-5 mt-4 flex justify-center">
                         <LanguageSwitcher />

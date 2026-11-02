@@ -15,6 +15,9 @@ const {
     medicalRecordsStatus,
     medicalRecordsStatusLoading,
     getMedicalRecordsStatus,
+    prescriptionsStatus,
+    prescriptionsStatusLoading,
+    getPrescriptionsStatus,
 } = useAdminContext()
 const { currency } = useAppContext()
 const { t, locale } = useI18n()
@@ -44,12 +47,20 @@ const migratedAtLabel = computed(() => {
     return Number.isNaN(date.getTime()) ? t('adminReports.never') : date.toLocaleString(locale.value)
 })
 
+const latestPrescriptionLabel = computed(() => {
+    const value = prescriptionsStatus.value?.latestIssuedAt
+    if (!value) return t('adminReports.never')
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? t('adminReports.never') : date.toLocaleString(locale.value)
+})
+
 const loadData = async () => {
     loading.value = true
     await Promise.all([
         getAnnualReport(selectedYear.value),
         getMonthlyTrend(trendMonths.value),
         getMedicalRecordsStatus(),
+        getPrescriptionsStatus(),
     ])
     loading.value = false
 }
@@ -143,6 +154,54 @@ onMounted(() => {
                 </div>
             </div>
             <p v-else class="text-sm text-slate-400">{{ t('adminReports.statusUnavailable') }}</p>
+        </div>
+
+        <div class="bg-white rounded-lg border p-4 mb-6">
+            <div class="flex items-center justify-between gap-3 mb-1">
+                <p class="text-sm font-medium text-slate-600">{{ t('adminReports.prescriptionsTitle') }}</p>
+                <button @click="getPrescriptionsStatus" :disabled="prescriptionsStatusLoading"
+                    class="text-xs text-indigo-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                    {{ t('adminReports.refresh') }}
+                </button>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">{{ t('adminReports.prescriptionsHint') }}</p>
+
+            <div v-if="prescriptionsStatusLoading && !prescriptionsStatus" class="text-sm text-slate-400 animate-pulse">
+                {{ t('adminReports.prescriptionsLoading') }}
+            </div>
+            <div v-else-if="prescriptionsStatus" class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.totalPrescriptions') }}</p>
+                    <p class="text-xl font-semibold text-slate-700 mt-1">
+                        {{ prescriptionsStatus.total ?? 0 }}
+                    </p>
+                </div>
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.activePrescriptions') }}</p>
+                    <p class="text-xl font-semibold text-emerald-600 mt-1">
+                        {{ prescriptionsStatus.active ?? 0 }}
+                    </p>
+                </div>
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.revokedPrescriptions') }}</p>
+                    <p class="text-xl font-semibold text-rose-600 mt-1">
+                        {{ prescriptionsStatus.revoked ?? 0 }}
+                    </p>
+                </div>
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.pendingPrescriptions') }}</p>
+                    <p class="text-xl font-semibold text-amber-600 mt-1">
+                        {{ prescriptionsStatus.pending ?? 0 }}
+                    </p>
+                </div>
+                <div class="rounded border bg-slate-50 p-3">
+                    <p class="text-xs text-slate-400 uppercase">{{ t('adminReports.latestPrescription') }}</p>
+                    <p class="text-sm font-semibold text-slate-700 mt-1">
+                        {{ latestPrescriptionLabel }}
+                    </p>
+                </div>
+            </div>
+            <p v-else class="text-sm text-slate-400">{{ t('adminReports.prescriptionsUnavailable') }}</p>
         </div>
 
         <p class="text-lg font-medium text-slate-600 pb-4">
