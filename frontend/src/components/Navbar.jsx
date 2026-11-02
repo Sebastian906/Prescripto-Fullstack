@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, Link, useNavigate } from 'react-router-dom'
 import { assets } from '../assets/assets'
 import { useContext, useState } from 'react';
 import { AppContext } from '../context/AppContext';
@@ -72,26 +72,33 @@ const Navbar = () => {
                     </button>
                 )}
                 {token && userData ? (
-                    <div className="flex items-center gap-2 cursor-pointer group relative">
-                        <img className="w-8 rounded-full" src={userData.image} alt="" />
-                        <img className="w-2.5" src={assets.dropdown_icon} alt="" />
-                        <div className="absolute top-0 right-0 pt-14 text-base font-medium text-slate-500 z-20 hidden group-hover:block">
-                            <div className="min-w-48 bg-stone-100 rounded flex flex-col gap-4 p-4">
-                                <p onClick={() => navigate('my-profile')} className="hover:text-slate-950 cursor-pointer">
+                    <div className="relative group">
+                        <button
+                            type="button"
+                            aria-label={userData.name || t('nav.myProfile')}
+                            aria-haspopup="menu"
+                            className="flex items-center gap-2 min-h-11 cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                        >
+                            <img className="w-8 rounded-full" src={userData.image} alt="" />
+                            <img className="w-2.5" src={assets.dropdown_icon} alt="" />
+                        </button>
+                        <div className="absolute top-full right-0 z-20 pt-2 hidden group-hover:block group-focus-within:block">
+                            <div role="menu" className="min-w-48 bg-stone-100 rounded flex flex-col gap-4 p-4 text-base font-medium text-slate-500">
+                                <Link role="menuitem" to="/my-profile" className="rounded hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                                     {t('nav.myProfile')}
-                                </p>
-                                <p onClick={() => navigate('my-appointments')} className="hover:text-slate-950 cursor-pointer">
+                                </Link>
+                                <Link role="menuitem" to="/my-appointments" className="rounded hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                                     {t('nav.myAppointments')}
-                                </p>
-                                <p onClick={() => navigate('/my-records')} className="hover:text-slate-950 cursor-pointer">
+                                </Link>
+                                <Link role="menuitem" to="/my-records" className="rounded hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                                     {t('nav.myRecords')}
-                                </p>
-                                <p onClick={() => navigate('/my-prescriptions')} className="hover:text-slate-950 cursor-pointer">
+                                </Link>
+                                <Link role="menuitem" to="/my-prescriptions" className="rounded hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                                     {t('nav.myPrescriptions')}
-                                </p>
-                                <p onClick={logout} className="hover:text-slate-950 cursor-pointer">
+                                </Link>
+                                <button type="button" role="menuitem" onClick={logout} className="text-left rounded hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                                     {t('nav.logout')}
-                                </p>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -103,16 +110,26 @@ const Navbar = () => {
                         {t('nav.createAccount')}
                     </button>
                 )}
-                <img
+                <button
+                    type="button"
                     onClick={() => setShowMenu(true)}
-                    className="w-6 md:hidden"
-                    src={assets.menu_icon}
-                    alt=""
-                />
+                    aria-label={t('nav.openMenu')}
+                    aria-expanded={showMenu}
+                    className="md:hidden inline-flex min-h-11 min-w-11 items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                >
+                    <img className="w-6" src={assets.menu_icon} alt="" />
+                </button>
                 <div className={`${showMenu ? 'fixed w-full' : 'h-0 w-0'} md:hidden right-0 top-0 bottom-0 z-20 overflow-hidden bg-indigo-100 transition-all`}>
                     <div className="flex items-center justify-between px-5 py-6">
                         <img className="w-36" src={assets.logo} alt="" />
-                        <img className="w-7" onClick={() => setShowMenu(false)} src={assets.cross_icon} alt="" />
+                        <button
+                            type="button"
+                            onClick={() => setShowMenu(false)}
+                            aria-label={t('nav.closeMenu')}
+                            className="inline-flex min-h-11 min-w-11 items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                        >
+                            <img className="w-7" src={assets.cross_icon} alt="" />
+                        </button>
                     </div>
                     <ul className="flex flex-col items-center gap-2 mt-5 px-5 text-lg font-medium">
                         <NavLink onClick={() => setShowMenu(false)} to="/">

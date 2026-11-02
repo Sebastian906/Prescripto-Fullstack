@@ -35,6 +35,8 @@ const selected = ref(null)
 const modalRef = ref(null)
 const issueTarget = ref(null)
 const detailTarget = ref(null)
+const prescriptionsLoaded = ref(false)
+const prescriptionsFailed = ref(false)
 let lastFocused = null
 
 const totalPages = computed(() => Math.max(1, Math.ceil(records.value.length / PAGE_SIZE)))
@@ -100,6 +102,12 @@ const closeRecord = () => {
     })
 }
 
+const loadPrescriptions = async () => {
+    const ok = await getPrescriptions()
+    prescriptionsLoaded.value = ok !== false
+    prescriptionsFailed.value = ok === false
+}
+
 const openIssue = (record) => {
     issueTarget.value = record
 }
@@ -110,7 +118,7 @@ const closeIssue = () => {
 
 const onIssued = async () => {
     issueTarget.value = null
-    await getPrescriptions()
+    await loadPrescriptions()
 }
 
 const openDetail = (prescription) => {
@@ -123,10 +131,10 @@ const closeDetail = () => {
 
 const onRevoked = async (prescription) => {
     detailTarget.value = prescription
-    await getPrescriptions()
+    await loadPrescriptions()
 }
 
-const refreshAll = () => Promise.all([getRecords(), getPrescriptions()])
+const refreshAll = () => Promise.all([getRecords(), loadPrescriptions()])
 
 const downloadRecord = async (record) => {
     if (!record) return
@@ -192,7 +200,7 @@ onMounted(async () => {
 
     await Promise.all([
         getRecords(),
-        getPrescriptions(),
+        loadPrescriptions(),
         appointments.value.length === 0 ? getAppointments() : Promise.resolve(),
         profileData.value?.name ? Promise.resolve() : getProfileData(),
     ])
@@ -269,28 +277,38 @@ onBeforeUnmount(() => {
                             </td>
                             <td class="py-3 px-4">
                                 <div class="flex flex-col items-start gap-1">
-                                    <span v-if="prescriptionFor(record)" :class="[
-                                        'rounded-full px-2.5 py-0.5 text-xs font-medium',
-                                        isPrescriptionRevoked(prescriptionFor(record))
-                                            ? 'bg-rose-100 text-rose-700'
-                                            : 'bg-emerald-100 text-emerald-700'
-                                    ]">
-                                        {{ isPrescriptionRevoked(prescriptionFor(record))
-                                            ? t('doctorRecords.prescriptionRevoked')
-                                            : t('doctorRecords.prescriptionActive') }}
+                                    <span v-if="prescriptionsLoading || !prescriptionsLoaded"
+                                        class="text-xs text-slate-400 animate-pulse">
+                                        {{ t('doctorRecords.loading') }}
                                     </span>
-                                    <span v-else class="text-xs text-slate-400">
-                                        {{ t('doctorRecords.prescriptionNone') }}
+                                    <span v-else-if="prescriptionsFailed" class="text-xs text-slate-400">
+                                        {{ t('adminReports.prescriptionsUnavailable') }}
                                     </span>
-
-                                    <button v-if="prescriptionFor(record)" @click="openDetail(prescriptionFor(record))"
-                                        class="text-xs text-indigo-600 hover:underline cursor-pointer">
-                                        {{ t('doctorRecords.viewPrescription') }}
-                                    </button>
-                                    <button v-else @click="openIssue(record)"
-                                        class="text-xs text-indigo-600 hover:underline cursor-pointer">
-                                        {{ t('doctorRecords.issuePrescription') }}
-                                    </button>
+                                    <template v-else-if="prescriptionFor(record)">
+                                        <span :class="[
+                                            'rounded-full px-2.5 py-0.5 text-xs font-medium',
+                                            isPrescriptionRevoked(prescriptionFor(record))
+                                                ? 'bg-rose-100 text-rose-700'
+                                                : 'bg-emerald-100 text-emerald-700'
+                                        ]">
+                                            {{ isPrescriptionRevoked(prescriptionFor(record))
+                                                ? t('doctorRecords.prescriptionRevoked')
+                                                : t('doctorRecords.prescriptionActive') }}
+                                        </span>
+                                        <button @click="openDetail(prescriptionFor(record))"
+                                            class="text-xs text-indigo-600 hover:underline cursor-pointer">
+                                            {{ t('doctorRecords.viewPrescription') }}
+                                        </button>
+                                    </template>
+                                    <template v-else>
+                                        <span class="text-xs text-slate-400">
+                                            {{ t('doctorRecords.prescriptionNone') }}
+                                        </span>
+                                        <button @click="openIssue(record)"
+                                            class="text-xs text-indigo-600 hover:underline cursor-pointer">
+                                            {{ t('doctorRecords.issuePrescription') }}
+                                        </button>
+                                    </template>
                                 </div>
                             </td>
                             <td class="py-3 px-4">

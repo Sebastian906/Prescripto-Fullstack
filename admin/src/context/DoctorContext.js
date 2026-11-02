@@ -79,10 +79,11 @@ export function provideDoctorContext() {
     const getPrescriptions = async () => {
         if (!dToken.value) {
             prescriptions.value = []
-            return
+            return false
         }
         prescriptions.value = []
         prescriptionsLoading.value = true
+        let ok = true
         try {
             const limit = 100
             let offset = 0
@@ -94,6 +95,7 @@ export function provideDoctorContext() {
                 })
                 if (!data?.success) {
                     toast.error(data?.message || 'Could not load prescriptions')
+                    ok = false
                     break
                 }
                 const batch = Array.isArray(data.prescriptions) ? data.prescriptions : []
@@ -102,9 +104,11 @@ export function provideDoctorContext() {
                 if (batch.length < limit) break
                 offset += batch.length
             }
+            return ok
         } catch (error) {
             const msg = error?.response?.data?.message ?? error.message
             toast.error(msg)
+            return false
         } finally {
             prescriptionsLoading.value = false
         }

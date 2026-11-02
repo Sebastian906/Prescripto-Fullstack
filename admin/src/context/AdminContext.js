@@ -99,6 +99,7 @@ export function provideAdminContext() {
             })
             medicalRecordsStatus.value = data
         } catch (error) {
+            medicalRecordsStatus.value = null
             console.error('[medical-records] status request failed', {
                 status: error?.response?.status,
                 message: error?.message,
@@ -118,6 +119,7 @@ export function provideAdminContext() {
             })
             prescriptionsStatus.value = data
         } catch (error) {
+            prescriptionsStatus.value = null
             console.error('[prescriptions] status request failed', {
                 status: error?.response?.status,
                 message: error?.message,

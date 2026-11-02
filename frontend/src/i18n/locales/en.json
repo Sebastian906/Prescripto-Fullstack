@@ -10,7 +10,9 @@
         "notifications": "Notifications",
         "logout": "Logout",
         "myRecords": "My Records",
-        "myPrescriptions": "My Prescriptions"
+        "myPrescriptions": "My Prescriptions",
+        "openMenu": "Open menu",
+        "closeMenu": "Close menu"
     },
     "home": {
         "heroTitle1": "Book Appointment",

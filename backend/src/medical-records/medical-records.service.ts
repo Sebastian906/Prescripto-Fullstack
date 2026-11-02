@@ -170,8 +170,6 @@ export class MedicalRecordsService {
         latest && latest.createdAt
           ? new Date(latest.createdAt).toISOString()
           : null,
-      // ponytail: approximation (appointments still holding clinical keys).
-      // Exact $lookup by appointmentId if this number becomes actionable.
       pending: Math.max(clinical - total, 0),
     };
   }

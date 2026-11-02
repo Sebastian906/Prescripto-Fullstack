@@ -117,6 +117,9 @@ export async function downloadPrescriptionPdf({
     }
 
     const drawItemRow = (item) => {
+        // measure with the font used to draw, otherwise wrapping differs
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
         const cells = COLUMNS.map((column) =>
             doc.splitTextToSize(String(item?.[column.key] ?? '—'), column.width - 4),
         )

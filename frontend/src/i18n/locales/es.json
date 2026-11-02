@@ -10,7 +10,9 @@
         "notifications": "Notificaciones",
         "logout": "Cerrar sesión",
         "myRecords": "Mis Registros",
-        "myPrescriptions": "Mis Recetas"
+        "myPrescriptions": "Mis Recetas",
+        "openMenu": "Abrir menú",
+        "closeMenu": "Cerrar menú"
     },
     "home": {
         "heroTitle1": "Reserva tu Cita",
