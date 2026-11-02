@@ -20,6 +20,8 @@ export function provideAdminContext() {
     const notifications = ref([])
     const medicalRecordsStatus = ref(null)
     const medicalRecordsStatusLoading = ref(false)
+    const prescriptionsStatus = ref(null)
+    const prescriptionsStatusLoading = ref(false)
 
     const setAToken = (token) => {
         aToken.value = token
@@ -30,6 +32,7 @@ export function provideAdminContext() {
             // Sin sesion admin no deben quedar notificaciones retenidas visibles.
             notifications.value = []
             medicalRecordsStatus.value = null
+            prescriptionsStatus.value = null
         }
     }
 
@@ -96,6 +99,7 @@ export function provideAdminContext() {
             })
             medicalRecordsStatus.value = data
         } catch (error) {
+            medicalRecordsStatus.value = null
             console.error('[medical-records] status request failed', {
                 status: error?.response?.status,
                 message: error?.message,
@@ -103,6 +107,26 @@ export function provideAdminContext() {
             toast.error(t('adminReports.statusUnavailable'))
         } finally {
             medicalRecordsStatusLoading.value = false
+        }
+    }
+
+    const getPrescriptionsStatus = async () => {
+        if (!aToken.value) return
+        prescriptionsStatusLoading.value = true
+        try {
+            const { data } = await axios.get(backendUrl + '/api/prescriptions/status', {
+                headers: { atoken: aToken.value },
+            })
+            prescriptionsStatus.value = data
+        } catch (error) {
+            prescriptionsStatus.value = null
+            console.error('[prescriptions] status request failed', {
+                status: error?.response?.status,
+                message: error?.message,
+            })
+            toast.error(t('adminReports.prescriptionsUnavailable'))
+        } finally {
+            prescriptionsStatusLoading.value = false
         }
     }
 
@@ -178,6 +202,9 @@ export function provideAdminContext() {
         medicalRecordsStatus,
         medicalRecordsStatusLoading,
         getMedicalRecordsStatus,
+        prescriptionsStatus,
+        prescriptionsStatusLoading,
+        getPrescriptionsStatus,
         dashData,
         getDashData,
         annualReport,

@@ -138,8 +138,6 @@ export class DoctorsService {
 
     // Productor del outbox: este metodo NO corre en transaccion, asi que la
     // fila 'completed' es best-effort y NO atomica (session undefined).
-    // ponytail: envolver en withTransaction si el worker (Fase 4) exige
-    // atomicidad estricta para 'completed'.
     const completedPayload: outboxPort.CompletedPayload = {
       appointmentId: String(appt._id),
       patientId: appt.userId,

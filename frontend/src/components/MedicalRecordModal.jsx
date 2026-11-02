@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatRecordDate, isSafeAttachmentUrl } from '../utils/medicalRecordPdf'
 
-const MedicalRecordModal = ({ record, doctor, downloading, onClose, onDownload }) => {
+const MedicalRecordModal = ({ record, doctor, prescription, downloading, onClose, onDownload }) => {
     const { t, i18n } = useTranslation()
     const dialogRef = useRef(null)
     const closeButtonRef = useRef(null)
@@ -49,6 +50,9 @@ const MedicalRecordModal = ({ record, doctor, downloading, onClose, onDownload }
     const attachments = Array.isArray(record.attachments)
         ? record.attachments.filter(isSafeAttachmentUrl)
         : []
+
+    const prescriptionRevoked = Boolean(prescription?.revokedAt) || prescription?.status === 'revoked'
+    const prescriptionItems = Array.isArray(prescription?.items) ? prescription.items.length : 0
 
     return (
         <div
@@ -117,6 +121,45 @@ const MedicalRecordModal = ({ record, doctor, downloading, onClose, onDownload }
                                     </li>
                                 ))}
                             </ul>
+                        </div>
+                    )}
+
+                    {prescription && (
+                        <div className="mt-6 rounded border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                                    {t('prescription.title')}
+                                </p>
+                                <span className={
+                                    prescriptionRevoked
+                                        ? 'rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700'
+                                        : 'rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700'
+                                }>
+                                    {prescriptionRevoked ? t('prescription.revoked') : t('prescription.active')}
+                                </span>
+                            </div>
+
+                            <p className="mt-2 text-sm text-zinc-600">
+                                {t('myRecords.prescriptionIssuedOn')}{' '}
+                                {formatRecordDate(prescription.issuedAt, i18n.language)}
+                            </p>
+                            <p className="mt-1 text-sm text-zinc-600">
+                                {prescriptionItems} {t('myRecords.prescriptionItems')}
+                            </p>
+
+                            {prescriptionRevoked && prescription.revokedAt && (
+                                <p className="mt-1 text-sm text-rose-600">
+                                    {t('prescription.revokedAt')}:{' '}
+                                    {formatRecordDate(prescription.revokedAt, i18n.language)}
+                                </p>
+                            )}
+
+                            <Link
+                                to="/my-prescriptions"
+                                className="mt-3 inline-flex min-h-11 items-center text-sm text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                            >
+                                {t('myRecords.viewPrescriptions')}
+                            </Link>
                         </div>
                     )}
                 </div>

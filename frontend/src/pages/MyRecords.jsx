@@ -8,7 +8,12 @@ import MedicalRecordModal from '../components/MedicalRecordModal'
 import { downloadMedicalRecordPdf, formatRecordDate } from '../utils/medicalRecordPdf'
 
 const PAGE_SIZE = 10
-
+const prescriptionRevoked = (prescription) =>
+    Boolean(prescription?.revokedAt) || prescription?.status === 'revoked'
+const prescriptionBadgeClass = (prescription) =>
+    prescriptionRevoked(prescription)
+        ? 'rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-700'
+        : 'rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700'
 const MyRecords = () => {
     const { backendUrl, token, doctors, userData } = useContext(AppContext)
     const { t, i18n } = useTranslation()
@@ -22,7 +27,9 @@ const MyRecords = () => {
     const [unavailable, setUnavailable] = useState(false)
     const [selected, setSelected] = useState(null)
     const [downloadingId, setDownloadingId] = useState(null)
+    const [prescriptionsByRecord, setPrescriptionsByRecord] = useState({})
     const requestIdRef = useRef(0)
+    const prescriptionRequestRef = useRef(0)
 
     const loadRecords = useCallback(async (nextOffset) => {
         if (!token) {
@@ -87,16 +94,64 @@ const MyRecords = () => {
         }
     }, [backendUrl, token, i18n])
 
+    // Mapa recordId -> receta para el badge. Best-effort: un fallo aqui no
+    // debe romper la pagina de registros ni mostrar toasts clinicos.
+    const loadPrescriptions = useCallback(async () => {
+        const requestId = prescriptionRequestRef.current + 1
+        prescriptionRequestRef.current = requestId
+
+        if (!token) {
+            setPrescriptionsByRecord({})
+            return
+        }
+
+        try {
+            const limit = 100
+            let nextOffset = 0
+            const map = {}
+
+            while (true) {
+                const { data } = await axios.get(backendUrl + '/api/prescriptions/mine', {
+                    headers: { token },
+                    params: { limit, offset: nextOffset },
+                })
+
+                if (requestId !== prescriptionRequestRef.current) return
+                if (!data?.success) break
+
+                const batch = Array.isArray(data.prescriptions) ? data.prescriptions : []
+                for (const prescription of batch) {
+                    if (prescription?.recordId) {
+                        map[String(prescription.recordId)] = prescription
+                    }
+                }
+
+                if (batch.length < limit) break
+                nextOffset += batch.length
+            }
+
+            if (requestId !== prescriptionRequestRef.current) return
+            setPrescriptionsByRecord(map)
+        } catch {
+            if (requestId !== prescriptionRequestRef.current) return
+            setPrescriptionsByRecord({})
+        }
+    }, [backendUrl, token])
+
     useEffect(() => {
         loadRecords(0)
+        loadPrescriptions()
         return () => {
             requestIdRef.current += 1
+            prescriptionRequestRef.current += 1
         }
-    }, [token, loadRecords])
+    }, [token, loadRecords, loadPrescriptions])
 
     const diagnosisLabel = (code) => t(`diagnosis.${code}`, { defaultValue: t('diagnosis.unclassified-legacy') })
 
     const doctorFor = (record) => doctors.find((doctor) => doctor._id === record.doctorId) ?? null
+
+    const prescriptionFor = (record) => prescriptionsByRecord[String(record?._id)] ?? null
 
     const pdfLabels = useMemo(() => ({
         title: t('myRecords.pdfTitle'),
@@ -186,6 +241,7 @@ const MyRecords = () => {
                     <>
                         {records.map((record) => {
                             const doctor = doctorFor(record)
+                            const prescription = prescriptionFor(record)
                             return (
                                 <div
                                     key={record._id}
@@ -202,6 +258,21 @@ const MyRecords = () => {
                                             {diagnosisLabel(record.diagnosis)} · {t('myRecords.recordedOn')}{' '}
                                             {formatRecordDate(record.createdAt, i18n.language)}
                                         </p>
+                                        {prescription && (
+                                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                <span className={prescriptionBadgeClass(prescription)}>
+                                                    {prescriptionRevoked(prescription)
+                                                        ? t('prescription.revoked')
+                                                        : t('myRecords.prescriptionAvailable')}
+                                                </span>
+                                                <Link
+                                                    to="/my-prescriptions"
+                                                    className="text-xs text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                                                >
+                                                    {t('myRecords.viewPrescriptions')}
+                                                </Link>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button
@@ -244,6 +315,7 @@ const MyRecords = () => {
                 <MedicalRecordModal
                     record={selected}
                     doctor={doctorFor(selected)}
+                    prescription={prescriptionFor(selected)}
                     downloading={downloadingId === selected._id}
                     onClose={closeModal}
                     onDownload={() => handleDownload(selected)}

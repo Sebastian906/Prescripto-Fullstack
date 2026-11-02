@@ -16,7 +16,8 @@ export function provideDoctorContext() {
     const doctorTrend = ref([])
     const records = ref([])
     const recordsLoading = ref(false)
-
+    const prescriptions = ref([])
+    const prescriptionsLoading = ref(false)
     const setDToken = (token) => {
         dToken.value = token
         if (token) {
@@ -24,6 +25,7 @@ export function provideDoctorContext() {
         } else {
             localStorage.removeItem('dToken')
             records.value = []
+            prescriptions.value = []
         }
     }
 
@@ -71,6 +73,81 @@ export function provideDoctorContext() {
             toast.error(msg)
         } finally {
             recordsLoading.value = false
+        }
+    }
+
+    const getPrescriptions = async () => {
+        if (!dToken.value) {
+            prescriptions.value = []
+            return false
+        }
+        prescriptions.value = []
+        prescriptionsLoading.value = true
+        let ok = true
+        try {
+            const limit = 100
+            let offset = 0
+            const all = []
+            while (true) {
+                const { data } = await axios.get(backendUrl + '/api/prescriptions/doctor/mine', {
+                    headers: { dtoken: dToken.value },
+                    params: { limit, offset },
+                })
+                if (!data?.success) {
+                    toast.error(data?.message || 'Could not load prescriptions')
+                    ok = false
+                    break
+                }
+                const batch = Array.isArray(data.prescriptions) ? data.prescriptions : []
+                all.push(...batch)
+                prescriptions.value = [...all]
+                if (batch.length < limit) break
+                offset += batch.length
+            }
+            return ok
+        } catch (error) {
+            const msg = error?.response?.data?.message ?? error.message
+            toast.error(msg)
+            return false
+        } finally {
+            prescriptionsLoading.value = false
+        }
+    }
+
+    const issuePrescription = async (payload) => {
+        try {
+            const { data } = await axios.post(backendUrl + '/api/prescriptions', payload, {
+                headers: { dtoken: dToken.value },
+            })
+            return { ok: true, id: data?.id }
+        } catch (error) {
+            const message = error?.response?.data?.message
+            return {
+                ok: false,
+                status: error?.response?.status,
+                message: Array.isArray(message) ? message.join(' ') : message ?? error.message,
+            }
+        }
+    }
+
+    const revokePrescription = async (id) => {
+        try {
+            const { data } = await axios.patch(
+                backendUrl + `/api/prescriptions/${id}/revoke`,
+                {},
+                { headers: { dtoken: dToken.value } },
+            )
+            return {
+                ok: true,
+                alreadyRevoked: Boolean(data?.alreadyRevoked),
+                revokedAt: data?.revokedAt ?? null,
+            }
+        } catch (error) {
+            return {
+                ok: false,
+                status: error?.response?.status,
+                message: error?.response?.data?.message ?? error.message,
+            }
         }
     }
 
@@ -155,13 +232,13 @@ export function provideDoctorContext() {
                 toast.error(data.message)
             }
         } catch (error) {
-            toast.error(error.message)
+            toast.error(error.response?.data?.message ?? error.message)
         }
     }
 
     const getDoctorAnnualReport = async (year = new Date().getFullYear()) => {
         try {
-            const { data } = await axios.get(backendUrl + '/api/reports/doctor/annual', { headers: { dtoken: dToken.value }, params: { year }})
+            const { data } = await axios.get(backendUrl + '/api/reports/doctor/annual', { headers: { dtoken: dToken.value }, params: { year } })
             if (data.success) {
                 doctorReport.value = data
             } else {
@@ -174,7 +251,7 @@ export function provideDoctorContext() {
 
     const getDoctorTrend = async (months = 12) => {
         try {
-            const { data } = await axios.get(backendUrl + '/api/reports/doctor/trend', { headers: { dtoken: dToken.value }, params: { months }})
+            const { data } = await axios.get(backendUrl + '/api/reports/doctor/trend', { headers: { dtoken: dToken.value }, params: { months } })
             if (data.success) {
                 doctorTrend.value = data.trend
             } else {
@@ -194,6 +271,11 @@ export function provideDoctorContext() {
         records,
         recordsLoading,
         getRecords,
+        prescriptions,
+        prescriptionsLoading,
+        getPrescriptions,
+        issuePrescription,
+        revokePrescription,
         completeAppointment,
         cancelAppointment,
         dashData,

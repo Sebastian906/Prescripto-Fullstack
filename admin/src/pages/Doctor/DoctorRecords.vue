@@ -9,6 +9,8 @@ import {
     medicalRecordDiagnosisLabel,
     useMedicalRecordExport,
 } from '../../composables/useMedicalRecordExport'
+import PrescriptionFormModal from '../../components/PrescriptionFormModal.vue'
+import PrescriptionDetailModal from '../../components/PrescriptionDetailModal.vue'
 
 const { t, te, locale } = useI18n()
 const toast = useToast()
@@ -17,6 +19,9 @@ const {
     records,
     recordsLoading,
     getRecords,
+    prescriptions,
+    prescriptionsLoading,
+    getPrescriptions,
     appointments,
     getAppointments,
     profileData,
@@ -28,6 +33,10 @@ const PAGE_SIZE = 8
 const currentPage = ref(1)
 const selected = ref(null)
 const modalRef = ref(null)
+const issueTarget = ref(null)
+const detailTarget = ref(null)
+const prescriptionsLoaded = ref(false)
+const prescriptionsFailed = ref(false)
 let lastFocused = null
 
 const totalPages = computed(() => Math.max(1, Math.ceil(records.value.length / PAGE_SIZE)))
@@ -45,8 +54,28 @@ const appointmentById = computed(() => {
     return map
 })
 
+const prescriptionByRecordId = computed(() => {
+    const map = new Map()
+    for (const prescription of prescriptions.value) {
+        map.set(String(prescription.recordId), prescription)
+    }
+    return map
+})
+
 const patientFor = (record) => appointmentById.value.get(String(record?.appointmentId))?.userData ?? null
 const patientName = (record) => patientFor(record)?.name || t('doctorRecords.unknownPatient')
+
+const prescriptionFor = (record) => prescriptionByRecordId.value.get(String(record?._id)) ?? null
+const isPrescriptionRevoked = (prescription) =>
+    Boolean(prescription?.revokedAt) || prescription?.status === 'revoked'
+
+const recordForPrescription = (prescription) =>
+    records.value.find((record) => String(record._id) === String(prescription?.recordId)) ?? null
+
+const detailPatientName = (prescription) => {
+    const record = recordForPrescription(prescription)
+    return record ? patientName(record) : t('doctorRecords.unknownPatient')
+}
 
 const diagnosisLabel = (code) => medicalRecordDiagnosisLabel(code, t, te)
 const formatDate = (value) => formatMedicalRecordDate(value, locale.value)
@@ -72,6 +101,40 @@ const closeRecord = () => {
         if (lastFocused instanceof HTMLElement) lastFocused.focus()
     })
 }
+
+const loadPrescriptions = async () => {
+    const ok = await getPrescriptions()
+    prescriptionsLoaded.value = ok !== false
+    prescriptionsFailed.value = ok === false
+}
+
+const openIssue = (record) => {
+    issueTarget.value = record
+}
+
+const closeIssue = () => {
+    issueTarget.value = null
+}
+
+const onIssued = async () => {
+    issueTarget.value = null
+    await loadPrescriptions()
+}
+
+const openDetail = (prescription) => {
+    detailTarget.value = prescription
+}
+
+const closeDetail = () => {
+    detailTarget.value = null
+}
+
+const onRevoked = async (prescription) => {
+    detailTarget.value = prescription
+    await loadPrescriptions()
+}
+
+const refreshAll = () => Promise.all([getRecords(), loadPrescriptions()])
 
 const downloadRecord = async (record) => {
     if (!record) return
@@ -137,6 +200,7 @@ onMounted(async () => {
 
     await Promise.all([
         getRecords(),
+        loadPrescriptions(),
         appointments.value.length === 0 ? getAppointments() : Promise.resolve(),
         profileData.value?.name ? Promise.resolve() : getProfileData(),
     ])
@@ -155,14 +219,14 @@ onBeforeUnmount(() => {
                 <p class="text-lg font-medium">{{ t('doctorRecords.title') }}</p>
                 <p class="text-sm text-slate-500">{{ t('doctorRecords.subtitle') }}</p>
             </div>
-            <button @click="getRecords" :disabled="recordsLoading"
+            <button @click="refreshAll" :disabled="recordsLoading || prescriptionsLoading"
                 class="text-xs text-indigo-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed">
                 {{ t('doctorRecords.refresh') }}
             </button>
         </div>
 
         <div class="bg-slate-100 border rounded text-sm overflow-x-auto">
-            <table class="w-full min-w-180">
+            <table class="w-full min-w-200">
                 <thead>
                     <tr class="border-b bg-slate-200 text-xs uppercase text-gray-600">
                         <th class="py-3 px-4 text-left">{{ t('doctorRecords.number') }}</th>
@@ -170,17 +234,18 @@ onBeforeUnmount(() => {
                         <th class="py-3 px-4 text-left">{{ t('doctorRecords.patient') }}</th>
                         <th class="py-3 px-4 text-left">{{ t('doctorRecords.diagnosis') }}</th>
                         <th class="py-3 px-4 text-left">{{ t('doctorRecords.attachments') }}</th>
+                        <th class="py-3 px-4 text-left">{{ t('doctorRecords.prescription') }}</th>
                         <th class="py-3 px-4 text-right">{{ t('doctorRecords.actions') }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-if="recordsLoading">
-                        <td colspan="6" class="py-12 text-center text-slate-400 animate-pulse">
+                        <td colspan="7" class="py-12 text-center text-slate-400 animate-pulse">
                             {{ t('doctorRecords.loading') }}
                         </td>
                     </tr>
                     <tr v-else-if="records.length === 0">
-                        <td colspan="6" class="py-12 text-center text-slate-400">
+                        <td colspan="7" class="py-12 text-center text-slate-400">
                             {{ t('doctorRecords.empty') }}
                         </td>
                     </tr>
@@ -195,10 +260,8 @@ onBeforeUnmount(() => {
                             </td>
                             <td class="py-3 px-4">
                                 <div class="flex items-center gap-2">
-                                    <img v-if="patientFor(record)?.image"
-                                        class="w-8 h-8 rounded-full object-cover"
-                                        :src="patientFor(record).image"
-                                        :alt="patientName(record)" />
+                                    <img v-if="patientFor(record)?.image" class="w-8 h-8 rounded-full object-cover"
+                                        :src="patientFor(record).image" :alt="patientName(record)" />
                                     <div v-else
                                         class="w-8 h-8 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center text-xs font-medium">
                                         {{ patientName(record).charAt(0).toUpperCase() }}
@@ -211,6 +274,42 @@ onBeforeUnmount(() => {
                             </td>
                             <td class="py-3 px-4 text-slate-500">
                                 {{ record.attachments?.length ?? 0 }}
+                            </td>
+                            <td class="py-3 px-4">
+                                <div class="flex flex-col items-start gap-1">
+                                    <span v-if="prescriptionsLoading || !prescriptionsLoaded"
+                                        class="text-xs text-slate-400 animate-pulse">
+                                        {{ t('doctorRecords.loading') }}
+                                    </span>
+                                    <span v-else-if="prescriptionsFailed" class="text-xs text-slate-400">
+                                        {{ t('adminReports.prescriptionsUnavailable') }}
+                                    </span>
+                                    <template v-else-if="prescriptionFor(record)">
+                                        <span :class="[
+                                            'rounded-full px-2.5 py-0.5 text-xs font-medium',
+                                            isPrescriptionRevoked(prescriptionFor(record))
+                                                ? 'bg-rose-100 text-rose-700'
+                                                : 'bg-emerald-100 text-emerald-700'
+                                        ]">
+                                            {{ isPrescriptionRevoked(prescriptionFor(record))
+                                                ? t('doctorRecords.prescriptionRevoked')
+                                                : t('doctorRecords.prescriptionActive') }}
+                                        </span>
+                                        <button @click="openDetail(prescriptionFor(record))"
+                                            class="text-xs text-indigo-600 hover:underline cursor-pointer">
+                                            {{ t('doctorRecords.viewPrescription') }}
+                                        </button>
+                                    </template>
+                                    <template v-else>
+                                        <span class="text-xs text-slate-400">
+                                            {{ t('doctorRecords.prescriptionNone') }}
+                                        </span>
+                                        <button @click="openIssue(record)"
+                                            class="text-xs text-indigo-600 hover:underline cursor-pointer">
+                                            {{ t('doctorRecords.issuePrescription') }}
+                                        </button>
+                                    </template>
+                                </div>
                             </td>
                             <td class="py-3 px-4">
                                 <div class="flex items-center justify-end gap-3">
@@ -334,5 +433,13 @@ onBeforeUnmount(() => {
                 </div>
             </div>
         </div>
+
+        <PrescriptionFormModal v-if="issueTarget" :record="issueTarget" :patient-name="patientName(issueTarget)"
+            @close="closeIssue" @issued="onIssued" />
+
+        <PrescriptionDetailModal v-if="detailTarget" :prescription="detailTarget"
+            :patient-name="detailPatientName(detailTarget)"
+            :doctor-name="profileData?.name || t('doctorRecords.unknownDoctor')" @close="closeDetail"
+            @revoked="onRevoked" />
     </div>
 </template>
