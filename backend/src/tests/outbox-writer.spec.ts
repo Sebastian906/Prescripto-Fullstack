@@ -8,7 +8,16 @@ function fakeModel(rows: unknown[] = []) {
   const sort = jest.fn().mockReturnValue({ limit });
   const find = jest.fn().mockReturnValue({ sort });
   const create = jest.fn().mockResolvedValue([]);
-  return { model: { create, find } as any, create, find, sort, limit, lean };
+  const updateOne = jest.fn().mockResolvedValue({ upsertedCount: 1 });
+  return {
+    model: { create, updateOne, find } as any,
+    create,
+    updateOne,
+    find,
+    sort,
+    limit,
+    lean,
+  };
 }
 
 const session = { id: 'tx-1' };
@@ -34,6 +43,29 @@ describe('OutboxMongooseAdapter (outbox writer)', () => {
     const [docs, options] = create.mock.calls[0];
     expect(options).toEqual({ session });
     expect(docs[0]).toMatchObject({ event: 'booked', dispatchedAt: null });
+  });
+
+  it('upserts paid events by appointmentId instead of duplicating', async () => {
+    const { model, updateOne, create } = fakeModel();
+    const adapter = new OutboxMongooseAdapter(model);
+
+    await adapter.append(
+      'paid',
+      {
+        appointmentId: 'a1',
+        patientId: 'u1',
+        doctorId: 'd1',
+        paidAt: new Date('2026-01-01T10:00:00Z'),
+      },
+      session,
+    );
+
+    expect(create).not.toHaveBeenCalled();
+    expect(updateOne).toHaveBeenCalledTimes(1);
+    const [filter, update, options] = updateOne.mock.calls[0];
+    expect(filter).toEqual({ event: 'paid', 'payload.appointmentId': 'a1' });
+    expect(update.$setOnInsert).toMatchObject({ event: 'paid' });
+    expect(options).toEqual({ upsert: true, session });
   });
 
   it('rejects clinical text in the payload', async () => {

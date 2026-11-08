@@ -462,7 +462,7 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment is already paid');
     }
 
-    await this.emitPaid(appointment);
+    await this.emitPaid(appointment, true);
 
     return { success: true, message: 'Payment confirmed (Cash on Delivery)' };
   }
@@ -530,6 +530,7 @@ export class AppointmentsService {
         userId,
         amount: appointment.amount,
         currency,
+        stripeSessionId: session.id,
       });
     } catch (e) {
       this.logger.warn(
@@ -562,9 +563,21 @@ export class AppointmentsService {
     // Saga E-02f compensation: an abandoned checkout must not leave the
     // pending Payment as the only trace forever.
     if (event.type === 'checkout.session.expired') {
-      const appointmentId = event.data.object.metadata?.appointmentId;
+      const expiredSession = event.data.object;
+      const appointmentId = expiredSession.metadata?.appointmentId;
       if (appointmentId) {
-        await this.paymentsService?.markFailed(appointmentId);
+        const appointment = await this.appointmentModel.findById(appointmentId);
+        if (appointment) {
+          // Upsert a failed row if the pending write was lost. The session id
+          // keeps an older expiry from touching a newer active checkout.
+          await this.paymentsService?.markFailed({
+            appointmentId: String(appointment._id),
+            userId: appointment.userId,
+            amount: appointment.amount,
+            currency: this.currency(),
+            stripeSessionId: expiredSession.id,
+          });
+        }
       }
       return { received: true };
     }
@@ -602,9 +615,7 @@ export class AppointmentsService {
         { _id: appointmentId, payment: false },
         { payment: true },
       );
-      if (updated) {
-        await this.emitPaid(appointment);
-      }
+      await this.emitPaid(appointment, Boolean(updated));
       return { received: true };
     }
 
@@ -613,27 +624,35 @@ export class AppointmentsService {
         ? session.amount_total / 100
         : appointment.amount;
 
-    const { transitioned } = await this.paymentsService.upsertFromStripeEvent({
-      appointmentId: String(appointment._id),
-      userId: appointment.userId,
-      amount,
-      currency: session.currency ?? this.currency(),
-      stripePaymentIntentId,
-    });
+    const { transitioned, payment } =
+      await this.paymentsService.upsertFromStripeEvent({
+        appointmentId: String(appointment._id),
+        userId: appointment.userId,
+        amount,
+        currency: session.currency ?? this.currency(),
+        stripePaymentIntentId,
+        stripeSessionId: session.id,
+      });
+
+    // The mirror update is retried even on a replay: a crash after Payment
+    // paid but before Appointment.payment was written must self-heal.
+    const updated = await this.appointmentModel.findOneAndUpdate(
+      { _id: appointmentId, payment: false },
+      { payment: true },
+    );
+
+    if (updated) {
+      await this.emitPaid(appointment, true);
+    } else if (payment.status === 'paid') {
+      // Outbox append is idempotent for paid; fan-out already ran with the
+      // mirror transition, so do not duplicate user notifications.
+      await this.emitPaid(appointment, false);
+    }
 
     if (!transitioned) {
       this.logger.log(
         `stripe webhook idempotent replay appointment=${appointmentId} intent=${stripePaymentIntentId}`,
       );
-      return { received: true };
-    }
-
-    const updated = await this.appointmentModel.findOneAndUpdate(
-      { _id: appointmentId, payment: false },
-      { payment: true },
-    );
-    if (updated) {
-      await this.emitPaid(appointment);
     }
 
     return { received: true };
@@ -679,7 +698,10 @@ export class AppointmentsService {
     return this.configService.get<string>('CURRENCY') ?? 'usd';
   }
 
-  private async emitPaid(appointment: AppointmentDocument): Promise<void> {
+  private async emitPaid(
+    appointment: AppointmentDocument,
+    dispatchFanout: boolean,
+  ): Promise<void> {
     const paidPayload: outboxPort.PaidPayload = {
       appointmentId: String(appointment._id),
       patientId: appointment.userId,
@@ -687,16 +709,16 @@ export class AppointmentsService {
       paidAt: new Date(),
     };
 
-    try {
-      await this.outbox?.append('paid', paidPayload, undefined);
-    } catch (e) {
-      this.logger.warn(`outbox append failed: ${String(e)}`);
-    }
+    // The outbox adapter upserts `paid` by appointmentId, so a webhook retry
+    // can safely repeat this write without duplicating the event.
+    await this.outbox?.append('paid', paidPayload, undefined);
 
-    await this.notificationsFanout?.dispatchSafe(
-      'paid',
-      paidPayload,
-      String(appointment.userData?.email ?? ''),
-    );
+    if (dispatchFanout) {
+      await this.notificationsFanout?.dispatchSafe(
+        'paid',
+        paidPayload,
+        String(appointment.userData?.email ?? ''),
+      );
+    }
   }
 }

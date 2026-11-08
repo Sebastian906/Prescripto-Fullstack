@@ -36,9 +36,26 @@ export class Payment {
   @Prop()
   stripePaymentIntentId?: string;
 
+  // Checkout Session that created this pending row. Expiry events only touch
+  // the row they own; a newer session for the same appointment is untouched.
+  @Prop({ index: true })
+  stripeSessionId?: string;
+
   // Reserved for Stripe card metadata. Never store PAN/CVC.
   @Prop()
   last4?: string;
+
+  // Refund audit fields returned by Stripe. Kept for reconciliation.
+  @Prop()
+  stripeRefundId?: string;
+
+  @Prop()
+  refundStatus?: string;
+
+  // Recovery marker: amount reserved before calling Stripe. If the finalize
+  // write is lost, the next retry reuses this amount and idempotency key.
+  @Prop({ type: Number, default: null })
+  refundPendingAmount?: number | null;
 
   @Prop({ type: Number, default: null })
   refundedAmount?: number | null;

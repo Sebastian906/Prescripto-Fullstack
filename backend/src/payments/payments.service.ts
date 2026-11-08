@@ -4,15 +4,19 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, UpdateQuery } from 'mongoose';
 import Stripe from 'stripe';
+import {
+  Appointment,
+  AppointmentDocument,
+} from 'src/appointments/schemas/appointment.schema';
 import {
   Payment,
   PaymentDocument,
   PaymentMethod,
-  PaymentStatus,
 } from './schemas/payment.schema';
 
 export const STRIPE_CLIENT = Symbol('STRIPE_CLIENT');
@@ -22,6 +26,7 @@ export interface CreatePaymentInput {
   userId: string;
   amount: number;
   currency: string;
+  stripeSessionId?: string;
 }
 
 export interface StripePaymentInput extends CreatePaymentInput {
@@ -42,6 +47,9 @@ export class PaymentsService {
     @InjectModel(Payment.name)
     private readonly paymentModel: Model<PaymentDocument>,
     @Inject(STRIPE_CLIENT) private readonly stripe: Stripe,
+    @Optional()
+    @InjectModel(Appointment.name)
+    private readonly appointmentModel?: Model<AppointmentDocument>,
   ) {}
 
   // COD is synchronous: create pending, then transition to paid. Repeated
@@ -61,8 +69,8 @@ export class PaymentsService {
         {
           $setOnInsert: {
             ...input,
-            method: 'stripe' as PaymentMethod,
-            status: 'pending' as PaymentStatus,
+            method: 'stripe',
+            status: 'pending',
             createdAt: new Date(),
           },
         },
@@ -82,18 +90,34 @@ export class PaymentsService {
     const byIntent = await this.paymentModel.findOne({
       stripePaymentIntentId: input.stripePaymentIntentId,
     });
-    if (byIntent) return this.transitionPaid(byIntent);
+    if (byIntent) return this.transitionPaid(byIntent, input);
 
     const byAppointment = await this.paymentModel.findOne({
       appointmentId: input.appointmentId,
     });
-    if (byAppointment) return this.transitionPaid(byAppointment, input);
+    if (byAppointment) {
+      const result = await this.transitionPaid(byAppointment, input);
+      if (
+        !result.transitioned &&
+        byAppointment.status === 'paid' &&
+        byAppointment.stripePaymentIntentId &&
+        byAppointment.stripePaymentIntentId !== input.stripePaymentIntentId
+      ) {
+        // A second captured intent for the same appointment cannot be stored
+        // under the unique appointmentId without breaking the contract.
+        // Surface it for manual reconciliation instead of silently replaying.
+        this.logger.warn(
+          `stripe distinct intent for paid appointment=${input.appointmentId} existing=${byAppointment.stripePaymentIntentId} incoming=${input.stripePaymentIntentId}`,
+        );
+      }
+      return result;
+    }
 
     try {
       const created = await this.paymentModel.create({
         ...input,
-        method: 'stripe' as PaymentMethod,
-        status: 'paid' as PaymentStatus,
+        method: 'stripe',
+        status: 'paid',
         paidAt: new Date(),
         createdAt: new Date(),
       });
@@ -108,20 +132,55 @@ export class PaymentsService {
           appointmentId: input.appointmentId,
         }));
       if (!raced) throw error;
-      return { payment: raced, transitioned: false };
+      return this.transitionPaid(raced, input);
     }
   }
 
-  // Compensation: checkout expired or payment failed. Only pending rows move.
-  async markFailed(appointmentId: string): Promise<void> {
-    await this.paymentModel.findOneAndUpdate(
-      { appointmentId, status: 'pending' },
-      { $set: { status: 'failed' as PaymentStatus } },
-    );
+  // Compensation: checkout expired or payment failed. Only pending rows move,
+  // and only the session that expired owns the row. If the pending upsert was
+  // lost, this creates the failed row so the abandoned checkout stays visible.
+  async markFailed(input: {
+    appointmentId: string;
+    userId: string;
+    amount: number;
+    currency: string;
+    stripeSessionId?: string;
+  }): Promise<void> {
+    const filter: Record<string, unknown> = {
+      appointmentId: input.appointmentId,
+      status: 'pending',
+    };
+    if (input.stripeSessionId) filter.stripeSessionId = input.stripeSessionId;
+
+    const updated = await this.paymentModel.findOneAndUpdate(filter, {
+      $set: { status: 'failed' },
+    });
+    if (updated) return;
+
+    try {
+      await this.paymentModel.updateOne(
+        { appointmentId: input.appointmentId },
+        {
+          $setOnInsert: {
+            ...input,
+            method: 'stripe',
+            status: 'failed',
+            createdAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+    } catch (error) {
+      // A paid row or a newer session owns the appointmentId: do not overwrite.
+      if (!isDuplicateKeyError(error)) throw error;
+    }
   }
 
   // Refunds are traceable: Payment keeps status, amount and timestamps.
-  // Stripe refunds use an idempotency key to survive retries.
+  // The amount is normalized once and used for both Stripe and the DB.
+  // `refundPendingAmount` is the recovery marker: if Stripe succeeds but the
+  // finalize write fails, a retry reuses the same idempotency key and finishes
+  // the row instead of charging a second time.
   async refund(
     appointmentId: string,
     amount?: number,
@@ -134,28 +193,103 @@ export class PaymentsService {
       );
     }
 
-    if (payment.method === 'stripe' && payment.stripePaymentIntentId) {
-      await this.stripe.refunds.create(
+    const alreadyRefunded = payment.refundedAmount ?? 0;
+    let normalized = payment.refundPendingAmount ?? 0;
+
+    if (!normalized) {
+      const remaining = payment.amount - alreadyRefunded;
+      normalized = normalizeMoney(amount ?? remaining);
+      if (!Number.isFinite(normalized) || normalized <= 0) {
+        throw new BadRequestException('Refund amount must be positive');
+      }
+      if (normalized > remaining) {
+        throw new BadRequestException('Refund exceeds remaining amount');
+      }
+
+      // Reserve before touching Stripe: a concurrent refund loses this CAS.
+      const reserved = await this.paymentModel.findOneAndUpdate(
         {
-          payment_intent: payment.stripePaymentIntentId,
-          ...(amount ? { amount: Math.round(amount * 100) } : {}),
+          _id: payment._id,
+          status: 'paid',
+          refundPendingAmount: null,
         },
-        { idempotencyKey: `refund:${String(payment._id)}:${amount ?? 'full'}` },
+        {
+          $set: {
+            refundPendingAmount: normalized,
+            refundStatus: 'processing',
+          },
+        },
+        { new: true },
       );
+      if (!reserved) {
+        throw new BadRequestException('Refund already in progress; retry');
+      }
     }
 
+    let stripeRefund: Stripe.Refund | undefined;
+    try {
+      if (payment.method === 'stripe' && payment.stripePaymentIntentId) {
+        stripeRefund = await this.stripe.refunds.create(
+          {
+            payment_intent: payment.stripePaymentIntentId,
+            amount: Math.round(normalized * 100),
+          },
+          {
+            idempotencyKey: `refund:${String(payment._id)}:${alreadyRefunded + normalized}`,
+          },
+        );
+      }
+    } catch (error) {
+      // Release the reservation so a later retry can allocate a fresh amount.
+      await this.paymentModel.updateOne(
+        { _id: payment._id, refundPendingAmount: normalized },
+        {
+          $set: {
+            refundPendingAmount: null,
+            refundStatus: null,
+          },
+        },
+      );
+      throw error;
+    }
+
+    const fullyRefunded = alreadyRefunded + normalized >= payment.amount;
     const updated = await this.paymentModel.findOneAndUpdate(
-      { _id: payment._id, status: 'paid' },
+      { _id: payment._id, refundPendingAmount: normalized },
       {
         $set: {
-          status: 'refunded' as PaymentStatus,
-          refundedAmount: amount ?? payment.amount,
-          refundedAt: new Date(),
+          refundedAmount: alreadyRefunded + normalized,
+          refundPendingAmount: null,
+          status: fullyRefunded ? 'refunded' : 'paid',
+          ...(fullyRefunded ? { refundedAt: new Date() } : {}),
+          ...(stripeRefund
+            ? {
+                stripeRefundId: stripeRefund.id,
+                refundStatus: stripeRefund.status,
+              }
+            : { refundStatus: 'succeeded' }),
         },
       },
       { new: true },
     );
-    if (!updated) throw new BadRequestException('Payment already refunded');
+    if (!updated) {
+      // Another request may have finalized the same reservation.
+      const latest = await this.paymentModel.findOne({
+        appointmentId: payment.appointmentId,
+      });
+      if (latest && latest.refundPendingAmount == null) return latest;
+      throw new BadRequestException('Refund state changed; retry');
+    }
+
+    // A full refund means the appointment is no longer paid. Partial refunds
+    // keep the mirror true so verify-payment stays eligible.
+    if (fullyRefunded && this.appointmentModel) {
+      await this.appointmentModel.updateOne(
+        { _id: payment.appointmentId },
+        { $set: { payment: false } },
+      );
+    }
+
     return updated;
   }
 
@@ -190,15 +324,29 @@ export class PaymentsService {
       }
     }
 
-    const paid = await this.paymentModel.findOneAndUpdate(
-      { appointmentId: input.appointmentId, status: 'pending' },
-      {
-        $set: {
-          status: 'paid' as PaymentStatus,
-          method,
-          paidAt: new Date(),
-        },
+    // `failed` is recoverable: a COD attempt after an abandoned checkout must
+    // not stay stuck. COD also releases any stale Stripe unique reservation.
+    const update: UpdateQuery<PaymentDocument> = {
+      $set: {
+        status: 'paid',
+        method,
+        paidAt: new Date(),
       },
+    };
+    if (method === 'cod') {
+      update.$unset = {
+        stripePaymentIntentId: 1,
+        stripeSessionId: 1,
+        last4: 1,
+      };
+    }
+
+    const paid = await this.paymentModel.findOneAndUpdate(
+      {
+        appointmentId: input.appointmentId,
+        status: { $in: ['pending', 'failed'] },
+      },
+      update,
       { new: true },
     );
     if (paid) return paid;
@@ -214,22 +362,25 @@ export class PaymentsService {
     payment: PaymentDocument,
     input?: StripePaymentInput,
   ): Promise<PaymentTransition> {
-    if (payment.status !== 'pending') {
+    if (payment.status !== 'pending' && payment.status !== 'failed') {
       return { payment, transitioned: false };
     }
 
     const updated = await this.paymentModel.findOneAndUpdate(
-      { _id: payment._id, status: 'pending' },
+      { _id: payment._id, status: { $in: ['pending', 'failed'] } },
       {
         $set: {
-          status: 'paid' as PaymentStatus,
+          status: 'paid',
           paidAt: new Date(),
           ...(input
             ? {
                 stripePaymentIntentId: input.stripePaymentIntentId,
-                method: 'stripe' as PaymentMethod,
+                method: 'stripe',
                 amount: input.amount,
                 currency: input.currency,
+                ...(input.stripeSessionId
+                  ? { stripeSessionId: input.stripeSessionId }
+                  : {}),
                 ...(input.last4 ? { last4: input.last4 } : {}),
               }
             : {}),
@@ -240,6 +391,10 @@ export class PaymentsService {
     if (!updated) return { payment, transitioned: false };
     return { payment: updated, transitioned: true };
   }
+}
+
+function normalizeMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function isDuplicateKeyError(error: unknown): boolean {

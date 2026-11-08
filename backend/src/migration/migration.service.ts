@@ -332,6 +332,7 @@ export class MigrationService {
       'doctors',
       'slots',
       'appointments',
+      'payments',
       'waitlist',
       'monthly_stats',
       'password_reset_tokens',
@@ -887,6 +888,14 @@ export class MigrationService {
       try {
         const status: PaymentStatus =
           raw.payment === 'pending' ? 'pending' : 'paid';
+        // Legacy appointments only stored a boolean. An intent is conclusive
+        // Stripe; `payment:'pending'` is an abandoned Stripe checkout. A bare
+        // `payment:true` is ambiguous (old COD and Stripe both wrote it), so
+        // keep the legacy default COD instead of inventing an intent.
+        const method =
+          raw.stripePaymentIntentId || raw.payment === 'pending'
+            ? 'stripe'
+            : 'cod';
         const res = await this.paymentModel.updateOne(
           { appointmentId: String(raw._id) },
           {
@@ -895,7 +904,7 @@ export class MigrationService {
               userId: raw.userId ?? '',
               amount: raw.amount ?? 0,
               currency,
-              method: raw.stripePaymentIntentId ? 'stripe' : 'cod',
+              method,
               status,
               ...(raw.stripePaymentIntentId
                 ? { stripePaymentIntentId: raw.stripePaymentIntentId }
@@ -1205,7 +1214,16 @@ export class MigrationService {
     tableCounts: Record<string, number>;
     mongoCounts: Record<string, number>;
   }> {
-    const payments = await this.paymentModel.countDocuments();
+    // A payments count failure must not hide PostgreSQL status. `-1` means
+    // unavailable; existing consumers still get a numeric contract.
+    let payments = -1;
+    try {
+      payments = await this.paymentModel.countDocuments();
+    } catch (err) {
+      this.logger.warn(
+        `payments count unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     const pgOk = await this.pg.testConnection();
     if (!pgOk) {
       return { postgres: false, tableCounts: {}, mongoCounts: { payments } };
