@@ -39,6 +39,7 @@ import {
 } from 'src/availability/availability.service';
 import * as outboxPort from 'src/shared/ports/outbox.port';
 import { NotificationsFanout } from 'src/notifications/notifications.fanout';
+import { PaymentsService } from 'src/payments/payments.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -62,6 +63,8 @@ export class AppointmentsService {
     private readonly outbox?: outboxPort.Outbox,
     @Optional()
     private readonly notificationsFanout?: NotificationsFanout,
+    @Optional()
+    private readonly paymentsService?: PaymentsService,
   ) {}
 
   async bookAppointment(
@@ -439,8 +442,17 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment is already paid');
     }
 
-    // Transicion atomica: solo quien pasa `payment` de false a true emite el
-    // evento, asi dos requests concurrentes no generan `paid` duplicado.
+    // Saga E-02f compensation leg: Payment is the auditable source of truth.
+    // Optional keeps unit tests that build the service without PaymentsModule.
+    await this.paymentsService?.createForCod({
+      appointmentId: String(appointment._id),
+      userId: appointment.userId,
+      amount: appointment.amount,
+      currency: this.currency(),
+    });
+
+    // Denormalized mirror kept for reports/frontends still reading
+    // Appointment.payment. Atomic: only the winner emits `paid`.
     const updated = await this.appointmentModel.findOneAndUpdate(
       { _id: appointmentId, payment: false },
       { payment: true },
@@ -450,23 +462,7 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment is already paid');
     }
 
-    const paidPayload: outboxPort.PaidPayload = {
-      appointmentId: String(appointment._id),
-      patientId: appointment.userId,
-      doctorId: appointment.docId,
-      paidAt: new Date(),
-    };
-    try {
-      await this.outbox?.append('paid', paidPayload, undefined);
-    } catch (e) {
-      console.log('outbox append failed:', e);
-    }
-
-    await this.notificationsFanout?.dispatchSafe(
-      'paid',
-      paidPayload,
-      String(appointment.userData?.email ?? ''),
-    );
+    await this.emitPaid(appointment, true);
 
     return { success: true, message: 'Payment confirmed (Cash on Delivery)' };
   }
@@ -526,6 +522,22 @@ export class AppointmentsService {
       },
     });
 
+    // Saga E-02f: leave a pending Payment so an abandoned checkout is
+    // observable and verify-payment can answer before the webhook arrives.
+    try {
+      await this.paymentsService?.createForStripePending({
+        appointmentId,
+        userId,
+        amount: appointment.amount,
+        currency,
+        stripeSessionId: session.id,
+      });
+    } catch (e) {
+      this.logger.warn(
+        `payments pending upsert failed for appointment=${appointmentId}: ${String(e)}`,
+      );
+    }
+
     return { success: true, sessionId: session.id, url: session.url! };
   }
 
@@ -548,44 +560,99 @@ export class AppointmentsService {
       throw new BadRequestException('Invalid Stripe webhook signature');
     }
 
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      const appointmentId = session.metadata?.appointmentId;
-
+    // Saga E-02f compensation: an abandoned checkout must not leave the
+    // pending Payment as the only trace forever.
+    if (event.type === 'checkout.session.expired') {
+      const expiredSession = event.data.object;
+      const appointmentId = expiredSession.metadata?.appointmentId;
       if (appointmentId) {
         const appointment = await this.appointmentModel.findById(appointmentId);
-
         if (appointment) {
-          // Transicion atomica: solo quien ve `payment: false` y lo cambia
-          // emite el evento. Un webhook repetido o concurrente ya no encuentra
-          // `payment: false`, asi que no vuelve a emitir `paid`.
-          const updated = await this.appointmentModel.findOneAndUpdate(
-            { _id: appointmentId, payment: false },
-            { payment: true },
-          );
-
-          if (updated) {
-            const paidPayload: outboxPort.PaidPayload = {
-              appointmentId: String(appointment._id),
-              patientId: appointment.userId,
-              doctorId: appointment.docId,
-              paidAt: new Date(),
-            };
-
-            try {
-              await this.outbox?.append('paid', paidPayload, undefined);
-            } catch (e) {
-              console.log('outbox append failed:', e);
-            }
-
-            await this.notificationsFanout?.dispatchSafe(
-              'paid',
-              paidPayload,
-              String(appointment.userData?.email ?? ''),
-            );
-          }
+          // Upsert a failed row if the pending write was lost. The session id
+          // keeps an older expiry from touching a newer active checkout.
+          await this.paymentsService?.markFailed({
+            appointmentId: String(appointment._id),
+            userId: appointment.userId,
+            amount: appointment.amount,
+            currency: this.currency(),
+            stripeSessionId: expiredSession.id,
+          });
         }
       }
+      return { received: true };
+    }
+
+    if (event.type !== 'checkout.session.completed') {
+      return { received: true };
+    }
+
+    const session = event.data.object;
+    const appointmentId = session.metadata?.appointmentId;
+    const intent = session.payment_intent;
+    const stripePaymentIntentId =
+      typeof intent === 'string' ? intent : intent?.id;
+
+    // Card Checkout is synchronous; async methods land here unpaid.
+    if (
+      !appointmentId ||
+      !stripePaymentIntentId ||
+      session.payment_status !== 'paid'
+    ) {
+      this.logger.warn(
+        `stripe webhook ignored session=${session.id} status=${session.payment_status}`,
+      );
+      return { received: true };
+    }
+
+    const appointment = await this.appointmentModel.findById(appointmentId);
+    if (!appointment) {
+      return { received: true };
+    }
+
+    // Legacy fallback for unit tests / rollout: no PaymentsService injected.
+    if (!this.paymentsService) {
+      const updated = await this.appointmentModel.findOneAndUpdate(
+        { _id: appointmentId, payment: false },
+        { payment: true },
+      );
+      await this.emitPaid(appointment, Boolean(updated));
+      return { received: true };
+    }
+
+    const amount =
+      typeof session.amount_total === 'number'
+        ? session.amount_total / 100
+        : appointment.amount;
+
+    const { transitioned, payment } =
+      await this.paymentsService.upsertFromStripeEvent({
+        appointmentId: String(appointment._id),
+        userId: appointment.userId,
+        amount,
+        currency: session.currency ?? this.currency(),
+        stripePaymentIntentId,
+        stripeSessionId: session.id,
+      });
+
+    // The mirror update is retried even on a replay: a crash after Payment
+    // paid but before Appointment.payment was written must self-heal.
+    const updated = await this.appointmentModel.findOneAndUpdate(
+      { _id: appointmentId, payment: false },
+      { payment: true },
+    );
+
+    if (updated) {
+      await this.emitPaid(appointment, true);
+    } else if (payment.status === 'paid') {
+      // Outbox append is idempotent for paid; fan-out already ran with the
+      // mirror transition, so do not duplicate user notifications.
+      await this.emitPaid(appointment, false);
+    }
+
+    if (!transitioned) {
+      this.logger.log(
+        `stripe webhook idempotent replay appointment=${appointmentId} intent=${stripePaymentIntentId}`,
+      );
     }
 
     return { received: true };
@@ -609,8 +676,49 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment is cancelled');
     }
 
+    const payment =
+      await this.paymentsService?.getStatusForAppointment(appointmentId);
+
+    if (payment) {
+      if (payment.status === 'paid') {
+        return { success: true, message: 'Payment verified successfully' };
+      }
+      if (payment.status === 'refunded') {
+        return { success: false, message: 'Payment was refunded' };
+      }
+      return { success: false, message: 'Payment not completed' };
+    }
+
     return appointment.payment
       ? { success: true, message: 'Payment verified successfully' }
       : { success: false, message: 'Payment not completed' };
+  }
+
+  private currency(): string {
+    return this.configService.get<string>('CURRENCY') ?? 'usd';
+  }
+
+  private async emitPaid(
+    appointment: AppointmentDocument,
+    dispatchFanout: boolean,
+  ): Promise<void> {
+    const paidPayload: outboxPort.PaidPayload = {
+      appointmentId: String(appointment._id),
+      patientId: appointment.userId,
+      doctorId: appointment.docId,
+      paidAt: new Date(),
+    };
+
+    // The outbox adapter upserts `paid` by appointmentId, so a webhook retry
+    // can safely repeat this write without duplicating the event.
+    await this.outbox?.append('paid', paidPayload, undefined);
+
+    if (dispatchFanout) {
+      await this.notificationsFanout?.dispatchSafe(
+        'paid',
+        paidPayload,
+        String(appointment.userData?.email ?? ''),
+      );
+    }
   }
 }

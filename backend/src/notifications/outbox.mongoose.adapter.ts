@@ -28,6 +28,28 @@ export class OutboxMongooseAdapter implements Outbox {
     // Fail fast: never persist clinical text under a Mixed payload.
     assertSafeOutboxPayload(event, payload);
 
+    if (event === 'paid') {
+      // One paid event per appointment. A webhook retry must not enqueue a
+      // duplicate; the unique partial index backs this upsert.
+      try {
+        await this.outboxModel.updateOne(
+          {
+            event,
+            'payload.appointmentId': (payload as { appointmentId: string })
+              .appointmentId,
+          },
+          { $setOnInsert: { event, payload, dispatchedAt: null } },
+          {
+            upsert: true,
+            session: session as ClientSession | undefined,
+          },
+        );
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) throw error;
+      }
+      return;
+    }
+
     // create([...], { session }) keeps the write inside the caller's tx.
     await this.outboxModel.create([{ event, payload, dispatchedAt: null }], {
       session: session as ClientSession | undefined,
@@ -41,4 +63,12 @@ export class OutboxMongooseAdapter implements Outbox {
       .limit(limit)
       .lean();
   }
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: number }).code === 11000
+  );
 }

@@ -78,6 +78,18 @@ export class MigrationController {
     return { success: result.errors === 0, result };
   }
 
+  @Post('payments')
+  @ApiOperation({
+    summary:
+      'Backfill Payment rows from legacy Appointment.payment. Admin only.',
+  })
+  @ApiHeader({ name: 'atoken', description: 'Admin token', required: true })
+  @UseGuards(AuthAdminGuard)
+  async migratePayments() {
+    const result = await this.migrationService.migrateCollection('payments');
+    return { success: result.errors === 0, result };
+  }
+
   @Post('collection')
   @ApiOperation({ summary: 'Migrate a single collection. Admin only.' })
   @ApiHeader({ name: 'atoken', description: 'Admin token', required: true })
@@ -85,7 +97,7 @@ export class MigrationController {
     name: 'name',
     required: true,
     description:
-      'Collection name: users | specialities | doctors | slots | appointments | waitlist | monthly_stats | password_reset_tokens | conversations | referrals',
+      'Collection name: users | specialities | doctors | slots | appointments | payments | waitlist | monthly_stats | password_reset_tokens | conversations | referrals',
   })
   @UseGuards(AuthAdminGuard)
   async migrateOne(@Query('name') name: string) {

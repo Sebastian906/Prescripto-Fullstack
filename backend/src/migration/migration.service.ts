@@ -48,6 +48,11 @@ import {
   Prescription,
   PrescriptionDocument,
 } from 'src/prescriptions/schemas/prescription.schema';
+import {
+  Payment,
+  PaymentDocument,
+  PaymentStatus,
+} from 'src/payments/schemas/payment.schema';
 
 export interface MigrationResult {
   collection: string;
@@ -304,6 +309,8 @@ export class MigrationService {
     private readonly medicalRecordModel: Model<MedicalRecordDocument>,
     @InjectModel(Prescription.name)
     private readonly prescriptionModel: Model<PrescriptionDocument>,
+    @InjectModel(Payment.name)
+    private readonly paymentModel: Model<PaymentDocument>,
   ) {}
 
   async runFullMigration(
@@ -325,6 +332,7 @@ export class MigrationService {
       'doctors',
       'slots',
       'appointments',
+      'payments',
       'waitlist',
       'monthly_stats',
       'password_reset_tokens',
@@ -446,6 +454,9 @@ export class MigrationService {
           break;
         case 'appointments':
           await this.migrateAppointments(result);
+          break;
+        case 'payments':
+          await this.migratePayments(result);
           break;
         case 'waitlist':
           await this.migrateWaitlist(result);
@@ -852,6 +863,72 @@ export class MigrationService {
     });
   }
 
+  // Mongo → Mongo backfill. Payment is the auditable source of truth; legacy
+  // Appointment.payment stays as a mirror for old readers. Idempotent:
+  // appointmentId is unique and updateOne uses $setOnInsert.
+  private async migratePayments(result: MigrationResult): Promise<void> {
+    const currency = process.env.CURRENCY ?? 'usd';
+    const filter = {
+      $or: [{ payment: true }, { payment: 'pending' }],
+    };
+
+    // Native driver: Mongoose casts `payment: 'pending'` to Boolean against
+    // the Appointment schema and throws CastError before iterating.
+    const cursor = this.appointmentModel.collection.find(filter);
+
+    for await (const doc of cursor) {
+      const raw = doc as unknown as {
+        _id: unknown;
+        userId?: string;
+        amount?: number;
+        date?: number;
+        payment?: boolean | string;
+        stripePaymentIntentId?: string;
+      };
+      try {
+        const status: PaymentStatus =
+          raw.payment === 'pending' ? 'pending' : 'paid';
+        // Legacy appointments only stored a boolean. An intent is conclusive
+        // Stripe; `payment:'pending'` is an abandoned Stripe checkout. A bare
+        // `payment:true` is ambiguous (old COD and Stripe both wrote it), so
+        // keep the legacy default COD instead of inventing an intent.
+        const method =
+          raw.stripePaymentIntentId || raw.payment === 'pending'
+            ? 'stripe'
+            : 'cod';
+        const res = await this.paymentModel.updateOne(
+          { appointmentId: String(raw._id) },
+          {
+            $setOnInsert: {
+              appointmentId: String(raw._id),
+              userId: raw.userId ?? '',
+              amount: raw.amount ?? 0,
+              currency,
+              method,
+              status,
+              ...(raw.stripePaymentIntentId
+                ? { stripePaymentIntentId: raw.stripePaymentIntentId }
+                : {}),
+              createdAt: raw.date ? new Date(raw.date) : new Date(),
+            },
+          },
+          { upsert: true },
+        );
+        if (res.upsertedCount > 0) {
+          result.migrated++;
+        } else {
+          result.skipped++;
+        }
+      } catch (err) {
+        result.errors++;
+        const message = err instanceof Error ? err.message : String(err);
+        (result.errorDetails ??= []).push(
+          `payment ${String(raw._id)}: ${message}`,
+        );
+      }
+    }
+  }
+
   private async migrateWaitlist(result: MigrationResult): Promise<void> {
     // Idempotente: asegura índices Mongo y espeja registros a PG si la tabla existe.
     const col = this.connection.collection('waitlists');
@@ -1135,9 +1212,22 @@ export class MigrationService {
   async getStatus(): Promise<{
     postgres: boolean;
     tableCounts: Record<string, number>;
+    mongoCounts: Record<string, number>;
   }> {
+    // A payments count failure must not hide PostgreSQL status. `-1` means
+    // unavailable; existing consumers still get a numeric contract.
+    let payments = -1;
+    try {
+      payments = await this.paymentModel.countDocuments();
+    } catch (err) {
+      this.logger.warn(
+        `payments count unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     const pgOk = await this.pg.testConnection();
-    if (!pgOk) return { postgres: false, tableCounts: {} };
+    if (!pgOk) {
+      return { postgres: false, tableCounts: {}, mongoCounts: { payments } };
+    }
 
     const tables = [
       'users',
@@ -1165,6 +1255,6 @@ export class MigrationService {
         tableCounts[t] = -1;
       }
     }
-    return { postgres: pgOk, tableCounts };
+    return { postgres: pgOk, tableCounts, mongoCounts: { payments } };
   }
 }

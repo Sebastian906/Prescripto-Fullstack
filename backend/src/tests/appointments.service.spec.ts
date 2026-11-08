@@ -50,3 +50,69 @@ describe('AppointmentsService', () => {
     expect(service).toBeDefined();
   });
 });
+
+describe('AppointmentsService.verifyPayment', () => {
+  const baseAppointment = {
+    _id: 'a1',
+    userId: 'u1',
+    cancelled: false,
+    payment: false,
+  };
+
+  function makeService(appointment: unknown, payment: unknown) {
+    const appointmentModel = {
+      findById: jest.fn().mockResolvedValue(appointment),
+    };
+    const payments = {
+      getStatusForAppointment: jest.fn().mockResolvedValue(payment),
+    };
+    const service = new AppointmentsService(
+      appointmentModel as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { get: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      undefined,
+      undefined,
+      payments as any,
+    );
+    return { service, appointmentModel, payments };
+  }
+
+  it('paid Payment wins over a false Appointment mirror', async () => {
+    const { service } = makeService({ ...baseAppointment }, { status: 'paid' });
+
+    await expect(service.verifyPayment('u1', 'a1')).resolves.toEqual({
+      success: true,
+      message: 'Payment verified successfully',
+    });
+  });
+
+  it('refunded Payment wins over a true Appointment mirror', async () => {
+    const { service } = makeService(
+      { ...baseAppointment, payment: true },
+      { status: 'refunded' },
+    );
+
+    await expect(service.verifyPayment('u1', 'a1')).resolves.toEqual({
+      success: false,
+      message: 'Payment was refunded',
+    });
+  });
+
+  it('falls back to the mirror when Payment is missing', async () => {
+    const { service } = makeService(
+      { ...baseAppointment, payment: true },
+      null,
+    );
+
+    await expect(service.verifyPayment('u1', 'a1')).resolves.toEqual({
+      success: true,
+      message: 'Payment verified successfully',
+    });
+  });
+});

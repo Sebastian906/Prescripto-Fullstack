@@ -14,7 +14,7 @@ export class OutboxEvent {
   @Prop({
     required: true,
     type: String,
-    enum: ['booked', 'cancelled', 'completed'],
+    enum: ['booked', 'cancelled', 'completed', 'paid'],
   })
   event!: OutboxEventName;
 
@@ -34,3 +34,9 @@ export const OutboxEventSchema = SchemaFactory.createForClass(OutboxEvent);
 
 // Worker poll (Phase 4): FIFO over undispatched rows.
 OutboxEventSchema.index({ dispatchedAt: 1, createdAt: 1 });
+
+// One `paid` event per appointment: webhook retries are idempotent.
+OutboxEventSchema.index(
+  { event: 1, 'payload.appointmentId': 1 },
+  { unique: true, partialFilterExpression: { event: 'paid' } },
+);

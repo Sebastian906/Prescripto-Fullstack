@@ -66,6 +66,9 @@ export class Appointment {
   @Prop({ default: '' })
   cancellationReason!: string;
 
+  // Denormalized mirror of Payment.status === 'paid'. Source of truth lives
+  // in the `payments` collection (appointmentId unique). Kept for reports,
+  // admin/doctor dashboards and MyAppointments.jsx which still read it.
   @Prop({ default: false })
   payment!: boolean;
 
