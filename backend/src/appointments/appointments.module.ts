@@ -12,6 +12,7 @@ import { AuditModule } from 'src/audit/audit.module';
 import { WaitlistModule } from 'src/waitlist/waitlist.module';
 import { AvailabilityModule } from 'src/availability/availability.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { PaymentsModule } from 'src/payments/payments.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     WaitlistModule,
     AvailabilityModule,
     NotificationsModule,
+    PaymentsModule,
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],
