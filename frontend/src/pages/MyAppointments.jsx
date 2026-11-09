@@ -1,9 +1,11 @@
-import { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 import { AppContext } from "../context/AppContext"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import { toast } from "react-toastify"
 import { useTranslation } from "react-i18next"
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const MyAppointments = () => {
 
@@ -14,6 +16,8 @@ const MyAppointments = () => {
 
     const [appointments, setAppointments] = useState([])
     const [payingId, setPayingId] = useState(null)
+    const paymentInFlight = useRef(false)
+    const cancelInFlight = useRef(false)
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
     const slotDateFormat = (slotDate) => {
@@ -33,26 +37,48 @@ const MyAppointments = () => {
         }
     }
 
+    const paymentMessage = (message) => {
+        if (message === 'Payment was refunded') return t('myAppointments.paymentRefunded')
+        if (message === 'Payment not completed') return t('myAppointments.paymentNotCompleted')
+        return message
+    }
+
     const verifyStripeReturn = async (appointmentId) => {
+        let lastMessage = ''
+
         try {
-            const { data } = await axios.get(backendUrl + `/api/appointments/verify-payment/${appointmentId}`, { headers: { token } })
-            if (data.success) {
-                toast.success('Payment completed successfully')
-                getUserAppointments()
-            } else {
-                toast.error('Payment could not be verified, please try again')
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const { data } = await axios.get(backendUrl + `/api/appointments/verify-payment/${appointmentId}`, { headers: { token } })
+                    if (data.success) {
+                        toast.success(t('myAppointments.paymentSuccess'))
+                        getUserAppointments()
+                        return
+                    }
+
+                    lastMessage = data.message || ''
+                    if (lastMessage !== 'Payment not completed') break
+                } catch (error) {
+                    console.log(error)
+                    lastMessage = error?.response?.data?.message || error.message || ''
+                }
+
+                if (attempt < 2) await sleep(1500)
             }
-        } catch (error) {
-            console.log(error)
-            toast.error(error.message)
+
+            toast.error(paymentMessage(lastMessage) || t('myAppointments.paymentVerifyFailed'))
         } finally {
             navigate('/my-appointments', { replace: true })
         }
     }
 
-    const cancelAppointment = async (appointmentId) => { 
+    const cancelAppointment = async (appointment) => {
+        if (cancelInFlight.current) return
+        if (appointment.payment && !window.confirm(t('myAppointments.cancelPaidWarning'))) return
+
+        cancelInFlight.current = true
         try {
-            const { data } = await axios.patch(backendUrl + '/api/appointments/cancel-appointment', { appointmentId }, { headers: { token } })
+            const { data } = await axios.patch(backendUrl + '/api/appointments/cancel-appointment', { appointmentId: appointment._id }, { headers: { token } })
             if (data.success) {
                 toast.success(data.message)
                 getUserAppointments()
@@ -63,26 +89,33 @@ const MyAppointments = () => {
         } catch (error) {
             console.log(error);
             toast.error(error.message)
+        } finally {
+            cancelInFlight.current = false
         }
     }
 
     const payWithStripe = async (appointmentId) => {
+        if (paymentInFlight.current) return
+        paymentInFlight.current = true
         try {
             const { data } = await axios.post(backendUrl + '/api/appointments/payment-stripe', { appointmentId }, { headers: { token } })
             if (data.success) {
                 window.location.href = data.url
             } else {
-                toast.error('Could not initiate payment')
+                toast.error(t('myAppointments.paymentInitError'))
             }
         } catch (error) {
             console.log(error)
             toast.error(error.message)
         } finally {
+            paymentInFlight.current = false
             setPayingId(null)
         }
     }
 
     const payWithCOD = async (appointmentId) => {
+        if (paymentInFlight.current) return
+        paymentInFlight.current = true
         try {
             const { data } = await axios.patch(backendUrl + '/api/appointments/payment-cod', { appointmentId }, { headers: { token } })
             if (data.success) {
@@ -95,6 +128,7 @@ const MyAppointments = () => {
             console.log(error)
             toast.error(error.message)
         } finally {
+            paymentInFlight.current = false
             setPayingId(null)
         }
     }
@@ -106,7 +140,7 @@ const MyAppointments = () => {
         if (paymentStatus === 'success' && appointmentId) {
             verifyStripeReturn(appointmentId)
         } else if (paymentStatus === 'cancelled') {
-            toast.info('Payment was cancelled')
+            toast.info(t('myAppointments.paymentCancelled'))
             navigate('/my-appointments', { replace: true })
         }
     }, [])
@@ -188,9 +222,9 @@ const MyAppointments = () => {
                                     {t('myAppointments.paid')}
                                 </button>
                             )}
-                            {!item.cancelled && !item.isCompleted && !item.payment && (
+                            {!item.cancelled && !item.isCompleted && (
                                 <button
-                                    onClick={() => cancelAppointment(item._id)}
+                                    onClick={() => cancelAppointment(item)}
                                     className="text-sm text-stone-500 text-center sm:min-w-48 py-2 border rounded hover:bg-red-600 hover:text-white transition-all duration-300 cursor-pointer"
                                 >
                                     {t('myAppointments.cancelAppointment')}

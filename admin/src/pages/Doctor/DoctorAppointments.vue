@@ -72,7 +72,9 @@ onMounted(() => {
                         :alt="item.userData.name" />
                     <p>{{ item.userData.name }}</p>
                 </div>
-                <p>{{ item.payment ? t('doctorAppointments.online') : t('doctorAppointments.cash') }}</p>
+                <p :class="item.payment ? 'text-emerald-600 text-xs font-medium' : 'text-amber-600 text-xs font-medium'">
+                    {{ item.payment ? t('doctorAppointments.paid') : t('doctorAppointments.unpaid') }}
+                </p>
                 <p class="max-sm:hidden">{{ calculateAge(item.userData.dob) }}</p>
                 <p>{{ slotDateFormat(item.slotDate) }}, {{ item.slotTime }}</p>
                 <p>{{ currency }}{{ item.amount }}</p>

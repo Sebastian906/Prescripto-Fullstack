@@ -70,6 +70,13 @@ function dateToSlotKey(date) {
     return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`
 }
 
+function normalizeDateKey(value) {
+    const parts = String(value || '').split('/')
+    if (parts.length !== 3) return String(value || '')
+    const [day, month, year] = parts
+    return `${Number(day)}/${Number(month)}/${year}`
+}
+
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 const Appointment = () => {
@@ -84,6 +91,7 @@ const Appointment = () => {
     const [slotTime, setSlotTime] = useState('')
     const [loadingSlots, setLoadingSlots] = useState(false)
     const [availableSlots, setAvailableSlots] = useState([])
+    const [userAppointments, setUserAppointments] = useState([])
     const [dayKey, setDayKey] = useState(() => new Date().toDateString())
     const dateRange = useMemo(() => generateDateRange(7), [dayKey])
     const { suggestions, isIdeal, loading: loadingSuggestions, fetchSuggestions } = useSlotSuggestions(backendUrl, token)
@@ -101,6 +109,21 @@ const Appointment = () => {
         }, 30_000)
         return () => clearInterval(id)
     }, [])
+
+    useEffect(() => {
+        if (!token) return
+        let active = true
+
+        axios.get(`${backendUrl}/api/appointments/user-appointments`, { headers: { token } })
+            .then(({ data }) => {
+                if (active && data.success) setUserAppointments(data.appointments || [])
+            })
+            .catch(() => {
+                if (active) setUserAppointments([])
+            })
+
+        return () => { active = false }
+    }, [backendUrl, token])
 
     const fetchSlots = useCallback(
         async (date) => {
@@ -135,6 +158,17 @@ const Appointment = () => {
     useEffect(() => {
         if (docInfo) fetchSuggestions(docId, dateRange, priorityLevel)
     }, [priorityLevel])
+
+    const isUserSlotTaken = useCallback((dateKey, time) => {
+        const normalizedDate = normalizeDateKey(dateKey)
+        const normalizedTime = String(time || '').toLowerCase()
+
+        return userAppointments.some((appointment) => (
+            !appointment.cancelled
+            && normalizeDateKey(appointment.slotDate) === normalizedDate
+            && String(appointment.slotTime || '').toLowerCase() === normalizedTime
+        ))
+    }, [userAppointments])
 
     const getAvailableSlotsFallback = () => {
         // getting current date
@@ -173,6 +207,11 @@ const Appointment = () => {
 
         try {
             const slotDate = dateToSlotKey(dateRange[slotIndex])
+            if (isUserSlotTaken(slotDate, slotTime)) {
+                toast.warn(t('appointment.slotAlreadyBooked'))
+                setSlotTime('')
+                return
+            }
             // rechaza fechas obsoletas (p. ej. medianoche) antes de reservar
             const freshKeys = generateDateRange(7).map(dateToSlotKey)
             if (!freshKeys.includes(slotDate)) {
@@ -186,7 +225,7 @@ const Appointment = () => {
                 getDoctorsData()
                 navigate('/my-appointments')
             } else {
-                toast.error('Slot not available, please select another slot')
+                toast.error(t('appointment.slotUnavailable'))
                 fetchSlots(dateRange[slotIndex])
             }
         } catch (error) {
@@ -195,7 +234,10 @@ const Appointment = () => {
                 toast.warn('Session expired, please login again')
                 return navigate('/login')
             }
-            const msg = error?.response?.data?.message ?? 'Slot not available'
+            const backendMessage = error?.response?.data?.message
+            const msg = backendMessage === 'You already have an appointment at this time'
+                ? t('appointment.slotAlreadyBooked')
+                : backendMessage ?? t('appointment.slotUnavailable')
             toast.error(msg)
             setSlotTime('')
             fetchSlots(dateRange[slotIndex])
@@ -272,31 +314,39 @@ const Appointment = () => {
                             <p className="text-xs text-indigo-500 font-medium">{t('appointment.optimalSlots')}</p>
                         )}
                         <div className="flex gap-2 flex-wrap">
-                            {suggestions.map((s) => (
-                                <button
-                                    key={`${s.slotDate}-${s.slotTime}`}
-                                    onClick={() => {
-                                        // Sincronizar con el selector manual existente
-                                        const idx = dateRange.findIndex(d =>
-                                            `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}` === s.slotDate
-                                        )
-                                        if (idx !== -1) setSlotIndex(idx)
-                                        setSlotTime(s.slotTime)
-                                    }}
-                                    className={`flex flex-col items-start px-3 py-2 rounded-lg border text-xs cursor-pointer transition-all
-                                        ${slotTime === s.slotTime
-                                            ? 'bg-indigo-500 text-white border-indigo-500'
-                                            : 'bg-indigo-100 text-slate-600 border-slate-300 hover:border-indigo-400'
-                                        }`}
-                                >
-                                    <span className="flex items-center gap-1 font-medium">
-                                        {s.slotDate} · {s.slotTime.toLowerCase()}
-                                    </span>
-                                    <span className={`mt-0.5 ${slotTime === s.slotTime ? 'text-indigo-100' : 'text-slate-400'}`}>
-                                        {t('appointment.slotMetrics.load')}: {s.doctorLoad} {t('appointment.slotMetrics.appointments')} · {t('appointment.slotMetrics.gap')}: {s.gapMinutes}{t('appointment.slotMetrics.minutes')}
-                                    </span>
-                                </button>
-                            ))}
+                            {suggestions.map((s) => {
+                                const taken = isUserSlotTaken(s.slotDate, s.slotTime)
+                                return (
+                                    <button
+                                        key={`${s.slotDate}-${s.slotTime}`}
+                                        disabled={taken}
+                                        title={taken ? t('appointment.slotAlreadyBooked') : undefined}
+                                        onClick={() => {
+                                            if (taken) return
+                                            // Sincronizar con el selector manual existente
+                                            const idx = dateRange.findIndex(d =>
+                                                normalizeDateKey(dateToSlotKey(d)) === normalizeDateKey(s.slotDate)
+                                            )
+                                            if (idx !== -1) setSlotIndex(idx)
+                                            setSlotTime(s.slotTime)
+                                        }}
+                                        className={`flex flex-col items-start px-3 py-2 rounded-lg border text-xs transition-all
+                                            ${taken
+                                                ? 'opacity-40 cursor-not-allowed border-slate-200 text-slate-400'
+                                                : slotTime === s.slotTime
+                                                    ? 'bg-indigo-500 text-white border-indigo-500 cursor-pointer'
+                                                    : 'bg-indigo-100 text-slate-600 border-slate-300 hover:border-indigo-400 cursor-pointer'
+                                            }`}
+                                    >
+                                        <span className="flex items-center gap-1 font-medium">
+                                            {s.slotDate} · {s.slotTime.toLowerCase()}
+                                        </span>
+                                        <span className={`mt-0.5 ${taken ? 'text-slate-300' : slotTime === s.slotTime ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                            {t('appointment.slotMetrics.load')}: {s.doctorLoad} {t('appointment.slotMetrics.appointments')} · {t('appointment.slotMetrics.gap')}: {s.gapMinutes}{t('appointment.slotMetrics.minutes')}
+                                        </span>
+                                    </button>
+                                )
+                            })}
                         </div>
                     </div>
                 ) : (
@@ -327,15 +377,25 @@ const Appointment = () => {
                     ) : availableSlots.length === 0 ? (
                         <p className="text-sm text-slate-400">{t('appointment.noSlots')}</p>
                     ) : (
-                        availableSlots.map((time) => (
-                            <p
-                                key={time}
-                                onClick={() => setSlotTime(time)}
-                                className={`text-sm font-light shrink-0 px-5 py-2 rounded-full cursor-pointer ${slotTime === time ? 'bg-indigo-500 text-white' : 'text-slate-500 border border-slate-300'}`}
-                            >
-                                {time.toLowerCase()}
-                            </p>
-                        ))
+                        availableSlots.map((time) => {
+                            const taken = isUserSlotTaken(dateToSlotKey(dateRange[slotIndex]), time)
+                            return (
+                                <p
+                                    key={time}
+                                    onClick={() => { if (!taken) setSlotTime(time) }}
+                                    aria-disabled={taken}
+                                    title={taken ? t('appointment.slotAlreadyBooked') : undefined}
+                                    className={`text-sm font-light shrink-0 px-5 py-2 rounded-full ${taken
+                                        ? 'opacity-40 cursor-not-allowed line-through border border-slate-200 text-slate-400'
+                                        : slotTime === time
+                                            ? 'bg-indigo-500 text-white cursor-pointer'
+                                            : 'text-slate-500 border border-slate-300 cursor-pointer'
+                                    }`}
+                                >
+                                    {time.toLowerCase()}
+                                </p>
+                            )
+                        })
                     )}
                 </div>
                 <button

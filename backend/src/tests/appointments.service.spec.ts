@@ -116,3 +116,106 @@ describe('AppointmentsService.verifyPayment', () => {
     });
   });
 });
+
+describe('AppointmentsService.bookAppointment', () => {
+  function makeService({
+    conflict = null,
+    claim = { claimed: true },
+  }: {
+    conflict?: unknown;
+    claim?: unknown;
+  } = {}) {
+    const session = {
+      withTransaction: jest.fn(async (callback: () => Promise<void>) => {
+        await callback();
+      }),
+      endSession: jest.fn(),
+    };
+    const query = (value: unknown) => ({
+      select() {
+        return this;
+      },
+      session() {
+        return this;
+      },
+      lean: jest.fn().mockResolvedValue(value),
+    });
+    const appointmentModel = {
+      findOne: jest.fn().mockReturnValue(query(conflict)),
+      create: jest.fn(),
+    };
+    const doctorModel = {
+      findById: jest.fn().mockReturnValue(
+        query({ _id: 'd1', available: true, fees: 100 }),
+      ),
+    };
+    const userModel = {
+      findById: jest
+        .fn()
+        .mockReturnValue(query({ _id: 'u1', email: 'u@example.com' })),
+    };
+    const availabilityService = {
+      getBookedSlots: jest.fn().mockResolvedValue([]),
+      claimSlot: jest.fn().mockResolvedValue(claim),
+      releaseSlot: jest.fn(),
+    };
+    const service = new AppointmentsService(
+      appointmentModel as any,
+      doctorModel as any,
+      userModel as any,
+      { startSession: jest.fn().mockResolvedValue(session) } as any,
+      { get: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      availabilityService as any,
+    );
+
+    return { service, appointmentModel, availabilityService };
+  }
+
+  it('rejects a second appointment for the same patient at the same time', async () => {
+    const { service, appointmentModel, availabilityService } = makeService({
+      conflict: { _id: 'a0' },
+    });
+
+    await expect(
+      service.bookAppointment('u1', {
+        docId: 'd1',
+        slotDate: '1/9/2026',
+        slotTime: '10:00 AM',
+      } as any),
+    ).rejects.toThrow('You already have an appointment at this time');
+
+    expect(appointmentModel.findOne).toHaveBeenCalledWith({
+      userId: 'u1',
+      slotDate: '1/9/2026',
+      slotTime: '10:00 AM',
+      cancelled: false,
+    });
+    expect(availabilityService.claimSlot).not.toHaveBeenCalled();
+    expect(appointmentModel.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a doctor slot already claimed by another patient', async () => {
+    const { service, appointmentModel, availabilityService } = makeService({
+      claim: { claimed: false, reason: 'taken' },
+    });
+
+    await expect(
+      service.bookAppointment('u2', {
+        docId: 'd1',
+        slotDate: '1/9/2026',
+        slotTime: '10:00 AM',
+      } as any),
+    ).rejects.toThrow('Slot was just taken. Please select another time.');
+
+    expect(availabilityService.claimSlot).toHaveBeenCalledWith(
+      'd1',
+      '1/9/2026',
+      '10:00 AM',
+      expect.anything(),
+    );
+    expect(appointmentModel.create).not.toHaveBeenCalled();
+  });
+});

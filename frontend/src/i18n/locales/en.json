@@ -54,6 +54,8 @@
         "bookingSlots": "Booking slots",
         "loadingSlots": "Loading slots…",
         "noSlots": "No slots available for this day",
+        "slotAlreadyBooked": "You already have an appointment at this time",
+        "slotUnavailable": "Slot not available, please select another slot",
         "bookButton": "Book an appointment",
         "about": "About",
         "appointmentFee": "Appointment fee:",
@@ -103,6 +105,13 @@
         "completed": "Completed",
         "payWithStripe": "Pay with Stripe",
         "cashOnDelivery": "Cash on Delivery",
+        "paymentSuccess": "Payment completed successfully",
+        "paymentRefunded": "Payment was refunded",
+        "paymentNotCompleted": "Payment not completed",
+        "paymentVerifyFailed": "Payment could not be verified, please try again",
+        "paymentCancelled": "Payment was cancelled",
+        "paymentInitError": "Could not initiate payment",
+        "cancelPaidWarning": "This appointment is already paid. If you cancel it, the clinic may need to process a refund. Continue?",
         "viewRecords": "View my medical records"
     },
     "notifications": {
