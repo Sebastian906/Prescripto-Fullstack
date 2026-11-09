@@ -4,6 +4,7 @@ import { useAdminContext } from '../../context/AdminContext';
 import { useAppContext } from '../../context/AppContext';
 import { assets } from '../../assets/assets';
 import { useI18n } from 'vue-i18n';
+import PaymentDetailModal from '../../components/PaymentDetailModal.vue';
 
 const { aToken, appointments, getAllAppointments, cancelAppointment } = useAdminContext()
 const { calculateAge, slotDateFormat, currency } = useAppContext()
@@ -11,6 +12,31 @@ const { t } = useI18n()
 
 const PAGE_SIZE = 8
 const currentPage = ref(1)
+const paymentTarget = ref(null)
+
+/** Open the payment detail for the selected appointment. */
+const openPayment = (item) => {
+    paymentTarget.value = item
+}
+
+/** Close the payment detail dialog. */
+const closePayment = () => {
+    paymentTarget.value = null
+}
+
+/** Reflect the refunded row immediately, then re-sync the full list. */
+const handleRefunded = async (updatedPayment) => {
+    if (paymentTarget.value && updatedPayment) {
+        paymentTarget.value.payment = updatedPayment.status !== 'refunded'
+    }
+    await getAllAppointments()
+}
+
+/** Confirm before cancelling an appointment whose payment is still active. */
+const requestCancel = (item) => {
+    if (item.payment && !window.confirm(t('allAppointments.cancelPaidWarning'))) return
+    cancelAppointment(item._id)
+}
 
 const totalPages = computed(() => Math.ceil(appointments.value.length / PAGE_SIZE))
 
@@ -39,18 +65,19 @@ onMounted(() => {
         <p class="mb-3 text-lg font-medium">{{ t('allAppointments.title') }}</p>
         <div class="bg-slate-50 border rounded text-sm">
             <div
-                class="hidden sm:grid grid-cols-[0.5fr_3fr_1fr_3fr_3fr_1fr_1fr] py-3 px-6 border-b font-medium text-gray-600">
+                class="hidden sm:grid grid-cols-[0.5fr_2.5fr_0.8fr_2.5fr_2.5fr_1fr_1fr_1fr] py-3 px-6 border-b font-medium text-gray-600">
                 <p>#</p>
                 <p>{{ t('allAppointments.patient') }}</p>
                 <p>{{ t('allAppointments.age') }}</p>
                 <p>{{ t('allAppointments.dateTime') }}</p>
                 <p>{{ t('allAppointments.doctor') }}</p>
+                <p>{{ t('allAppointments.payment') }}</p>
                 <p>{{ t('allAppointments.fees') }}</p>
                 <p>{{ t('allAppointments.actions') }}</p>
             </div>
 
             <div v-for="(item, index) in paginatedAppointments" :key="item._id"
-                class="flex flex-wrap justify-between max-sm:gap-2 sm:grid sm:grid-cols-[0.5fr_3fr_1fr_3fr_3fr_1fr_1fr] items-center text-gray-600 py-3 px-6 border-b hover:bg-gray-100">
+                class="flex flex-wrap justify-between max-sm:gap-2 sm:grid sm:grid-cols-[0.5fr_2.5fr_0.8fr_2.5fr_2.5fr_1fr_1fr_1fr] items-center text-gray-600 py-3 px-6 border-b hover:bg-gray-100">
                 <p class="max-sm:hidden">{{ (currentPage - 1) * PAGE_SIZE + index + 1 }}</p>
                 <div class="flex items-center gap-2">
                     <img class="w-8 h-8 rounded-full object-cover" :src="item.userData.image"
@@ -64,14 +91,21 @@ onMounted(() => {
                         :alt="item.docData.name" />
                     <p>{{ item.docData.name }}</p>
                 </div>
+                <p :class="item.payment ? 'text-emerald-600 text-xs font-medium' : 'text-amber-600 text-xs font-medium'">
+                    {{ item.payment ? t('allAppointments.paid') : t('allAppointments.unpaid') }}
+                </p>
                 <p>{{ currency }}{{ item.amount }}</p>
-                <div>
+                <div class="flex flex-wrap items-center gap-2">
                     <p v-if="item.cancelled" class="text-red-400 text-xs font-medium">{{ t('allAppointments.cancelled')
                         }}</p>
                     <p v-else-if="item.isCompleted" class="text-green-500 text-xs font-medium">{{
                         t('allAppointments.completed') }}</p>
-                    <img v-else @click="cancelAppointment(item._id)" class="w-10 cursor-pointer"
+                    <img v-else @click="requestCancel(item)" class="w-10 cursor-pointer"
                         :src="assets.cancel_icon" alt="Cancel" />
+                    <button type="button" @click="openPayment(item)"
+                        class="min-h-9 rounded border px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 cursor-pointer">
+                        {{ t('allAppointments.viewPayment') }}
+                    </button>
                 </div>
             </div>
 
@@ -100,5 +134,8 @@ onMounted(() => {
             {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, appointments.length) }}
             {{ t('allAppointments.of') }} {{ appointments.length }} {{ t('allAppointments.appointments') }}
         </p>
+
+        <PaymentDetailModal :open="!!paymentTarget" :appointment="paymentTarget || {}" @close="closePayment"
+            @refunded="handleRefunded" />
     </div>
 </template>

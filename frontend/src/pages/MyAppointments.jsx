@@ -1,9 +1,12 @@
-import { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 import { AppContext } from "../context/AppContext"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import { toast } from "react-toastify"
 import { useTranslation } from "react-i18next"
+
+/** Wait between Stripe verification attempts. */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const MyAppointments = () => {
 
@@ -14,6 +17,9 @@ const MyAppointments = () => {
 
     const [appointments, setAppointments] = useState([])
     const [payingId, setPayingId] = useState(null)
+    const paymentsInFlight = useRef(new Set())
+    const cancelInFlight = useRef(false)
+    const mountedRef = useRef(true)
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
     const slotDateFormat = (slotDate) => {
@@ -21,38 +27,68 @@ const MyAppointments = () => {
         return dateArray[0] + ' ' + months[Number(dateArray[1]) - 1] + ' ' + dateArray[2]
     }
 
+    /** Load the patient appointments; ignore responses after unmount. */
     const getUserAppointments = async () => {
         try {
             const { data } = await axios.get(backendUrl + '/api/appointments/user-appointments', {headers: {token}})
-            if (data.success) {
+            if (mountedRef.current && data.success) {
                 setAppointments(data.appointments)
             }
         } catch (error) {
             console.log(error);
-            toast.error(error.message)
+            if (mountedRef.current) toast.error(error.message)
         }
     }
 
+    /** Translate the backend payment state returned by verify-payment. */
+    const paymentMessage = (message) => {
+        if (message === 'Payment was refunded') return t('myAppointments.paymentRefunded')
+        if (message === 'Payment not completed') return t('myAppointments.paymentNotCompleted')
+        if (message === 'Appointment is cancelled') return t('myAppointments.paymentAppointmentCancelled')
+        return message
+    }
+
+    /** Poll Stripe verification three times, stopping if the page unmounts. */
     const verifyStripeReturn = async (appointmentId) => {
+        let lastMessage = ''
+
         try {
-            const { data } = await axios.get(backendUrl + `/api/appointments/verify-payment/${appointmentId}`, { headers: { token } })
-            if (data.success) {
-                toast.success('Payment completed successfully')
-                getUserAppointments()
-            } else {
-                toast.error('Payment could not be verified, please try again')
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const { data } = await axios.get(backendUrl + `/api/appointments/verify-payment/${appointmentId}`, { headers: { token } })
+                    if (!mountedRef.current) return
+                    if (data.success) {
+                        toast.success(t('myAppointments.paymentSuccess'))
+                        getUserAppointments()
+                        return
+                    }
+
+                    lastMessage = data.message || ''
+                    if (lastMessage !== 'Payment not completed') break
+                } catch (error) {
+                    console.log(error)
+                    lastMessage = error?.response?.data?.message || error.message || ''
+                }
+
+                if (attempt < 2) await sleep(1500)
+                if (!mountedRef.current) return
             }
-        } catch (error) {
-            console.log(error)
-            toast.error(error.message)
+
+            if (!mountedRef.current) return
+            toast.error(paymentMessage(lastMessage) || t('myAppointments.paymentVerifyFailed'))
         } finally {
-            navigate('/my-appointments', { replace: true })
+            if (mountedRef.current) navigate('/my-appointments', { replace: true })
         }
     }
 
-    const cancelAppointment = async (appointmentId) => { 
+    /** Cancel an appointment, warning first when it was already paid. */
+    const cancelAppointment = async (appointment) => {
+        if (cancelInFlight.current) return
+        if (appointment.payment && !window.confirm(t('myAppointments.cancelPaidWarning'))) return
+
+        cancelInFlight.current = true
         try {
-            const { data } = await axios.patch(backendUrl + '/api/appointments/cancel-appointment', { appointmentId }, { headers: { token } })
+            const { data } = await axios.patch(backendUrl + '/api/appointments/cancel-appointment', { appointmentId: appointment._id }, { headers: { token } })
             if (data.success) {
                 toast.success(data.message)
                 getUserAppointments()
@@ -63,26 +99,39 @@ const MyAppointments = () => {
         } catch (error) {
             console.log(error);
             toast.error(error.message)
+        } finally {
+            cancelInFlight.current = false
         }
     }
 
+    /** Start Stripe checkout, locking only this appointment's pay action. */
     const payWithStripe = async (appointmentId) => {
+        if (paymentsInFlight.current.has(appointmentId)) return
+        paymentsInFlight.current.add(appointmentId)
+        let navigating = false
         try {
             const { data } = await axios.post(backendUrl + '/api/appointments/payment-stripe', { appointmentId }, { headers: { token } })
             if (data.success) {
+                navigating = true
                 window.location.href = data.url
-            } else {
-                toast.error('Could not initiate payment')
+                return
             }
+            toast.error(t('myAppointments.paymentInitError'))
         } catch (error) {
             console.log(error)
             toast.error(error.message)
         } finally {
-            setPayingId(null)
+            if (!navigating) {
+                paymentsInFlight.current.delete(appointmentId)
+                setPayingId(null)
+            }
         }
     }
 
+    /** Confirm cash payment and refresh the row. */
     const payWithCOD = async (appointmentId) => {
+        if (paymentsInFlight.current.has(appointmentId)) return
+        paymentsInFlight.current.add(appointmentId)
         try {
             const { data } = await axios.patch(backendUrl + '/api/appointments/payment-cod', { appointmentId }, { headers: { token } })
             if (data.success) {
@@ -95,9 +144,15 @@ const MyAppointments = () => {
             console.log(error)
             toast.error(error.message)
         } finally {
+            paymentsInFlight.current.delete(appointmentId)
             setPayingId(null)
         }
     }
+
+    useEffect(() => {
+        mountedRef.current = true
+        return () => { mountedRef.current = false }
+    }, [])
 
     useEffect(() => {
         const paymentStatus = searchParams.get('payment')
@@ -106,7 +161,7 @@ const MyAppointments = () => {
         if (paymentStatus === 'success' && appointmentId) {
             verifyStripeReturn(appointmentId)
         } else if (paymentStatus === 'cancelled') {
-            toast.info('Payment was cancelled')
+            toast.info(t('myAppointments.paymentCancelled'))
             navigate('/my-appointments', { replace: true })
         }
     }, [])
@@ -188,9 +243,9 @@ const MyAppointments = () => {
                                     {t('myAppointments.paid')}
                                 </button>
                             )}
-                            {!item.cancelled && !item.isCompleted && !item.payment && (
+                            {!item.cancelled && !item.isCompleted && (
                                 <button
-                                    onClick={() => cancelAppointment(item._id)}
+                                    onClick={() => cancelAppointment(item)}
                                     className="text-sm text-stone-500 text-center sm:min-w-48 py-2 border rounded hover:bg-red-600 hover:text-white transition-all duration-300 cursor-pointer"
                                 >
                                     {t('myAppointments.cancelAppointment')}
