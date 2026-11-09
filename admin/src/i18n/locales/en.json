@@ -484,6 +484,7 @@
         "loadError": "Could not load the payment.",
         "notFound": "Payment not found for this appointment.",
         "retry": "Retry",
+        "refresh": "Refresh",
         "close": "Close",
         "amount": "Amount",
         "method": "Method",

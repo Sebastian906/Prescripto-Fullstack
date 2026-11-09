@@ -12,6 +12,7 @@ export function provideAdminContext() {
     const aToken = ref(localStorage.getItem('aToken') || '')
     const backendUrl = import.meta.env.VITE_BACKEND_URL
 
+    /** Normalize Axios and validation errors into one display string. */
     const toErrorMessage = (error, fallback) => {
         const message = error?.response?.data?.message
         if (Array.isArray(message)) return message.join(', ')
@@ -150,10 +151,12 @@ export function provideAdminContext() {
         }
     }
 
+    /** Fetch the auditable payment row for one appointment. */
     const getPayment = async (appointmentId) => {
         try {
             const { data } = await axios.get(`${backendUrl}/api/payments/${appointmentId}`, {
                 headers: { atoken: aToken.value },
+                timeout: 20000,
             })
             return { success: true, payment: data.payment }
         } catch (error) {
@@ -165,12 +168,13 @@ export function provideAdminContext() {
         }
     }
 
+    /** Issue a full or partial refund; timeout keeps the modal recoverable. */
     const refundPayment = async (appointmentId, amount) => {
         try {
             const { data } = await axios.post(
                 `${backendUrl}/api/payments/${appointmentId}/refund`,
                 { amount },
-                { headers: { atoken: aToken.value } },
+                { headers: { atoken: aToken.value }, timeout: 30000 },
             )
             return { success: true, payment: data.payment }
         } catch (error) {

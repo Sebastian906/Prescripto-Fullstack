@@ -29,6 +29,8 @@ const refunding = ref(false)
 
 let lastFocused = null
 let listening = false
+let loadSeq = 0
+let refundSeq = 0
 
 const appointmentId = computed(() => props.appointment?._id || '')
 const patientName = computed(() => props.appointment?.userData?.name || '—')
@@ -62,6 +64,7 @@ const statusClass = computed(() => {
     }
 })
 
+/** Format a backend timestamp for the active locale. */
 const formatDate = (value) => {
     if (!value) return '—'
     const date = new Date(value)
@@ -69,6 +72,7 @@ const formatDate = (value) => {
     return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
+/** Format an amount in the payment currency. */
 const formatMoney = (value) => {
     const currency = (payment.value?.currency || 'usd').toUpperCase()
     const numeric = Number(value) || 0
@@ -79,9 +83,13 @@ const formatMoney = (value) => {
     }
 }
 
+/** Round to cents to match backend money normalization. */
 const normalizeAmount = (value) => Math.round(Number(value) * 100) / 100
 
+/** Invalidate in-flight requests and clear the dialog state. */
 const reset = () => {
+    loadSeq += 1
+    refundSeq += 1
     payment.value = null
     loading.value = false
     notFound.value = false
@@ -91,9 +99,11 @@ const reset = () => {
     refunding.value = false
 }
 
+/** Load the canonical payment row, ignoring responses from a previous opening. */
 const loadPayment = async () => {
     if (!appointmentId.value) return
 
+    const seq = ++loadSeq
     loading.value = true
     notFound.value = false
     error.value = ''
@@ -101,6 +111,8 @@ const loadPayment = async () => {
     payment.value = null
 
     const result = await getPayment(appointmentId.value)
+    if (seq !== loadSeq || !props.open) return
+
     loading.value = false
 
     if (!result.success) {
@@ -116,6 +128,7 @@ const loadPayment = async () => {
     refundAmount.value = remaining.value > 0 ? remaining.value.toFixed(2) : ''
 }
 
+/** Map backend refund errors to localized messages. */
 const refundMessage = (result) => {
     if (result.status === 401 || result.status === 403) {
         return t('paymentDetail.refund.errorSession')
@@ -129,6 +142,36 @@ const refundMessage = (result) => {
     return message || t('paymentDetail.refund.errorGeneric')
 }
 
+/** Send a refund and refresh the detail from the backend after success. */
+const sendRefund = async (numeric) => {
+    const requestId = ++refundSeq
+    refunding.value = true
+    refundError.value = ''
+
+    const result = await refundPayment(appointmentId.value, numeric)
+    const active = props.open && requestId === refundSeq
+
+    if (!result.success) {
+        if (active) {
+            refunding.value = false
+            refundError.value = refundMessage(result)
+        }
+        return
+    }
+
+    // Keep the list in sync even if the modal was closed mid-request.
+    emit('refunded', result.payment)
+    if (!active) {
+        if (props.open && !refunding.value) await loadPayment()
+        return
+    }
+
+    refunding.value = false
+    toast.success(t('paymentDetail.refund.success'))
+    await loadPayment()
+}
+
+/** Validate the form amount, then submit a new refund. */
 const submitRefund = async () => {
     if (refunding.value || !canRefund.value) return
 
@@ -142,28 +185,21 @@ const submitRefund = async () => {
         return
     }
 
-    refunding.value = true
-    refundError.value = ''
+    await sendRefund(numeric)
+}
 
-    const result = await refundPayment(appointmentId.value, numeric)
-    refunding.value = false
-
-    if (!result.success) {
-        refundError.value = refundMessage(result)
-        return
-    }
-
-    payment.value = result.payment
-    refundAmount.value = remaining.value > 0 ? remaining.value.toFixed(2) : ''
-    toast.success(t('paymentDetail.refund.success'))
-    emit('refunded', result.payment)
+/** Retry the reserved amount left by an interrupted refund. */
+const retryPendingRefund = async () => {
+    const pending = Number(payment.value?.refundPendingAmount) || 0
+    if (refunding.value || pending <= 0) return
+    await sendRefund(pending)
 }
 
 const close = () => {
-    if (refunding.value) return
     emit('close')
 }
 
+/** Trap focus inside the dialog and close on Escape. */
 const onKeydown = (event) => {
     if (event.key === 'Escape') {
         event.preventDefault()
@@ -197,6 +233,7 @@ const onKeydown = (event) => {
     }
 }
 
+/** Lock page scroll and bind dialog keyboard handling. */
 const activate = () => {
     if (listening) return
     listening = true
@@ -206,6 +243,7 @@ const activate = () => {
     nextTick(() => closeButtonRef.value?.focus())
 }
 
+/** Restore scroll and focus when the dialog closes. */
 const deactivate = () => {
     if (!listening) return
     listening = false
@@ -260,8 +298,8 @@ onBeforeUnmount(deactivate)
                         {{ appointment.slotDate }} {{ appointment.slotTime }}
                     </p>
                 </div>
-                <button ref="closeButtonRef" type="button" @click="close" :disabled="refunding"
-                    class="text-2xl leading-none text-slate-400 hover:text-slate-600 disabled:opacity-50 cursor-pointer"
+                <button ref="closeButtonRef" type="button" @click="close"
+                    class="text-2xl leading-none text-slate-400 hover:text-slate-600 cursor-pointer"
                     :aria-label="t('paymentDetail.close')">
                     ×
                 </button>
@@ -336,8 +374,18 @@ onBeforeUnmount(deactivate)
                         </div>
                     </dl>
 
-                    <div v-if="payment.refundPendingAmount" class="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">
-                        {{ t('paymentDetail.refund.processing') }}
+                    <div v-if="payment.refundPendingAmount" class="space-y-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">
+                        <p>{{ t('paymentDetail.refund.processing') }}</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" @click="retryPendingRefund" :disabled="refunding"
+                                class="min-h-9 rounded bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                                {{ t('paymentDetail.retry') }}
+                            </button>
+                            <button type="button" @click="loadPayment" :disabled="refunding"
+                                class="min-h-9 rounded border border-amber-300 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                                {{ t('paymentDetail.refresh') }}
+                            </button>
+                        </div>
                     </div>
 
                     <form v-if="canRefund" class="space-y-3 rounded border border-slate-200 bg-slate-50 p-4"
@@ -378,8 +426,8 @@ onBeforeUnmount(deactivate)
             </div>
 
             <div class="flex justify-end border-t p-5">
-                <button type="button" @click="close" :disabled="refunding"
-                    class="min-h-11 rounded border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                <button type="button" @click="close"
+                    class="min-h-11 rounded border px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 cursor-pointer">
                     {{ t('paymentDetail.close') }}
                 </button>
             </div>

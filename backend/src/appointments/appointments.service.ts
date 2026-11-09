@@ -125,20 +125,6 @@ export class AppointmentsService {
 
         if (!user) throw new NotFoundException('User not found');
 
-        // Per-patient double-booking guard: the same patient cannot be in two
-        // places at once, even with different doctors. This is intentionally
-        // not global; different patients may book the same clock time.
-        const conflictingAppointment = await this.appointmentModel
-          .findOne({ userId, slotDate, slotTime, cancelled: false })
-          .select('_id')
-          .session(session)
-          .lean();
-        if (conflictingAppointment) {
-          throw new BadRequestException(
-            'You already have an appointment at this time',
-          );
-        }
-
         const claim = await this.availabilityService.claimSlot(
           docId,
           slotDate,

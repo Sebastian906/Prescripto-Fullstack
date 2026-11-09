@@ -14,18 +14,25 @@ const PAGE_SIZE = 8
 const currentPage = ref(1)
 const paymentTarget = ref(null)
 
+/** Open the payment detail for the selected appointment. */
 const openPayment = (item) => {
     paymentTarget.value = item
 }
 
+/** Close the payment detail dialog. */
 const closePayment = () => {
     paymentTarget.value = null
 }
 
-const handleRefunded = async () => {
+/** Reflect the refunded row immediately, then re-sync the full list. */
+const handleRefunded = async (updatedPayment) => {
+    if (paymentTarget.value && updatedPayment) {
+        paymentTarget.value.payment = updatedPayment.status !== 'refunded'
+    }
     await getAllAppointments()
 }
 
+/** Confirm before cancelling an appointment whose payment is still active. */
 const requestCancel = (item) => {
     if (item.payment && !window.confirm(t('allAppointments.cancelPaidWarning'))) return
     cancelAppointment(item._id)

@@ -484,6 +484,7 @@
         "loadError": "No se pudo cargar el pago.",
         "notFound": "No se encontró un pago para esta cita.",
         "retry": "Reintentar",
+        "refresh": "Actualizar",
         "close": "Cerrar",
         "amount": "Monto",
         "method": "Método",
