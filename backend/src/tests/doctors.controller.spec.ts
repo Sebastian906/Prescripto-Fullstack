@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DoctorsController } from '../doctors/doctors.controller';
 import { DoctorsService } from '../doctors/doctors.service';
+import { ReviewsService } from '../reviews/reviews.service';
 import { AuthAdminGuard } from '../shared/guards/auth-admin.guard';
 import { AuthDoctorGuard } from '../shared/guards/auth-doctor.guard';
 
 describe('DoctorsController', () => {
   let controller: DoctorsController;
+  const rating = { avgScore: 4.5, reviewCount: 2 };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -18,6 +20,10 @@ describe('DoctorsController', () => {
               .fn()
               .mockResolvedValue({ success: true, doctors: [] }),
           },
+        },
+        {
+          provide: ReviewsService,
+          useValue: { getDoctorRating: jest.fn().mockResolvedValue(rating) },
         },
       ],
     })
@@ -39,5 +45,9 @@ describe('DoctorsController', () => {
       success: true,
       doctors: [],
     });
+  });
+
+  it('getDoctorRating returns only the public aggregate', async () => {
+    await expect(controller.getDoctorRating('d1')).resolves.toEqual(rating);
   });
 });

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { AnyBulkWriteOperation, Connection, Model, Types } from 'mongoose';
 import {
@@ -53,6 +53,7 @@ import {
   PaymentDocument,
   PaymentStatus,
 } from 'src/payments/schemas/payment.schema';
+import { Review, ReviewDocument } from 'src/reviews/schemas/review.schema';
 
 export interface MigrationResult {
   collection: string;
@@ -311,6 +312,9 @@ export class MigrationService {
     private readonly prescriptionModel: Model<PrescriptionDocument>,
     @InjectModel(Payment.name)
     private readonly paymentModel: Model<PaymentDocument>,
+    @Optional()
+    @InjectModel(Review.name)
+    private readonly reviewModel?: Model<ReviewDocument>,
   ) {}
 
   async runFullMigration(
@@ -332,6 +336,7 @@ export class MigrationService {
       'doctors',
       'slots',
       'appointments',
+      'reviews',
       'payments',
       'waitlist',
       'monthly_stats',
@@ -410,6 +415,7 @@ export class MigrationService {
 
   private async dropAllTables(): Promise<void> {
     const tables = [
+      'reviews',
       'referrals',
       'conversation_messages',
       'conversations',
@@ -454,6 +460,9 @@ export class MigrationService {
           break;
         case 'appointments':
           await this.migrateAppointments(result);
+          break;
+        case 'reviews':
+          await this.migrateReviewsInto(result);
           break;
         case 'payments':
           await this.migratePayments(result);
@@ -675,6 +684,87 @@ export class MigrationService {
       `Prescriptions migration: ${result.migrated} migrated, ${result.skipped} skipped, ${result.errors} errors`,
     );
     return result;
+  }
+
+  /** Migrates the reviews collection to PostgreSQL. */
+  async migrateReviews(): Promise<MigrationResult> {
+    return this.migrateCollection('reviews');
+  }
+
+  /**
+   * Upserts reviews row by row. Each insert runs inside its own savepoint so
+   * one bad row does not abort the surrounding transaction.
+   */
+  private async migrateReviewsInto(result: MigrationResult): Promise<void> {
+    const reviewModel = this.reviewModel;
+    if (!reviewModel) {
+      result.errors++;
+      (result.errorDetails ??= []).push('Review model is not registered');
+      return;
+    }
+
+    const docs = await reviewModel.find({}).lean();
+    await this.pg.withTransaction(async (client) => {
+      for (const doc of docs) {
+        const doctorId = doc.doctorId;
+        const userId = doc.userId;
+        const appointmentId = doc.appointmentId;
+        const score = doc.score;
+
+        if (
+          typeof doctorId !== 'string' ||
+          doctorId.length === 0 ||
+          typeof userId !== 'string' ||
+          userId.length === 0 ||
+          typeof appointmentId !== 'string' ||
+          appointmentId.length === 0 ||
+          typeof score !== 'number' ||
+          !Number.isInteger(score) ||
+          score < 1 ||
+          score > 5
+        ) {
+          result.skipped++;
+          (result.errorDetails ??= []).push(
+            `review ${String(doc._id)}: skipped (missing or invalid required fields)`,
+          );
+          continue;
+        }
+
+        try {
+          await client.query('SAVEPOINT review_row');
+          await client.query(
+            `INSERT INTO reviews
+               (mongo_id, doctor_mongo_id, user_mongo_id, appointment_mongo_id,
+                score, comment, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+             ON CONFLICT (mongo_id) DO UPDATE SET
+               score=EXCLUDED.score,
+               comment=EXCLUDED.comment,
+               updated_at=EXCLUDED.updated_at`,
+            [
+              String(doc._id),
+              doctorId,
+              userId,
+              appointmentId,
+              score,
+              doc.comment ?? '',
+              doc.createdAt ?? new Date(),
+              doc.updatedAt ?? doc.createdAt ?? new Date(),
+            ],
+          );
+          await client.query('RELEASE SAVEPOINT review_row');
+          result.migrated++;
+        } catch (err) {
+          await client.query('ROLLBACK TO SAVEPOINT review_row');
+          await client.query('RELEASE SAVEPOINT review_row');
+          result.errors++;
+          const message = err instanceof Error ? err.message : String(err);
+          (result.errorDetails ??= []).push(
+            `review ${String(doc._id)}: ${message}`,
+          );
+        }
+      }
+    });
   }
 
   private async migrateAvailabilityMongo(
@@ -1224,9 +1314,23 @@ export class MigrationService {
         `payments count unavailable: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    let reviews = -1;
+    try {
+      if (this.reviewModel) {
+        reviews = await this.reviewModel.countDocuments();
+      }
+    } catch (err) {
+      this.logger.warn(
+        `reviews count unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     const pgOk = await this.pg.testConnection();
     if (!pgOk) {
-      return { postgres: false, tableCounts: {}, mongoCounts: { payments } };
+      return {
+        postgres: false,
+        tableCounts: {},
+        mongoCounts: { payments, reviews },
+      };
     }
 
     const tables = [
@@ -1235,6 +1339,7 @@ export class MigrationService {
       'doctors',
       'doctor_slots_booked',
       'appointments',
+      'reviews',
       'waitlist',
       'monthly_stats',
       'monthly_stats_patients',
@@ -1255,6 +1360,10 @@ export class MigrationService {
         tableCounts[t] = -1;
       }
     }
-    return { postgres: pgOk, tableCounts, mongoCounts: { payments } };
+    return {
+      postgres: pgOk,
+      tableCounts,
+      mongoCounts: { payments, reviews },
+    };
   }
 }

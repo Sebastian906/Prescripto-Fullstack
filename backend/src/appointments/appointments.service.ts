@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
@@ -235,6 +236,37 @@ export class AppointmentsService {
       .find({ userId })
       .sort({ date: -1 });
     return { success: true, appointments };
+  }
+
+  /**
+   * Returns the appointment data needed to write a review.
+   * Requires ownership and a non-cancelled, completed appointment.
+   * Keeps 404/403/400 in a single place.
+   */
+  async getReviewableAppointment(
+    userId: string,
+    appointmentId: string,
+  ): Promise<{ appointmentId: string; doctorId: string }> {
+    const appointment = await this.appointmentModel
+      .findById(appointmentId)
+      .select('_id userId docId isCompleted cancelled')
+      .lean();
+
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (appointment.userId !== userId) {
+      throw new ForbiddenException('Not your appointment');
+    }
+    if (appointment.cancelled) {
+      throw new BadRequestException('Appointment is cancelled');
+    }
+    if (!appointment.isCompleted) {
+      throw new BadRequestException('Appointment is not completed');
+    }
+
+    return {
+      appointmentId: String(appointment._id),
+      doctorId: appointment.docId,
+    };
   }
 
   async cancelAppointment(

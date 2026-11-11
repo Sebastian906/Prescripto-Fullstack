@@ -78,6 +78,17 @@ export class MigrationController {
     return { success: result.errors === 0, result };
   }
 
+  @Post('reviews')
+  @ApiOperation({
+    summary: 'Migrate reviews to PostgreSQL. Admin only.',
+  })
+  @ApiHeader({ name: 'atoken', description: 'Admin token', required: true })
+  @UseGuards(AuthAdminGuard)
+  async migrateReviews() {
+    const result = await this.migrationService.migrateReviews();
+    return { success: result.errors === 0, result };
+  }
+
   @Post('payments')
   @ApiOperation({
     summary:
@@ -97,7 +108,7 @@ export class MigrationController {
     name: 'name',
     required: true,
     description:
-      'Collection name: users | specialities | doctors | slots | appointments | payments | waitlist | monthly_stats | password_reset_tokens | conversations | referrals',
+      'Collection name: users | specialities | doctors | slots | appointments | reviews | payments | waitlist | monthly_stats | password_reset_tokens | conversations | referrals',
   })
   @UseGuards(AuthAdminGuard)
   async migrateOne(@Query('name') name: string) {

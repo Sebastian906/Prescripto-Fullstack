@@ -212,3 +212,26 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_conv_id  ON conversation_messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_mongo_id ON conversation_messages(mongo_id);
+
+-- ============================================================
+-- REVIEWS
+-- Origen: review.schema.ts
+-- Señal de confianza doctor ↔ paciente.
+-- El agregado avgScore/reviewCount NO se materializa aquí: vive en
+-- ReviewStats (Mongo, $inc). Esta tabla es el espejo histórico de reviews.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS reviews (
+    id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    mongo_id             VARCHAR(24) UNIQUE NOT NULL,
+    doctor_mongo_id      VARCHAR(24) NOT NULL,
+    user_mongo_id        VARCHAR(24) NOT NULL,
+    appointment_mongo_id VARCHAR(24) UNIQUE NOT NULL,
+    score                SMALLINT     NOT NULL CHECK (score BETWEEN 1 AND 5),
+    comment              TEXT         NOT NULL DEFAULT '' CHECK (char_length(comment) <= 500),
+    created_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at           TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_doctor  ON reviews(doctor_mongo_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_user    ON reviews(user_mongo_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_mongo_id ON reviews(mongo_id);
