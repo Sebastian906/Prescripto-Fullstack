@@ -8,7 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { DoctorsService } from './doctors.service';
 import { AuthAdminGuard } from 'src/shared/guards/auth-admin.guard';
 import { LoginDoctorDto } from './dto/login-doctor.dto';
@@ -17,11 +17,15 @@ import { CancelAppointmentDoctorDto } from './dto/cancel-appointment.dto';
 import { CompleteAppointmentDto } from './dto/complete-appointment.dto';
 import { UpdateDoctorProfileDto } from './dto/update-profile-doctor.dto';
 import { CacheTtl } from 'src/shared/cache/cache.interceptor';
+import { ReviewsService } from 'src/reviews/reviews.service';
 
 @ApiTags('Doctors')
 @Controller('api/doctors')
 export class DoctorsController {
-  constructor(private readonly doctorsService: DoctorsService) {}
+  constructor(
+    private readonly doctorsService: DoctorsService,
+    private readonly reviewsService: ReviewsService,
+  ) {}
 
   @Patch('change-availability/:id')
   @ApiOperation({ summary: 'Toggle doctor availability' })
@@ -40,6 +44,16 @@ export class DoctorsController {
   @CacheTtl(60_000, () => 'doctors:list')
   async getDoctorsList() {
     return this.doctorsService.doctorList();
+  }
+
+  @Get(':docId/rating')
+  @ApiOperation({
+    summary: 'Get the public rating aggregate for a doctor',
+  })
+  @ApiParam({ name: 'docId', example: '64f1a2b3c4d5e6f7a8b9c0d1' })
+  @CacheTtl(300_000, (req) => `doctors:rating:${req.params.docId}`)
+  async getDoctorRating(@Param('docId') docId: string) {
+    return this.reviewsService.getDoctorRating(docId);
   }
 
   @Post('login')

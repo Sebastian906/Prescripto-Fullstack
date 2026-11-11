@@ -14,6 +14,7 @@ import { ReportsModule } from 'src/reports/reports.module';
 import { AuditModule } from 'src/audit/audit.module';
 import { AvailabilityModule } from 'src/availability/availability.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { ReviewsModule } from 'src/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     AuditModule,
     AvailabilityModule,
     NotificationsModule,
+    ReviewsModule,
   ],
   controllers: [DoctorsController],
   providers: [DoctorsService],
