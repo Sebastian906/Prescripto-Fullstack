@@ -73,8 +73,7 @@ function buildHarness() {
         },
         lean: () => {
           const rows = doctorReviews.filter(
-            (review) =>
-              !filter.doctorId || review.doctorId === filter.doctorId,
+            (review) => !filter.doctorId || review.doctorId === filter.doctorId,
           );
           return Promise.resolve(
             rows.slice(pageQuery.skip, pageQuery.skip + pageQuery.limit),
