@@ -22,6 +22,13 @@ import { containsPHI } from './utils/phi.util';
 
 export const REVIEW_EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_COMMENT_LENGTH = 500;
+const RATING_CACHE_TTL_MS = 300_000;
+const RATING_CACHE_MAX_ENTRIES = 500;
+
+interface RatingCacheEntry {
+  value: { avgScore: number; reviewCount: number };
+  expiresAt: number;
+}
 
 export interface ReviewView {
   id: string;
@@ -34,6 +41,7 @@ export interface ReviewView {
 
 type LeanReview = Review & { _id: Types.ObjectId | string };
 
+/** Returns true when MongoDB reports a duplicate key (E11000). */
 function isDuplicateKey(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -43,8 +51,11 @@ function isDuplicateKey(err: unknown): boolean {
   );
 }
 
+/** Application service for patient reviews and doctor rating aggregates. */
 @Injectable()
 export class ReviewsService {
+  private readonly ratingCache = new Map<string, RatingCacheEntry>();
+
   constructor(
     @InjectModel(Review.name)
     private readonly reviewModel: Model<ReviewDocument>,
@@ -55,6 +66,7 @@ export class ReviewsService {
     @Optional() private readonly cacheService?: CacheService,
   ) {}
 
+  /** Creates one review for a completed appointment owned by the patient. */
   async create(
     userId: string,
     dto: CreateReviewDto,
@@ -114,13 +126,15 @@ export class ReviewsService {
     return { success: true, review: this.toView(created) };
   }
 
+  /** Updates score/comment within the 7-day window and adjusts the aggregate. */
   async update(
     userId: string,
     reviewId: string,
     dto: UpdateReviewDto,
   ): Promise<{ success: true; review: ReviewView }> {
     if (!userId) throw new ForbiddenException('Authentication required');
-    if (dto.score === undefined && dto.comment === undefined) {
+    // null and undefined both mean "not provided".
+    if (dto.score == null && dto.comment == null) {
       throw new BadRequestException('Nothing to update');
     }
     this.assertValidId(reviewId);
@@ -142,10 +156,8 @@ export class ReviewsService {
         this.assertEditable(review.createdAt);
         doctorId = review.doctorId;
 
-        const score =
-          dto.score === undefined ? review.score : Number(dto.score);
-        const comment =
-          dto.comment === undefined ? review.comment : dto.comment;
+        const score = dto.score ?? review.score;
+        const comment = dto.comment ?? review.comment;
         this.validateScore(score);
         this.validateComment(comment);
 
@@ -175,6 +187,7 @@ export class ReviewsService {
     return { success: true, review: this.toView(updated) };
   }
 
+  /** Deletes a review within the 7-day window and adjusts the aggregate. */
   async remove(userId: string, reviewId: string): Promise<{ success: true }> {
     if (!userId) throw new ForbiddenException('Authentication required');
     this.assertValidId(reviewId);
@@ -210,6 +223,7 @@ export class ReviewsService {
     return { success: true };
   }
 
+  /** Returns the authenticated patient's review for an appointment. */
   async getByAppointment(
     userId: string,
     appointmentId: string,
@@ -228,24 +242,55 @@ export class ReviewsService {
     return { success: true, review: this.toView(review) };
   }
 
+  /** Returns the public aggregate { avgScore, reviewCount } for a doctor. */
   async getDoctorRating(
     doctorId: string,
   ): Promise<{ avgScore: number; reviewCount: number }> {
+    const now = Date.now();
+    const cached = this.ratingCache.get(doctorId);
+    if (cached && cached.expiresAt > now) {
+      return cached.value;
+    }
+
     const stats = await this.statsModel.findOne({ doctorId }).lean();
     const reviewCount = stats?.count ?? 0;
     const sum = stats?.sum ?? 0;
     const avgScore =
       reviewCount > 0 ? Math.round((sum / reviewCount) * 100) / 100 : 0;
+    const result = { avgScore, reviewCount };
 
-    return { avgScore, reviewCount };
+    // Unknown doctors are not cached: arbitrary ids would grow the map forever.
+    if (reviewCount > 0) {
+      this.cacheRating(doctorId, result, now);
+    }
+
+    return result;
   }
 
+  /** Stores a rating in the bounded in-memory cache, evicting the oldest key. */
+  private cacheRating(
+    doctorId: string,
+    value: { avgScore: number; reviewCount: number },
+    now: number,
+  ): void {
+    if (this.ratingCache.size >= RATING_CACHE_MAX_ENTRIES) {
+      const [oldest] = this.ratingCache.keys();
+      if (oldest !== undefined) this.ratingCache.delete(oldest);
+    }
+    this.ratingCache.set(doctorId, {
+      value,
+      expiresAt: now + RATING_CACHE_TTL_MS,
+    });
+  }
+
+  /** Rejects scores outside the 1..5 integer range. */
   private validateScore(score: number): void {
     if (!Number.isInteger(score) || score < 1 || score > 5) {
       throw new BadRequestException('score must be an integer between 1 and 5');
     }
   }
 
+  /** Rejects comments over 500 chars or containing PHI patterns. */
   private validateComment(comment: string): void {
     if (comment.length > MAX_COMMENT_LENGTH) {
       throw new BadRequestException('comment must be at most 500 characters');
@@ -263,6 +308,7 @@ export class ReviewsService {
     }
   }
 
+  /** Rejects edits after the 7-day window. */
   private assertEditable(createdAt?: Date | string): void {
     if (!createdAt) {
       throw new BadRequestException('Review creation date is missing');
@@ -273,12 +319,14 @@ export class ReviewsService {
     }
   }
 
+  /** Rejects malformed review ids as not found. */
   private assertValidId(id: string): void {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException('Review not found');
     }
   }
 
+  /** Maps a Mongo review document to the public response shape. */
   private toView(review: LeanReview | ReviewDocument): ReviewView {
     const rawId = (review as { _id?: Types.ObjectId | string })._id;
     return {
@@ -291,7 +339,9 @@ export class ReviewsService {
     };
   }
 
+  /** Evicts the cached rating for a doctor after a write. */
   private invalidateRating(doctorId: string): void {
+    this.ratingCache.delete(doctorId);
     this.cacheService?.invalidatePrefix(`doctors:rating:${doctorId}`);
   }
 }

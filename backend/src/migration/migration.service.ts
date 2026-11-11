@@ -686,10 +686,15 @@ export class MigrationService {
     return result;
   }
 
+  /** Migrates the reviews collection to PostgreSQL. */
   async migrateReviews(): Promise<MigrationResult> {
     return this.migrateCollection('reviews');
   }
 
+  /**
+   * Upserts reviews row by row. Each insert runs inside its own savepoint so
+   * one bad row does not abort the surrounding transaction.
+   */
   private async migrateReviewsInto(result: MigrationResult): Promise<void> {
     const reviewModel = this.reviewModel;
     if (!reviewModel) {
@@ -701,7 +706,32 @@ export class MigrationService {
     const docs = await reviewModel.find({}).lean();
     await this.pg.withTransaction(async (client) => {
       for (const doc of docs) {
+        const doctorId = doc.doctorId;
+        const userId = doc.userId;
+        const appointmentId = doc.appointmentId;
+        const score = doc.score;
+
+        if (
+          typeof doctorId !== 'string' ||
+          doctorId.length === 0 ||
+          typeof userId !== 'string' ||
+          userId.length === 0 ||
+          typeof appointmentId !== 'string' ||
+          appointmentId.length === 0 ||
+          typeof score !== 'number' ||
+          !Number.isInteger(score) ||
+          score < 1 ||
+          score > 5
+        ) {
+          result.skipped++;
+          (result.errorDetails ??= []).push(
+            `review ${String(doc._id)}: skipped (missing or invalid required fields)`,
+          );
+          continue;
+        }
+
         try {
+          await client.query('SAVEPOINT review_row');
           await client.query(
             `INSERT INTO reviews
                (mongo_id, doctor_mongo_id, user_mongo_id, appointment_mongo_id,
@@ -713,17 +743,20 @@ export class MigrationService {
                updated_at=EXCLUDED.updated_at`,
             [
               String(doc._id),
-              doc.doctorId ?? '',
-              doc.userId ?? '',
-              doc.appointmentId ?? '',
-              doc.score ?? 0,
+              doctorId,
+              userId,
+              appointmentId,
+              score,
               doc.comment ?? '',
               doc.createdAt ?? new Date(),
               doc.updatedAt ?? doc.createdAt ?? new Date(),
             ],
           );
+          await client.query('RELEASE SAVEPOINT review_row');
           result.migrated++;
         } catch (err) {
+          await client.query('ROLLBACK TO SAVEPOINT review_row');
+          await client.query('RELEASE SAVEPOINT review_row');
           result.errors++;
           const message = err instanceof Error ? err.message : String(err);
           (result.errorDetails ??= []).push(

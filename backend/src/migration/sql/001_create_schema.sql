@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS doctors (
     speciality_id   UUID        REFERENCES specialities(id),
     degree          VARCHAR(255) NOT NULL,
     experience      VARCHAR(50)  NOT NULL,
-    about           TEXT        NOT NULL,
+    about           TEXT         NOT NULL,
     available       BOOLEAN      NOT NULL DEFAULT TRUE,
     fees            NUMERIC(10,2) NOT NULL DEFAULT 0,
     address_line1   VARCHAR(500)  NOT NULL DEFAULT '',
@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     user_mongo_id        VARCHAR(24) NOT NULL,
     appointment_mongo_id VARCHAR(24) UNIQUE NOT NULL,
     score                SMALLINT     NOT NULL CHECK (score BETWEEN 1 AND 5),
-    comment              TEXT         NOT NULL DEFAULT '',
+    comment              TEXT         NOT NULL DEFAULT '' CHECK (char_length(comment) <= 500),
     created_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at           TIMESTAMPTZ  NOT NULL DEFAULT now()
 );

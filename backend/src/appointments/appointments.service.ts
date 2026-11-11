@@ -238,20 +238,26 @@ export class AppointmentsService {
     return { success: true, appointments };
   }
 
-  // Hook de completitud para Reviews: el paciente solo puede calificar una
-  // cita propia y completada. Mantiene 404/403/400 en un único lugar.
+  /**
+   * Returns the appointment data needed to write a review.
+   * Requires ownership and a non-cancelled, completed appointment.
+   * Keeps 404/403/400 in a single place.
+   */
   async getReviewableAppointment(
     userId: string,
     appointmentId: string,
   ): Promise<{ appointmentId: string; doctorId: string }> {
     const appointment = await this.appointmentModel
       .findById(appointmentId)
-      .select('_id userId docId isCompleted')
+      .select('_id userId docId isCompleted cancelled')
       .lean();
 
     if (!appointment) throw new NotFoundException('Appointment not found');
     if (appointment.userId !== userId) {
       throw new ForbiddenException('Not your appointment');
+    }
+    if (appointment.cancelled) {
+      throw new BadRequestException('Appointment is cancelled');
     }
     if (!appointment.isCompleted) {
       throw new BadRequestException('Appointment is not completed');

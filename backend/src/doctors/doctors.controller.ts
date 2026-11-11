@@ -46,12 +46,12 @@ export class DoctorsController {
     return this.doctorsService.doctorList();
   }
 
+  /** Returns the public rating aggregate for a doctor. */
   @Get(':docId/rating')
   @ApiOperation({
     summary: 'Get the public rating aggregate for a doctor',
   })
   @ApiParam({ name: 'docId', example: '64f1a2b3c4d5e6f7a8b9c0d1' })
-  @CacheTtl(300_000, (req) => `doctors:rating:${req.params.docId}`)
   async getDoctorRating(@Param('docId') docId: string) {
     return this.reviewsService.getDoctorRating(docId);
   }
