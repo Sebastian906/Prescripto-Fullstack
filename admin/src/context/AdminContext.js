@@ -19,6 +19,7 @@ export function provideAdminContext() {
         return message || error?.message || fallback
     }
     const doctors = ref([])
+    const reviewCounts = ref({})
     const appointments = ref([])
     const dashData = ref([])
     const annualReport = ref(null)
@@ -54,6 +55,37 @@ export function provideAdminContext() {
         } catch (error) {
             toast.error(error.message)
         }
+    }
+
+    const REVIEW_COUNT_CONCURRENCY = 5
+
+    /** Fetch review counts for a doctor list, max 5 requests in flight. */
+    const getReviewCounts = async (doctorList = doctors.value) => {
+        const ids = (doctorList || []).map((doctor) => doctor._id).filter(Boolean)
+        const counts = {}
+        let next = 0
+
+        const worker = async () => {
+            while (next < ids.length) {
+                const docId = ids[next++]
+                try {
+                    const { data } = await axios.get(
+                        `${backendUrl}/api/doctors/${docId}/rating`,
+                    )
+                    counts[docId] = Number(data?.reviewCount) || 0
+                } catch {
+                    counts[docId] = 0
+                }
+            }
+        }
+
+        await Promise.all(
+            Array.from(
+                { length: Math.min(REVIEW_COUNT_CONCURRENCY, ids.length) },
+                () => worker(),
+            ),
+        )
+        reviewCounts.value = counts
     }
 
     const changeAvailability = async (docId) => {
@@ -234,7 +266,9 @@ export function provideAdminContext() {
         backendUrl,
         setAToken,
         doctors,
+        reviewCounts,
         getAllDoctors,
+        getReviewCounts,
         changeAvailability,
         appointments,
         getAllAppointments,

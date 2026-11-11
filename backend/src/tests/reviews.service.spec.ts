@@ -9,6 +9,7 @@ import { ReviewsService } from 'src/reviews/reviews.service';
 const USER_ID = '64f1a2b3c4d5e6f7a8b9c0a1';
 const OTHER_USER_ID = '64f1a2b3c4d5e6f7a8b9c0a2';
 const DOCTOR_ID = '64f1a2b3c4d5e6f7a8b9c0b1';
+const OTHER_DOCTOR_ID = '64f1a2b3c4d5e6f7a8b9c0b2';
 const APPOINTMENT_ID = '64f1a2b3c4d5e6f7a8b9c0c1';
 const REVIEW_ID = '64f1a2b3c4d5e6f7a8b9c0d1';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -38,6 +39,7 @@ function buildHarness() {
   let updateResult: Record<string, unknown> | null = null;
   let createError: Error | null = null;
   let currentStats: { count: number; sum: number } | null = null;
+  let doctorReviews: Record<string, unknown>[] = [];
 
   const reviewModel = {
     create: jest.fn(() => {
@@ -50,6 +52,17 @@ function buildHarness() {
     })),
     findOneAndUpdate: jest.fn(() => Promise.resolve(updateResult)),
     deleteOne: jest.fn(() => Promise.resolve({ deletedCount: 1 })),
+    find: jest.fn((filter: { doctorId?: string }) => ({
+      sort: () => ({
+        lean: () =>
+          Promise.resolve(
+            doctorReviews.filter(
+              (review) =>
+                !filter.doctorId || review.doctorId === filter.doctorId,
+            ),
+          ),
+      }),
+    })),
   };
 
   const statsModel = {
@@ -99,6 +112,9 @@ function buildHarness() {
     },
     setCurrentStats: (stats: { count: number; sum: number } | null) => {
       currentStats = stats;
+    },
+    setDoctorReviews: (rows: Record<string, unknown>[]) => {
+      doctorReviews = rows;
     },
   };
 }
@@ -307,5 +323,31 @@ describe('ReviewsService', () => {
     await expect(
       harness.service.getByAppointment(OTHER_USER_ID, APPOINTMENT_ID),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("returns only the authenticated doctor's reviews and omits userId", async () => {
+    harness.setDoctorReviews([
+      makeReview({ _id: '64f1a2b3c4d5e6f7a8b9c0e1' }),
+      makeReview({
+        _id: '64f1a2b3c4d5e6f7a8b9c0e2',
+        doctorId: OTHER_DOCTOR_ID,
+        appointmentId: '64f1a2b3c4d5e6f7a8b9c0c2',
+      }),
+    ]);
+
+    const result = await harness.service.getDoctorReviews(DOCTOR_ID);
+
+    expect(harness.reviewModel.find).toHaveBeenCalledWith({
+      doctorId: DOCTOR_ID,
+    });
+    expect(result.reviews).toHaveLength(1);
+    expect(result.reviews[0].doctorId).toBe(DOCTOR_ID);
+    expect(JSON.stringify(result)).not.toContain(USER_ID);
+  });
+
+  it('rejects the doctor review list without an authenticated doctor (403)', async () => {
+    await expect(harness.service.getDoctorReviews('')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 });

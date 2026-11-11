@@ -88,11 +88,21 @@ const Appointment = () => {
     const dateRange = useMemo(() => generateDateRange(7), [dayKey])
     const { suggestions, isIdeal, loading: loadingSuggestions, fetchSuggestions } = useSlotSuggestions(backendUrl, token)
     const [priorityLevel, setPriorityLevel] = useState('normal')
+    const [rating, setRating] = useState(null)
 
     useEffect(() => {
         const found = doctors.find((d) => d._id === docId)
         setDocInfo(found ?? null)
     }, [doctors, docId])
+
+    useEffect(() => {
+        if (!docId) return
+        let active = true
+        axios.get(`${backendUrl}/api/doctors/${docId}/rating`)
+            .then(({ data }) => { if (active) setRating(data) })
+            .catch(() => { if (active) setRating(null) })
+        return () => { active = false }
+    }, [docId, backendUrl])
 
     useEffect(() => {
         const id = setInterval(() => {
@@ -236,6 +246,18 @@ const Appointment = () => {
                             {translateExperience(docInfo.experience, t)}
                         </button>
                     </div>
+                    {rating && (
+                        <p className="mt-2 text-sm text-amber-600">
+                            {rating.reviewCount > 0 ? (
+                                <span>
+                                    <span aria-hidden="true">★</span>{' '}
+                                    {rating.avgScore} · {t('reviews.aggregateCount', { total: rating.reviewCount })}
+                                </span>
+                            ) : (
+                                <span className="text-slate-500">{t('reviews.noReviews')}</span>
+                            )}
+                        </p>
+                    )}
                     {/* SOBRE EL DOCTOR */}
                     <div>
                         <p className="flex items-center gap-1 text-sm font-medium text-slate-900 mt-3">

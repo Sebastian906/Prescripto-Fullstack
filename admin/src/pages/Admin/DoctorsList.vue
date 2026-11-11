@@ -5,7 +5,7 @@ import { useAdminContext } from '../../context/AdminContext'
 import { useSort } from '../../composables/useSort.vue'
 import { translateSpeciality } from '../../utils/specialityUtils'
 
-const { doctors, aToken, getAllDoctors, changeAvailability } = useAdminContext()
+const { doctors, aToken, getAllDoctors, changeAvailability, reviewCounts, getReviewCounts } = useAdminContext()
 const { t } = useI18n()
 const selectedSpeciality = ref('')
 
@@ -23,9 +23,10 @@ const specialities = computed(() => {
 
 const { sortedDoctors, sortOption, SORT_OPTIONS } = useSort(filteredDoctors)
 
-onMounted(() => {
+onMounted(async () => {
     if (aToken.value) {
-        getAllDoctors()
+        await getAllDoctors()
+        await getReviewCounts(doctors.value)
     }
 })
 </script>
@@ -76,6 +77,9 @@ onMounted(() => {
                         <input type="checkbox" :checked="item.available" @change="changeAvailability(item._id)" />
                         <p>{{ t('doctorsList.available') }}</p>
                     </div>
+                    <p class="mt-1 text-xs text-slate-500">
+                        {{ t('doctorReviews.reviewCount', { total: reviewCounts[item._id] ?? 0 }) }}
+                    </p>
                 </div>
             </div>
         </div>

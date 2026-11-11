@@ -26,6 +26,7 @@ const doctorNavItems = [
     { to: '/doctor-records', icon: assets.list_icon, labelKey: 'sidebar.medicalRecords' },
     { to: '/doctor-profile', icon: assets.people_icon, labelKey: 'sidebar.profile' },
     { to: '/doctor-reports', icon: assets.list_icon, labelKey: 'sidebar.reports' },
+    { to: '/doctor-reviews', icon: assets.list_icon, labelKey: 'doctorReviews.title' },
 ]
 </script>
 

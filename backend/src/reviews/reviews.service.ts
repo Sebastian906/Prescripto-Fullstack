@@ -242,6 +242,23 @@ export class ReviewsService {
     return { success: true, review: this.toView(review) };
   }
 
+  /** Returns every review written for the authenticated doctor. */
+  async getDoctorReviews(
+    docId: string,
+  ): Promise<{ success: true; reviews: ReviewView[] }> {
+    if (!docId) throw new ForbiddenException('Authentication required');
+
+    const reviews = (await this.reviewModel
+      .find({ doctorId: docId })
+      .sort({ createdAt: -1 })
+      .lean()) as LeanReview[];
+
+    return {
+      success: true,
+      reviews: reviews.map((review) => this.toView(review)),
+    };
+  }
+
   /** Returns the public aggregate { avgScore, reviewCount } for a doctor. */
   async getDoctorRating(
     doctorId: string,

@@ -9,6 +9,9 @@ export function provideDoctorContext() {
     const dToken = ref(localStorage.getItem('dToken') || '')
     const backendUrl = import.meta.env.VITE_BACKEND_URL
     const appointments = ref([])
+    const reviews = ref([])
+    const reviewsLoading = ref(false)
+    const reviewsError = ref('')
     const dashData = ref([])
     const profileData = ref([])
     const schedulingSuggestions = ref(null)
@@ -26,6 +29,7 @@ export function provideDoctorContext() {
             localStorage.removeItem('dToken')
             records.value = []
             prescriptions.value = []
+            reviews.value = []
         }
     }
 
@@ -39,6 +43,32 @@ export function provideDoctorContext() {
             }
         } catch (error) {
             toast.error(error.message)
+        }
+    }
+
+    /** Load the authenticated doctor's reviews (read-only). */
+    const getReviews = async () => {
+        if (!dToken.value) {
+            reviews.value = []
+            return
+        }
+        reviewsLoading.value = true
+        reviewsError.value = ''
+        try {
+            const { data } = await axios.get(backendUrl + '/api/reviews/doctor/mine', {
+                headers: { dtoken: dToken.value },
+            })
+            if (data?.success) {
+                reviews.value = Array.isArray(data.reviews) ? data.reviews : []
+            } else {
+                reviewsError.value = data?.message || 'Could not load reviews'
+                toast.error(reviewsError.value)
+            }
+        } catch (error) {
+            reviewsError.value = error?.response?.data?.message ?? error.message
+            toast.error(reviewsError.value)
+        } finally {
+            reviewsLoading.value = false
         }
     }
 
@@ -268,6 +298,10 @@ export function provideDoctorContext() {
         backendUrl,
         appointments,
         getAppointments,
+        reviews,
+        reviewsLoading,
+        reviewsError,
+        getReviews,
         records,
         recordsLoading,
         getRecords,
