@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -58,6 +59,7 @@ export class ReviewsController {
     return this.reviews.getByAppointment(req.userId as string, appointmentId);
   }
 
+  /** Returns one page of the authenticated doctor's reviews. */
   @Get('doctor/mine')
   @ApiOperation({ summary: 'Get reviews for the authenticated doctor' })
   @ApiHeader({
@@ -66,8 +68,16 @@ export class ReviewsController {
     required: true,
   })
   @UseGuards(AuthDoctorGuard)
-  getDoctorReviews(@Req() req: AuthDoctorRequest) {
-    return this.reviews.getDoctorReviews(req.docId as string);
+  getDoctorReviews(
+    @Req() req: AuthDoctorRequest,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.reviews.getDoctorReviews(
+      req.docId as string,
+      Number(page),
+      Number(pageSize),
+    );
   }
 
   @Patch(':id')

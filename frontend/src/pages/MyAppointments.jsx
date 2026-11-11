@@ -286,7 +286,10 @@ const MyAppointments = () => {
                     appointmentId={reviewTarget._id}
                     onClose={() => setReviewTarget(null)}
                     onSaved={() => {
-                        setReviewTarget(null)
+                        const savedId = reviewTarget._id
+                        setReviewTarget((current) =>
+                            current?._id === savedId ? null : current,
+                        )
                         getUserAppointments()
                     }}
                 />

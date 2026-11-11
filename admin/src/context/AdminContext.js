@@ -59,10 +59,15 @@ export function provideAdminContext() {
 
     const REVIEW_COUNT_CONCURRENCY = 5
 
-    /** Fetch review counts for a doctor list, max 5 requests in flight. */
+    /**
+     * Fetch review counts for a doctor list, max 5 requests in flight.
+     * undefined = pending, null = failed, number = successful count.
+     */
     const getReviewCounts = async (doctorList = doctors.value) => {
         const ids = (doctorList || []).map((doctor) => doctor._id).filter(Boolean)
-        const counts = {}
+        ids.forEach((docId) => {
+            reviewCounts.value[docId] = undefined
+        })
         let next = 0
 
         const worker = async () => {
@@ -72,9 +77,9 @@ export function provideAdminContext() {
                     const { data } = await axios.get(
                         `${backendUrl}/api/doctors/${docId}/rating`,
                     )
-                    counts[docId] = Number(data?.reviewCount) || 0
+                    reviewCounts.value[docId] = Number(data?.reviewCount) || 0
                 } catch {
-                    counts[docId] = 0
+                    reviewCounts.value[docId] = null
                 }
             }
         }
@@ -85,7 +90,6 @@ export function provideAdminContext() {
                 () => worker(),
             ),
         )
-        reviewCounts.value = counts
     }
 
     const changeAvailability = async (docId) => {

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { useNavigate } from 'react-router-dom'
@@ -10,7 +10,7 @@ const MAX_COMMENT = 500
 const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 const ReviewModal = ({ appointmentId, onClose, onSaved }) => {
-    const { backendUrl, token } = useContext(AppContext)
+    const { backendUrl, token, setToken } = useContext(AppContext)
     const { t } = useTranslation()
     const navigate = useNavigate()
     const [loading, setLoading] = useState(true)
@@ -20,6 +20,26 @@ const ReviewModal = ({ appointmentId, onClose, onSaved }) => {
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
     const [canEdit, setCanEdit] = useState(true)
+    const [lookupFailed, setLookupFailed] = useState(false)
+    const [retryKey, setRetryKey] = useState(0)
+    const dialogRef = useRef(null)
+    const closeButtonRef = useRef(null)
+    const onCloseRef = useRef(onClose)
+
+    /** Clear the session and redirect when the backend rejects the token. */
+    const handleAuthError = (err) => {
+        const status = err?.response?.status
+        if (status !== 401 && status !== 403) return false
+        setToken(false)
+        localStorage.removeItem('token')
+        toast.warn(t('reviews.sessionExpired'))
+        navigate('/login')
+        return true
+    }
+
+    useEffect(() => {
+        onCloseRef.current = onClose
+    }, [onClose])
 
     useEffect(() => {
         let active = true
@@ -39,32 +59,75 @@ const ReviewModal = ({ appointmentId, onClose, onSaved }) => {
                 }
             } catch (err) {
                 if (!active) return
-                if (err?.response?.status !== 404) {
-                    setError(err?.response?.data?.message || t('reviews.loadError'))
+                if (err?.response?.status === 404) {
+                    setExisting(null)
+                    setScore(0)
+                    setComment('')
+                    setCanEdit(true)
+                    return
                 }
+                if (handleAuthError(err)) return
+                setError(err?.response?.data?.message || t('reviews.loadError'))
+                setLookupFailed(true)
             } finally {
                 if (active) setLoading(false)
             }
         }
         load()
         return () => { active = false }
-    }, [appointmentId, backendUrl, token, t])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [appointmentId, backendUrl, token, t, retryKey])
+
+    // Keep keyboard focus inside the dialog and restore it when it closes.
+    useEffect(() => {
+        const previouslyFocused = document.activeElement
+        const overflow = document.body.style.overflow
+        closeButtonRef.current?.focus()
+        document.body.style.overflow = 'hidden'
+
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                onCloseRef.current()
+                return
+            }
+            if (event.key !== 'Tab' || !dialogRef.current) return
+            const focusable = dialogRef.current.querySelectorAll(
+                'button:not([disabled]), textarea, input, a[href]',
+            )
+            if (focusable.length === 0) return
+            const first = focusable[0]
+            const last = focusable[focusable.length - 1]
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault()
+                last.focus()
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault()
+                first.focus()
+            }
+        }
+
+        document.addEventListener('keydown', onKeyDown)
+        return () => {
+            document.removeEventListener('keydown', onKeyDown)
+            document.body.style.overflow = overflow
+            previouslyFocused?.focus?.()
+        }
+    }, [])
+
+    /** Retry the review lookup after a transient failure. */
+    const retry = () => {
+        setLoading(true)
+        setError('')
+        setLookupFailed(false)
+        setRetryKey((key) => key + 1)
+    }
 
     const valid = Number.isInteger(score)
         && score >= 1
         && score <= 5
         && comment.length <= MAX_COMMENT
 
-    /** Clear the session and redirect when the backend rejects the token. */
-    const handleAuthError = (err) => {
-        const status = err?.response?.status
-        if (status !== 401 && status !== 403) return false
-        localStorage.removeItem('token')
-        toast.warn(t('reviews.sessionExpired'))
-        navigate('/login')
-        return true
-    }
-
+    /** Create the review, or update it inside the backend 7-day window. */
     const submit = async (event) => {
         event.preventDefault()
         if (!valid || !canEdit || saving) return
@@ -103,6 +166,7 @@ const ReviewModal = ({ appointmentId, onClose, onSaved }) => {
         }
     }
 
+    /** Delete the existing review after confirmation. */
     const remove = async () => {
         if (!existing || saving) return
         if (!window.confirm(t('reviews.deleteConfirm'))) return
@@ -126,6 +190,7 @@ const ReviewModal = ({ appointmentId, onClose, onSaved }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
             <div
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="review-modal-title"
@@ -136,6 +201,7 @@ const ReviewModal = ({ appointmentId, onClose, onSaved }) => {
                         {existing ? t('reviews.editTitle') : t('reviews.title')}
                     </h2>
                     <button
+                        ref={closeButtonRef}
                         type="button"
                         onClick={onClose}
                         className="min-h-10 rounded px-2 text-sm text-slate-500 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
@@ -148,6 +214,19 @@ const ReviewModal = ({ appointmentId, onClose, onSaved }) => {
                     <p className="py-8 text-center text-sm text-slate-400">
                         {t('reviews.loading')}
                     </p>
+                ) : lookupFailed ? (
+                    <div className="mt-4 space-y-3">
+                        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                            {error || t('reviews.loadError')}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={retry}
+                            className="min-h-11 rounded-full bg-indigo-600 px-6 text-sm text-white transition-colors hover:bg-indigo-700"
+                        >
+                            {t('reviews.retry')}
+                        </button>
+                    </div>
                 ) : (
                     <form className="mt-4 space-y-4" onSubmit={submit}>
                         <div>

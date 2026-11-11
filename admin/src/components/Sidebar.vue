@@ -33,30 +33,34 @@ const doctorNavItems = [
 <template>
     <div class="min-h-screen bg-indigo-100 border-r border-neutral-400">
         <ul v-if="aToken" class="text-neutral-500 mt-5">
-            <RouterLink v-for="item in adminNavItems" :key="item.to" :to="item.to" v-slot="{ isActive }" custom>
-                <li @click="$router.push(item.to)" :class="[
-                    'flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-72 cursor-pointer transition-colors',
-                    isActive
-                        ? 'bg-indigo-200 border-r-4 border-indigo-500 text-indigo-600'
-                        : 'hover:bg-indigo-200 text-neutral-500'
-                ]">
-                    <img :src="item.icon" alt="" />
-                    <p class="hidden sm:block">{{ t(item.labelKey) }}</p>
-                </li>
-            </RouterLink>
+            <li v-for="item in adminNavItems" :key="item.to">
+                <RouterLink :to="item.to" v-slot="{ isActive, href, navigate }" custom>
+                    <a :href="href" @click="navigate" :class="[
+                        'flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-72 cursor-pointer transition-colors',
+                        isActive
+                            ? 'bg-indigo-200 border-r-4 border-indigo-500 text-indigo-600'
+                            : 'hover:bg-indigo-200 text-neutral-500'
+                    ]">
+                        <img :src="item.icon" alt="" />
+                        <p class="hidden sm:block">{{ t(item.labelKey) }}</p>
+                    </a>
+                </RouterLink>
+            </li>
         </ul>
         <ul v-if="dToken" class="text-neutral-500 mt-5">
-            <RouterLink v-for="item in doctorNavItems" :key="item.to" :to="item.to" v-slot="{ isActive }" custom>
-                <li @click="$router.push(item.to)" :class="[
-                    'flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-72 cursor-pointer transition-colors',
-                    isActive
-                        ? 'bg-indigo-200 border-r-4 border-indigo-500 text-indigo-600'
-                        : 'hover:bg-indigo-200 text-neutral-500'
-                ]">
-                    <img :src="item.icon" alt="" />
-                    <p class="hidden sm:block">{{ t(item.labelKey) }}</p>
-                </li>
-            </RouterLink>
+            <li v-for="item in doctorNavItems" :key="item.to">
+                <RouterLink :to="item.to" v-slot="{ isActive, href, navigate }" custom>
+                    <a :href="href" @click="navigate" :class="[
+                        'flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-72 cursor-pointer transition-colors',
+                        isActive
+                            ? 'bg-indigo-200 border-r-4 border-indigo-500 text-indigo-600'
+                            : 'hover:bg-indigo-200 text-neutral-500'
+                    ]">
+                        <img :src="item.icon" alt="" />
+                        <p class="hidden sm:block">{{ t(item.labelKey) }}</p>
+                    </a>
+                </RouterLink>
+            </li>
         </ul>
     </div>
 </template>

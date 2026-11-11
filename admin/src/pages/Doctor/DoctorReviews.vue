@@ -3,32 +3,31 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDoctorContext } from '../../context/DoctorContext'
 
-const { dToken, reviews, reviewsLoading, reviewsError, getReviews } = useDoctorContext()
+const { dToken, reviews, reviewsTotal, reviewsLoading, reviewsError, getReviews } = useDoctorContext()
 const { t, locale } = useI18n()
 
 const PAGE_SIZE = 10
 const currentPage = ref(1)
 
 const totalPages = computed(() =>
-    Math.max(1, Math.ceil(reviews.value.length / PAGE_SIZE)),
+    Math.max(1, Math.ceil(reviewsTotal.value / PAGE_SIZE)),
 )
-
-const paginatedReviews = computed(() => {
-    const start = (currentPage.value - 1) * PAGE_SIZE
-    return reviews.value.slice(start, start + PAGE_SIZE)
-})
 
 const showingFrom = computed(() =>
-    reviews.value.length === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1,
+    reviewsTotal.value === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1,
 )
 const showingTo = computed(() =>
-    Math.min(currentPage.value * PAGE_SIZE, reviews.value.length),
+    Math.min(currentPage.value * PAGE_SIZE, reviewsTotal.value),
 )
 
+/** Load the requested server-side page. */
 const goToPage = (page) => {
-    if (page >= 1 && page <= totalPages.value) currentPage.value = page
+    if (page < 1 || page > totalPages.value) return
+    currentPage.value = page
+    getReviews(page, PAGE_SIZE)
 }
 
+/** Format an ISO timestamp for the current locale. */
 const formatDate = (value) => {
     if (!value) return '-'
     return new Date(value).toLocaleDateString(locale.value)
@@ -36,7 +35,7 @@ const formatDate = (value) => {
 
 onMounted(() => {
     if (dToken.value) {
-        getReviews()
+        getReviews(1, PAGE_SIZE)
     }
 })
 </script>
@@ -64,7 +63,7 @@ onMounted(() => {
                 <p>{{ t('doctorReviews.appointment') }}</p>
             </div>
 
-            <div v-for="item in paginatedReviews" :key="item.id"
+            <div v-for="item in reviews" :key="item.id"
                 class="flex flex-col gap-1 sm:grid grid-cols-[1fr_3fr_1fr_1fr] sm:gap-2 sm:items-center text-gray-500 py-3 px-6 border-b hover:bg-gray-200">
                 <p role="img" class="text-amber-500"
                     :aria-label="t('doctorReviews.ratingLabel', { rating: item.score })">
@@ -77,7 +76,7 @@ onMounted(() => {
 
             <div class="flex flex-wrap items-center justify-between gap-2 px-6 py-3 text-xs text-gray-500">
                 <p>
-                    {{ t('doctorReviews.showing', { from: showingFrom, to: showingTo, total: reviews.length }) }}
+                    {{ t('doctorReviews.showing', { from: showingFrom, to: showingTo, total: reviewsTotal }) }}
                 </p>
                 <div class="flex gap-2">
                     <button type="button" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)"

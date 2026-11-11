@@ -27,6 +27,13 @@ function makeReview(overrides: Record<string, unknown> = {}) {
   };
 }
 
+interface PageQueryChain {
+  sort: () => PageQueryChain;
+  skip: (value: number) => PageQueryChain;
+  limit: (value: number) => PageQueryChain;
+  lean: () => Promise<Record<string, unknown>[]>;
+}
+
 function buildHarness() {
   const session = {
     withTransaction: jest.fn((cb: () => Promise<void>) => cb()),
@@ -40,6 +47,7 @@ function buildHarness() {
   let createError: Error | null = null;
   let currentStats: { count: number; sum: number } | null = null;
   let doctorReviews: Record<string, unknown>[] = [];
+  const pageQuery = { skip: 0, limit: 0 };
 
   const reviewModel = {
     create: jest.fn(() => {
@@ -52,17 +60,30 @@ function buildHarness() {
     })),
     findOneAndUpdate: jest.fn(() => Promise.resolve(updateResult)),
     deleteOne: jest.fn(() => Promise.resolve({ deletedCount: 1 })),
-    find: jest.fn((filter: { doctorId?: string }) => ({
-      sort: () => ({
-        lean: () =>
-          Promise.resolve(
-            doctorReviews.filter(
-              (review) =>
-                !filter.doctorId || review.doctorId === filter.doctorId,
-            ),
-          ),
-      }),
-    })),
+    find: jest.fn((filter: { doctorId?: string }) => {
+      const query: PageQueryChain = {
+        sort: () => query,
+        skip: (value: number) => {
+          pageQuery.skip = value;
+          return query;
+        },
+        limit: (value: number) => {
+          pageQuery.limit = value;
+          return query;
+        },
+        lean: () => {
+          const rows = doctorReviews.filter(
+            (review) =>
+              !filter.doctorId || review.doctorId === filter.doctorId,
+          );
+          return Promise.resolve(
+            rows.slice(pageQuery.skip, pageQuery.skip + pageQuery.limit),
+          );
+        },
+      };
+      return query;
+    }),
+    countDocuments: jest.fn(() => Promise.resolve(doctorReviews.length)),
   };
 
   const statsModel = {
@@ -98,6 +119,7 @@ function buildHarness() {
     statsModel,
     appointmentsService,
     cacheService,
+    pageQuery,
     setCurrentReview: (review: Record<string, unknown> | null) => {
       currentReview = review;
     },
@@ -349,5 +371,41 @@ describe('ReviewsService', () => {
     await expect(harness.service.getDoctorReviews('')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  it('paginates doctor reviews in the database', async () => {
+    harness.setDoctorReviews(
+      Array.from({ length: 12 }, (_, index) =>
+        makeReview({
+          _id: `64f1a2b3c4d5e6f7a8b9c0f${index}`,
+          appointmentId: `64f1a2b3c4d5e6f7a8b9c1${index}`,
+        }),
+      ),
+    );
+
+    const result = await harness.service.getDoctorReviews(DOCTOR_ID, 2, 5);
+
+    expect(harness.pageQuery).toEqual({ skip: 5, limit: 5 });
+    expect(result).toMatchObject({ total: 12, page: 2, pageSize: 5 });
+    expect(result.reviews).toHaveLength(5);
+  });
+
+  it('caps the page size at the documented maximum', async () => {
+    harness.setDoctorReviews([makeReview()]);
+
+    const result = await harness.service.getDoctorReviews(DOCTOR_ID, 1, 500);
+
+    expect(result.pageSize).toBe(50);
+    expect(harness.pageQuery).toEqual({ skip: 0, limit: 50 });
+  });
+
+  it('falls back to the first page for invalid pagination values', async () => {
+    harness.setDoctorReviews([makeReview()]);
+
+    const result = await harness.service.getDoctorReviews(DOCTOR_ID, 0, 0);
+
+    expect(result.page).toBe(1);
+    expect(result.pageSize).toBe(1);
+    expect(harness.pageQuery).toEqual({ skip: 0, limit: 1 });
   });
 });

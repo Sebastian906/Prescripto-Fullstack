@@ -22,6 +22,8 @@ import { containsPHI } from './utils/phi.util';
 
 export const REVIEW_EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_COMMENT_LENGTH = 500;
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 50;
 const RATING_CACHE_TTL_MS = 300_000;
 const RATING_CACHE_MAX_ENTRIES = 500;
 
@@ -242,20 +244,41 @@ export class ReviewsService {
     return { success: true, review: this.toView(review) };
   }
 
-  /** Returns every review written for the authenticated doctor. */
+  /** Returns one bounded page of reviews written for the authenticated doctor. */
   async getDoctorReviews(
     docId: string,
-  ): Promise<{ success: true; reviews: ReviewView[] }> {
+    page = 1,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ): Promise<{
+    success: true;
+    reviews: ReviewView[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
     if (!docId) throw new ForbiddenException('Authentication required');
 
-    const reviews = (await this.reviewModel
-      .find({ doctorId: docId })
-      .sort({ createdAt: -1 })
-      .lean()) as LeanReview[];
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+    const safePageSize = Number.isInteger(pageSize)
+      ? Math.min(MAX_PAGE_SIZE, Math.max(1, pageSize))
+      : DEFAULT_PAGE_SIZE;
+
+    const [reviews, total] = await Promise.all([
+      this.reviewModel
+        .find({ doctorId: docId })
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * safePageSize)
+        .limit(safePageSize)
+        .lean(),
+      this.reviewModel.countDocuments({ doctorId: docId }),
+    ]);
 
     return {
       success: true,
-      reviews: reviews.map((review) => this.toView(review)),
+      reviews: (reviews as LeanReview[]).map((review) => this.toView(review)),
+      total,
+      page: safePage,
+      pageSize: safePageSize,
     };
   }
 

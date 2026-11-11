@@ -95,11 +95,12 @@ const Appointment = () => {
         setDocInfo(found ?? null)
     }, [doctors, docId])
 
+    // Tag the aggregate with its doctor so a different doctor never shows it.
     useEffect(() => {
         if (!docId) return
         let active = true
         axios.get(`${backendUrl}/api/doctors/${docId}/rating`)
-            .then(({ data }) => { if (active) setRating(data) })
+            .then(({ data }) => { if (active) setRating({ ...data, docId }) })
             .catch(() => { if (active) setRating(null) })
         return () => { active = false }
     }, [docId, backendUrl])
@@ -246,7 +247,7 @@ const Appointment = () => {
                             {translateExperience(docInfo.experience, t)}
                         </button>
                     </div>
-                    {rating && (
+                    {rating?.docId === docId && (
                         <p className="mt-2 text-sm text-amber-600">
                             {rating.reviewCount > 0 ? (
                                 <span>

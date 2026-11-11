@@ -78,7 +78,11 @@ onMounted(async () => {
                         <p>{{ t('doctorsList.available') }}</p>
                     </div>
                     <p class="mt-1 text-xs text-slate-500">
-                        {{ t('doctorReviews.reviewCount', { total: reviewCounts[item._id] ?? 0 }) }}
+                        <span v-if="reviewCounts[item._id] === undefined"
+                            :title="t('doctorReviews.loading')">…</span>
+                        <span v-else-if="reviewCounts[item._id] === null"
+                            class="text-red-600">{{ t('doctorReviews.error') }}</span>
+                        <span v-else>{{ t('doctorReviews.reviewCount', { total: reviewCounts[item._id] }) }}</span>
                     </p>
                 </div>
             </div>
