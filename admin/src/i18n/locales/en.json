@@ -536,5 +536,21 @@
         "anxiety-disorder": "Anxiety disorder",
         "follow-up": "Follow-up",
         "unclassified-legacy": "Unclassified (legacy)"
+    },
+    "doctorReviews": {
+        "title": "Reviews",
+        "score": "Score",
+        "comment": "Comment",
+        "date": "Date",
+        "appointment": "Appointment",
+        "noComment": "No comment",
+        "loading": "Loading reviews...",
+        "empty": "No reviews yet",
+        "error": "Could not load reviews",
+        "previous": "Previous",
+        "next": "Next",
+        "showing": "Showing {from}-{to} of {total}",
+        "reviewCount": "{total} reviews",
+        "ratingLabel": "{rating} out of 5 stars"
     }
 }

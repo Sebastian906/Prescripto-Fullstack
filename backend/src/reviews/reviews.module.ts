@@ -6,6 +6,7 @@ import { ReviewsController } from './reviews.controller';
 import { ReviewsService } from './reviews.service';
 import { ReviewStats, ReviewStatsSchema } from './schemas/review-stats.schema';
 import { Review, ReviewSchema } from './schemas/review.schema';
+import { AuthDoctorModule } from 'src/shared/guards/auth-doctor.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { Review, ReviewSchema } from './schemas/review.schema';
       { name: Review.name, schema: ReviewSchema },
       { name: ReviewStats.name, schema: ReviewStatsSchema },
     ]),
+    AuthDoctorModule,
     AuthUserModule,
     AppointmentsModule,
   ],

@@ -6,11 +6,13 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { AuthDoctorGuard } from 'src/shared/guards/auth-doctor.guard';
 import { AuthUserGuard } from 'src/shared/guards/auth-user.guard';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
@@ -18,6 +20,10 @@ import { ReviewsService } from './reviews.service';
 
 interface AuthUserRequest extends Request {
   userId?: string;
+}
+
+interface AuthDoctorRequest extends Request {
+  docId?: string;
 }
 
 @ApiTags('Reviews')
@@ -51,6 +57,27 @@ export class ReviewsController {
     @Param('appointmentId') appointmentId: string,
   ) {
     return this.reviews.getByAppointment(req.userId as string, appointmentId);
+  }
+
+  /** Returns one page of the authenticated doctor's reviews. */
+  @Get('doctor/mine')
+  @ApiOperation({ summary: 'Get reviews for the authenticated doctor' })
+  @ApiHeader({
+    name: 'dtoken',
+    description: 'Doctor JWT authentication token',
+    required: true,
+  })
+  @UseGuards(AuthDoctorGuard)
+  getDoctorReviews(
+    @Req() req: AuthDoctorRequest,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.reviews.getDoctorReviews(
+      req.docId as string,
+      Number(page),
+      Number(pageSize),
+    );
   }
 
   @Patch(':id')

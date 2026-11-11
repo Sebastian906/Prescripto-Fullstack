@@ -9,6 +9,11 @@ export function provideDoctorContext() {
     const dToken = ref(localStorage.getItem('dToken') || '')
     const backendUrl = import.meta.env.VITE_BACKEND_URL
     const appointments = ref([])
+    const reviews = ref([])
+    const reviewsTotal = ref(0)
+    const reviewsLoading = ref(false)
+    const reviewsError = ref('')
+    let reviewsRequestId = 0
     const dashData = ref([])
     const profileData = ref([])
     const schedulingSuggestions = ref(null)
@@ -19,6 +24,12 @@ export function provideDoctorContext() {
     const prescriptions = ref([])
     const prescriptionsLoading = ref(false)
     const setDToken = (token) => {
+        // Invalidate in-flight requests and drop the previous doctor's data.
+        reviewsRequestId += 1
+        reviewsLoading.value = false
+        reviews.value = []
+        reviewsTotal.value = 0
+        reviewsError.value = ''
         dToken.value = token
         if (token) {
             localStorage.setItem('dToken', token)
@@ -39,6 +50,45 @@ export function provideDoctorContext() {
             }
         } catch (error) {
             toast.error(error.message)
+        }
+    }
+
+    /**
+     * Load one page of the authenticated doctor's reviews.
+     * Stale responses from a previous session or request are ignored.
+     */
+    const getReviews = async (page = 1, pageSize = 10) => {
+        if (!dToken.value) {
+            reviews.value = []
+            reviewsTotal.value = 0
+            return
+        }
+        const requestId = ++reviewsRequestId
+        const requestToken = dToken.value
+        const isCurrent = () =>
+            requestId === reviewsRequestId && requestToken === dToken.value
+
+        reviewsLoading.value = true
+        reviewsError.value = ''
+        try {
+            const { data } = await axios.get(backendUrl + '/api/reviews/doctor/mine', {
+                headers: { dtoken: requestToken },
+                params: { page, pageSize },
+            })
+            if (!isCurrent()) return
+            if (data?.success) {
+                reviews.value = Array.isArray(data.reviews) ? data.reviews : []
+                reviewsTotal.value = Number(data.total) || 0
+            } else {
+                reviewsError.value = data?.message || 'Could not load reviews'
+                toast.error(reviewsError.value)
+            }
+        } catch (error) {
+            if (!isCurrent()) return
+            reviewsError.value = error?.response?.data?.message ?? error.message
+            toast.error(reviewsError.value)
+        } finally {
+            if (isCurrent()) reviewsLoading.value = false
         }
     }
 
@@ -268,6 +318,11 @@ export function provideDoctorContext() {
         backendUrl,
         appointments,
         getAppointments,
+        reviews,
+        reviewsTotal,
+        reviewsLoading,
+        reviewsError,
+        getReviews,
         records,
         recordsLoading,
         getRecords,

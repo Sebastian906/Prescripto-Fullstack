@@ -536,5 +536,21 @@
         "anxiety-disorder": "Trastorno de ansiedad",
         "follow-up": "Seguimiento",
         "unclassified-legacy": "Sin clasificar (heredado)"
+    },
+    "doctorReviews": {
+        "title": "Reseñas",
+        "score": "Puntuación",
+        "comment": "Comentario",
+        "date": "Fecha",
+        "appointment": "Cita",
+        "noComment": "Sin comentario",
+        "loading": "Cargando reseñas...",
+        "empty": "Todavía no hay reseñas",
+        "error": "No se pudieron cargar las reseñas",
+        "previous": "Anterior",
+        "next": "Siguiente",
+        "showing": "Mostrando {from}-{to} de {total}",
+        "reviewCount": "{total} reseñas",
+        "ratingLabel": "{rating} de 5 estrellas"
     }
 }

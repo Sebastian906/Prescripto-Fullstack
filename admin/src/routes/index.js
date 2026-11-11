@@ -13,6 +13,7 @@ import AdminReports from '../pages/Admin/AdminReports.vue'
 import DoctorReports from '../pages/Doctor/DoctorReports.vue'
 import AdminChat from '../pages/Admin/AdminChat.vue'
 import AdminNotifications from '../pages/Admin/AdminNotifications.vue'
+import DoctorReviews from '../pages/Doctor/DoctorReviews.vue'
 
 const routes = [
     {
@@ -87,6 +88,12 @@ const routes = [
         component: DoctorReports
     },
     {
+        path: '/doctor-reviews',
+        name: 'DoctorReviews',
+        component: DoctorReviews,
+        meta: { requiresDoctor: true },
+    },
+    {
         path: '/reset-password',
         name: 'ResetPassword',
         component: ResetPassword,
@@ -100,6 +107,12 @@ const routes = [
 const router = createRouter({
     history: createWebHistory(),
     routes
+})
+
+router.beforeEach((to) => {
+    if (to.meta.requiresDoctor && !localStorage.getItem('dToken')) {
+        return '/admin-dashboard'
+    }
 })
 
 export default router

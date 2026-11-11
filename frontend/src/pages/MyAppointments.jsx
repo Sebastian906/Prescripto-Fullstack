@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import { toast } from "react-toastify"
 import { useTranslation } from "react-i18next"
+import ReviewModal from "../components/ReviewModal"
 
 /** Wait between Stripe verification attempts. */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -16,6 +17,7 @@ const MyAppointments = () => {
     const { t } = useTranslation()
 
     const [appointments, setAppointments] = useState([])
+    const [reviewTarget, setReviewTarget] = useState(null)
     const [payingId, setPayingId] = useState(null)
     const paymentsInFlight = useRef(new Set())
     const cancelInFlight = useRef(false)
@@ -184,7 +186,7 @@ const MyAppointments = () => {
                 {t('myAppointments.title')}
             </p>
             <div>
-                {appointments.slice(0, 3).map((item, index) => {
+                {appointments.map((item, index) => {
                     // Snapshot del doctor al reservar; si viene incompleto (filas antiguas)
                     // cae al doctor actual cargado en el contexto, buscado por docId.
                     const doc = item.docData?.name
@@ -266,11 +268,32 @@ const MyAppointments = () => {
                                     {t('myAppointments.completed')}
                                 </button>
                             )}
+                            {item.isCompleted && !item.cancelled && (
+                                <button
+                                    onClick={() => setReviewTarget(item)}
+                                    className="text-sm text-indigo-600 text-center sm:min-w-48 py-2 border border-indigo-500 rounded hover:bg-indigo-500 hover:text-white transition-all duration-300 cursor-pointer"
+                                >
+                                    {t('reviews.rate')}
+                                </button>
+                            )}
                         </div>
                     </div>
                     )
                 })}
             </div>
+            {reviewTarget && (
+                <ReviewModal
+                    appointmentId={reviewTarget._id}
+                    onClose={() => setReviewTarget(null)}
+                    onSaved={() => {
+                        const savedId = reviewTarget._id
+                        setReviewTarget((current) =>
+                            current?._id === savedId ? null : current,
+                        )
+                        getUserAppointments()
+                    }}
+                />
+            )}
             <div className="mt-6">
                 <button
                     onClick={() => navigate('/my-records')}
