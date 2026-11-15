@@ -14,19 +14,19 @@ const adminNavItems = [
     { to: '/all-appointments', icon: assets.appointment_icon, labelKey: 'sidebar.appointments' },
     { to: '/add-doctor', icon: assets.add_icon, labelKey: 'sidebar.addDoctor' },
     { to: '/doctor-list', icon: assets.people_icon, labelKey: 'sidebar.doctorsList' },
-    { to: '/specialities', icon: assets.list_icon, labelKey: 'sidebar.specialities' },
-    { to: '/admin-reports', icon: assets.list_icon, labelKey: 'sidebar.reports' },
-    { to: '/admin-notifications', icon: assets.list_icon, labelKey: 'sidebar.notifications' },
-    { to: '/admin-chat', icon: assets.appointment_icon, labelKey: 'sidebar.liveChat' },
+    { to: '/specialities', icon: assets.speciality_icon, labelKey: 'sidebar.specialities' },
+    { to: '/admin-reports', icon: assets.report_icon, labelKey: 'sidebar.reports' },
+    { to: '/admin-notifications', icon: assets.notification_icon, labelKey: 'sidebar.notifications' },
+    { to: '/admin-chat', icon: assets.chat_icon, labelKey: 'sidebar.liveChat' },
 ]
 
 const doctorNavItems = [
     { to: '/doctor-dashboard', icon: assets.home_icon, labelKey: 'sidebar.dashboard' },
     { to: '/doctor-appointments', icon: assets.appointment_icon, labelKey: 'sidebar.appointments' },
-    { to: '/doctor-records', icon: assets.list_icon, labelKey: 'sidebar.medicalRecords' },
+    { to: '/doctor-records', icon: assets.medical_records_icon, labelKey: 'sidebar.medicalRecords' },
     { to: '/doctor-profile', icon: assets.people_icon, labelKey: 'sidebar.profile' },
-    { to: '/doctor-reports', icon: assets.list_icon, labelKey: 'sidebar.reports' },
-    { to: '/doctor-reviews', icon: assets.list_icon, labelKey: 'doctorReviews.title' },
+    { to: '/doctor-reports', icon: assets.report_icon, labelKey: 'sidebar.reports' },
+    { to: '/doctor-reviews', icon: assets.review_icon, labelKey: 'doctorReviews.title' },
 ]
 </script>
 
