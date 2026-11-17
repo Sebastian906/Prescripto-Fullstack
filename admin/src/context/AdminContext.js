@@ -242,11 +242,15 @@ export function provideAdminContext() {
             const { data } = await axios.get(backendUrl + '/api/reports/annual', { headers: { atoken: aToken.value }, params })
             if (data.success) {
                 annualReport.value = data
-            } else {
-                toast.error(data.message)
+                return true
             }
+            toast.error(data.message)
+            annualReport.value = null
+            return false
         } catch (error) {
             toast.error(error.message)
+            annualReport.value = null
+            return false
         }
     }
 
@@ -257,11 +261,15 @@ export function provideAdminContext() {
             const { data } = await axios.get(backendUrl + '/api/reports/trend', { headers: { atoken: aToken.value }, params })
             if (data.success) {
                 monthlyTrend.value = data.trend
-            } else {
-                toast.error(data.message)
+                return true
             }
+            toast.error(data.message)
+            monthlyTrend.value = []
+            return false
         } catch (error) {
             toast.error(error.message)
+            monthlyTrend.value = []
+            return false
         }
     }
 

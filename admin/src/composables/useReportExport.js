@@ -343,5 +343,32 @@ export function useReportExport() {
         }
     }
 
-    return { exportPDF, exportExcel, exportCSV, exporting }
+    // CSV generado desde las MISMAS filas/header que la tabla renderizada.
+    // Mismo criterio que backend/src/reports/utils/annual-report-csv.util.ts (BOM + CRLF).
+    function csvCell(value) {
+        const text = value == null ? '' : String(value)
+        return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+    }
+
+    async function exportTableCSV({ header = [], rows = [], filename = 'report.csv' }) {
+        exporting.value = true
+        try {
+            const lines = [header, ...rows].map((cells) =>
+                cells.map(csvCell).join(','),
+            )
+            const csv = '\uFEFF' + lines.join('\r\n') + '\r\n'
+            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+            const a = document.createElement('a')
+            a.href = url
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            URL.revokeObjectURL(url)
+        } finally {
+            exporting.value = false
+        }
+    }
+
+    return { exportPDF, exportExcel, exportCSV, exportTableCSV, exporting }
 }

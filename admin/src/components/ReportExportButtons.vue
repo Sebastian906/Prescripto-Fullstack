@@ -14,10 +14,11 @@ const props = defineProps({
     backendUrl: { type: String, default: '' },
     atoken: { type: String, default: '' },
     docId: { type: String, default: null },
+    csv: { type: Object, default: null },
 })
 
 const toast = useToast()
-const { exportPDF, exportExcel, exportCSV, exporting } = useReportExport()
+const { exportPDF, exportExcel, exportCSV, exportTableCSV, exporting } = useReportExport()
 
 const payload = () => ({
     rows: props.rows,
@@ -32,6 +33,14 @@ const payload = () => ({
 const handlePDF = () => exportPDF(payload())
 const handleExcel = () => exportExcel(payload())
 const handleCSV = async () => {
+    if (props.csv) {
+        try {
+            await exportTableCSV(props.csv)
+        } catch (e) {
+            toast.error(e.message)
+        }
+        return
+    }
     if (!props.backendUrl || !props.atoken) {
         toast.error('Missing backendUrl/atoken for CSV export')
         return
@@ -101,7 +110,7 @@ const handleCSV = async () => {
         </button>
 
         <button @click="handleCSV" :disabled="disabled || exporting"
-            :title="exporting ? 'Generating…' : 'Download CSV (server-generated, Excel-ready)'" class="group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium
+            :title="exporting ? 'Generating…' : 'Download CSV'" class="group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium
                     border border-indigo-200 text-indigo-600 bg-white
                     hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-700
                     active:scale-95
