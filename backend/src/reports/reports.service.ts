@@ -405,6 +405,15 @@ export class ReportsService {
               )
             : 0
           : 0,
+        // cancelled/total: mismo criterio de redondeo que completionRate.
+        // A-02 lo usa para la serie de cancelación/no-show del panel admin.
+        cancellationRate: row
+          ? row.totalAppointments > 0
+            ? Math.round(
+                (row.cancelledAppointments / row.totalAppointments) * 100,
+              )
+            : 0
+          : 0,
       };
     });
 
@@ -946,6 +955,8 @@ export interface MonthlyTrendPoint {
   appointments: number;
   earnings: number;
   completionRate: number;
+  // cancelled / total, redondeado igual que completionRate.
+  cancellationRate: number;
 }
 
 const MONTH_LABELS = [
