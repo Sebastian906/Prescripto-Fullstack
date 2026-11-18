@@ -235,11 +235,20 @@ export function provideAdminContext() {
         }
     }
 
+    // ponytail: identidad de request. Un contador por endpoint basta porque cada
+    // cambio de filtro dispara anual+trend y el último request siempre gana.
+    // Devuelve null cuando la respuesta quedó obsoleta: el caller no debe tocar
+    // ni datos ni estado de error.
+    let annualRequestId = 0
+    let trendRequestId = 0
+
     const getAnnualReport = async (year = reportYear.value, docId = null) => {
+        const requestId = ++annualRequestId
         try {
             const params = { year }
             if (docId) params.docId = docId
             const { data } = await axios.get(backendUrl + '/api/reports/annual', { headers: { atoken: aToken.value }, params })
+            if (requestId !== annualRequestId) return null
             if (data.success) {
                 annualReport.value = data
                 return true
@@ -248,6 +257,7 @@ export function provideAdminContext() {
             annualReport.value = null
             return false
         } catch (error) {
+            if (requestId !== annualRequestId) return null
             toast.error(error.message)
             annualReport.value = null
             return false
@@ -255,10 +265,12 @@ export function provideAdminContext() {
     }
 
     const getMonthlyTrend = async (months = 12, docId = null) => {
+        const requestId = ++trendRequestId
         try {
             const params = { months }
             if (docId) params.docId = docId
             const { data } = await axios.get(backendUrl + '/api/reports/trend', { headers: { atoken: aToken.value }, params })
+            if (requestId !== trendRequestId) return null
             if (data.success) {
                 monthlyTrend.value = data.trend
                 return true
@@ -267,6 +279,7 @@ export function provideAdminContext() {
             monthlyTrend.value = []
             return false
         } catch (error) {
+            if (requestId !== trendRequestId) return null
             toast.error(error.message)
             monthlyTrend.value = []
             return false

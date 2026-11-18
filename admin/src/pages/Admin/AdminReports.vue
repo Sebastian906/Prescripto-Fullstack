@@ -28,7 +28,11 @@ const selectedYear = ref(new Date().getFullYear())
 const selectedDocId = ref('')
 const trendMonths = ref(12)
 const loading = ref(false)
-const failed = ref(false)
+const annualLoading = ref(false)
+const trendLoading = ref(false)
+const annualFailed = ref(false)
+const trendFailed = ref(false)
+const failed = computed(() => annualFailed.value || trendFailed.value)
 
 /**
  * Visualización de la tabla DP acumulada.
@@ -54,7 +58,7 @@ const tableColumns = computed(() => [
 
 const csvPayload = computed(() => ({
     header: tableColumns.value.map((col) => col.label),
-    rows: reportRows.value.map((row) => tableColumns.value.map((col) => col.csv(row))),
+    rows: reportRows.value.map((row) => tableColumns.value.map((col) => (col.csv ?? col.value)(row))),
     filename: `annual-report-${selectedYear.value}${selectedDocId.value ? '-' + selectedDocId.value : ''}.csv`,
 }))
 
@@ -117,10 +121,16 @@ const latestPrescriptionLabel = computed(() => {
     return Number.isNaN(date.getTime()) ? t('adminReports.never') : date.toLocaleString(locale.value)
 })
 
+let annualSeq = 0
+let trendSeq = 0
+
 const loadData = async () => {
     const docId = selectedDocId.value || null
     loading.value = true
-    failed.value = false
+    annualLoading.value = true
+    trendLoading.value = true
+    annualFailed.value = false
+    trendFailed.value = false
     try {
         const tasks = [
             getAnnualReport(selectedYear.value, docId),
@@ -130,18 +140,39 @@ const loadData = async () => {
         ]
         if (!doctors.value.length) tasks.push(getAllDoctors())
         const [annualOk, trendOk] = await Promise.all(tasks)
-        failed.value = !annualOk || !trendOk
+        if (annualOk !== null) annualFailed.value = !annualOk
+        if (trendOk !== null) trendFailed.value = !trendOk
     } finally {
         loading.value = false
+        annualLoading.value = false
+        trendLoading.value = false
     }
 }
 
+// ponytail: los seq de la página sólo protegen las flags; la autoridad sobre
+// los datos es el contexto (getAnnualReport/getMonthlyTrend).
 const loadReport = async () => {
-    failed.value = !(await getAnnualReport(selectedYear.value, selectedDocId.value || null))
+    const seq = ++annualSeq
+    annualLoading.value = true
+    annualFailed.value = false
+    try {
+        const ok = await getAnnualReport(selectedYear.value, selectedDocId.value || null)
+        if (seq === annualSeq && ok !== null) annualFailed.value = !ok
+    } finally {
+        if (seq === annualSeq) annualLoading.value = false
+    }
 }
 
 const loadTrend = async () => {
-    failed.value = !(await getMonthlyTrend(trendMonths.value, selectedDocId.value || null))
+    const seq = ++trendSeq
+    trendLoading.value = true
+    trendFailed.value = false
+    try {
+        const ok = await getMonthlyTrend(trendMonths.value, selectedDocId.value || null)
+        if (seq === trendSeq && ok !== null) trendFailed.value = !ok
+    } finally {
+        if (seq === trendSeq) trendLoading.value = false
+    }
 }
 
 onMounted(() => {
@@ -168,7 +199,7 @@ onMounted(() => {
                 </button>
                 <ReportExportButtons :rows="reportRows" :totals="totals" :trend="monthlyTrend" :year="selectedYear"
                     :title="t('adminReports.title')" :currency="currency" :backend-url="backendUrl" :atoken="aToken"
-                    :csv="csvPayload" :disabled="loading || reportRows.length === 0" />
+                    :csv="csvPayload" :disabled="annualLoading || reportRows.length === 0" />
             </div>
         </div>
 
@@ -212,10 +243,10 @@ onMounted(() => {
                 </select>
             </div>
 
-            <div v-if="loading" class="py-10 text-center text-sm text-slate-400 animate-pulse">
+            <div v-if="trendLoading" class="py-10 text-center text-sm text-slate-400 animate-pulse">
                 {{ t('adminReports.loading') }}
             </div>
-            <div v-else-if="failed" class="py-10 text-center text-sm text-red-500">
+            <div v-else-if="trendFailed" class="py-10 text-center text-sm text-red-500">
                 {{ t('adminReports.loadError') }}
             </div>
             <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-3">
