@@ -6,15 +6,29 @@ import {
   IsString,
   Matches,
   IsOptional,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 import {
   GENDER_VALUES,
-  ISO_DATE_PATTERN,
   PHONE_E164_PATTERN,
+  isIsoDate,
   normalizeDob,
   normalizeGender,
   normalizePhone,
 } from 'src/shared/utils/validators';
+
+@ValidatorConstraint({ name: 'isIsoDate', async: false })
+class IsIsoDateConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return typeof value === 'string' && isIsoDate(value);
+  }
+
+  defaultMessage(): string {
+    return 'dob must be a valid ISO date (YYYY-MM-DD)';
+  }
+}
 
 export class UpdateProfileUserDto {
   @ApiProperty({ example: 'John Doe' })
@@ -45,7 +59,7 @@ export class UpdateProfileUserDto {
     value === undefined ? undefined : normalizeDob(value),
   )
   @IsNotEmpty()
-  @Matches(ISO_DATE_PATTERN)
+  @Validate(IsIsoDateConstraint)
   dob!: string;
 
   @ApiProperty({ example: 'Male' })

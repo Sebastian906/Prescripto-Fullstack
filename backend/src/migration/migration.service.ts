@@ -231,7 +231,10 @@ export async function backfillMedicalRecords(
           );
           continue;
         }
+        // Existing legacy record: do not unset the appointment. The record may
+        // not contain newer observations, so preserve the legacy fields.
         result.skipped++;
+        continue;
       }
 
       await appointmentModel

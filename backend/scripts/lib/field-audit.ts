@@ -50,7 +50,11 @@ export function assertNoLoss(name: string, counts: FieldCounts): void {
 
 function rawString(value: unknown): string {
   if (typeof value === 'string') return value;
-  return value == null ? '' : String(value);
+  if (value == null) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return '<invalid>';
 }
 
 export function decideFields(
@@ -82,7 +86,9 @@ export function decideFields(
   }
 
   const genderRaw = rawString(raw.gender).trim();
-  const genderNext = normalizeGender(genderRaw);
+  // Empty gender is written as Unspecified (the schema default), not quarantined.
+  const genderNext =
+    genderRaw === '' ? 'Unspecified' : normalizeGender(genderRaw);
   let gender: FieldDecision;
   if (!(GENDER_VALUES as readonly string[]).includes(genderNext)) {
     gender = {
@@ -106,6 +112,7 @@ export function decideFields(
   const dobNext = normalizeDob(dobRaw);
   let dob: FieldDecision;
   if (dobNext === '') {
+    // null dob is already clean; an empty string is normalized to null.
     dob = {
       next: null,
       kind: raw.dob == null ? 'keep' : 'write',

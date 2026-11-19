@@ -39,7 +39,8 @@ const MyProfile = () => {
             }
         } catch (error) {
             console.log(error);
-            toast.error("Failed to update profile")
+            const message = error?.response?.data?.message
+            toast.error(Array.isArray(message) ? message.join(', ') : message || "Failed to update profile")
         }
     }
 
@@ -131,6 +132,7 @@ const MyProfile = () => {
                         >
                             <option value="Male">{t('myProfile.male')}</option>
                             <option value="Female">{t('myProfile.female')}</option>
+                            <option value="Other">{t('myProfile.other')}</option>
                             <option value="Unspecified">{t('myProfile.unspecified')}</option>
                         </select>
                     ) : (

@@ -65,20 +65,15 @@ function ageFromIso(iso: string): number | null {
   return age;
 }
 
-function add(
-  map: Map<string, number>,
-  key: string | null | undefined,
-): void {
+function add(map: Map<string, number>, key: string | null | undefined): void {
   if (!key) return;
   map.set(key, (map.get(key) ?? 0) + 1);
 }
 
-function suppress(map: Map<string, number>): Record<string, number | '<5'> {
-  const result: Record<string, number | '<5'> = {};
-  for (const [key, value] of [...map.entries()].sort((a, b) => b[1] - a[1])) {
-    result[key] = value < K ? '<5' : value;
-  }
-  return result;
+function suppress(map: Map<string, number>): Record<string, number> | null {
+  if (map.size === 0) return {};
+  if ([...map.values()].some((value) => value < K)) return null;
+  return Object.fromEntries([...map.entries()].sort((a, b) => b[1] - a[1]));
 }
 
 function ratio(numerator: number, denominator: number): number {
@@ -97,9 +92,7 @@ async function main(): Promise<void> {
   const db = mongoose.connection.db as mongo.Db;
   const col = db.collection(source);
   const projection: Record<string, 1> =
-    source === 'users'
-      ? { phone: 1, gender: 1, dob: 1 }
-      : { userData: 1 };
+    source === 'users' ? { phone: 1, gender: 1, dob: 1 } : { userData: 1 };
   const cursor = col.find({}, { projection }).batchSize(500);
   if (limit > 0) cursor.limit(limit);
 
@@ -126,7 +119,10 @@ async function main(): Promise<void> {
     tally(dob.counts, decisions.dob);
 
     if (decisions.phone.kind !== 'quarantine') {
-      add(phone.distribution, decisions.phone.next ? decisions.phone.next.slice(0, 3) : null);
+      add(
+        phone.distribution,
+        decisions.phone.next ? decisions.phone.next.slice(0, 3) : null,
+      );
     }
     if (decisions.gender.kind !== 'quarantine') {
       add(gender.distribution, decisions.gender.next);
@@ -155,7 +151,10 @@ async function main(): Promise<void> {
     malformed,
     phone: {
       ...phone.counts,
-      completeness: ratio(phone.counts.total - phone.counts.blank, phone.counts.total),
+      completeness: ratio(
+        phone.counts.total - phone.counts.blank,
+        phone.counts.total,
+      ),
       consistency: consistency(phone.counts),
       dirtyDefaults: phone.dirtyDefaults,
       distribution: suppress(phone.distribution),
@@ -172,7 +171,10 @@ async function main(): Promise<void> {
     },
     dob: {
       ...dob.counts,
-      completeness: ratio(dob.counts.total - dob.counts.blank, dob.counts.total),
+      completeness: ratio(
+        dob.counts.total - dob.counts.blank,
+        dob.counts.total,
+      ),
       consistency: consistency(dob.counts),
       accuracyProxy: ratio(
         dob.plausibleAge,
@@ -206,7 +208,7 @@ async function main(): Promise<void> {
         `- gender: ${JSON.stringify(report.gender.distribution)}`,
         `- dob (década): ${JSON.stringify(report.dob.distribution)}`,
         '',
-        '_Sin IDs, sin filas crudas, celdas <5 suprimidas._',
+        '_Sin IDs ni filas crudas; la distribución completa se omite si alguna celda es <5 (null)._',
         '',
       ].join('\n');
 
