@@ -151,6 +151,8 @@ export async function backfillMedicalRecords(
         asClinicalText(userData.clinicalNotes),
         asClinicalText(docData.notes),
         asClinicalText(docData.clinicalNotes),
+        asClinicalText(userData.observations),
+        asClinicalText(docData.observations),
       ].filter((v) => v.length > 0);
 
       const structured = (

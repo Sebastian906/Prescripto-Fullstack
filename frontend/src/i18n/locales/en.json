@@ -147,7 +147,8 @@
         "edit": "Edit",
         "male": "Male",
         "female": "Female",
-        "other": "Other"
+        "other": "Other",
+        "unspecified": "Prefer not to say"
     },
     "login": {
         "login": "Login",

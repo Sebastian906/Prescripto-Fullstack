@@ -11,7 +11,13 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { Appointment, AppointmentDocument } from './schemas/appointment.schema';
+import {
+  Appointment,
+  AppointmentDocument,
+  DOC_SNAPSHOT_KEYS,
+  USER_SNAPSHOT_KEYS,
+  pickSnapshot,
+} from './schemas/appointment.schema';
 import { Connection, Model } from 'mongoose';
 import { Doctor, DoctorDocument } from 'src/doctors/schemas/doctor.schema';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
@@ -145,9 +151,6 @@ export class AppointmentsService {
           );
         }
 
-        const { slots_booked: _ignored, ...docDataSnapshot } =
-          doctor as unknown as Record<string, unknown>;
-
         const [created] = await this.appointmentModel.create(
           [
             {
@@ -155,8 +158,8 @@ export class AppointmentsService {
               docId,
               slotDate,
               slotTime,
-              userData: user,
-              docData: docDataSnapshot,
+              userData: pickSnapshot(user, USER_SNAPSHOT_KEYS),
+              docData: pickSnapshot(doctor, DOC_SNAPSHOT_KEYS),
               amount: doctor.fees,
               date: Date.now(),
             },

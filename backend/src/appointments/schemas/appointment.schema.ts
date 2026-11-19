@@ -10,6 +10,7 @@ export const CLINICAL_FIELD_KEYS = [
   'prescription',
   'treatment',
   'symptoms',
+  'observations',
 ] as const;
 
 export const CLINICAL_APPOINTMENT_FILTERS = CLINICAL_FIELD_KEYS.flatMap(
@@ -32,6 +33,45 @@ export function stripClinicalFields(
   const clean: Record<string, any> = { ...(value ?? {}) };
   for (const key of CLINICAL_FIELD_KEYS) delete clean[key];
   return clean;
+}
+
+/** Claves que el cliente puede ver de un usuario en su cita. */
+export const USER_SNAPSHOT_KEYS = [
+  '_id',
+  'name',
+  'email',
+  'image',
+  'address',
+  'gender',
+  'dob',
+  'phone',
+] as const;
+
+/** Claves que el cliente puede ver de un doctor en su cita. */
+export const DOC_SNAPSHOT_KEYS = [
+  '_id',
+  'name',
+  'email',
+  'image',
+  'speciality',
+  'degree',
+  'experience',
+  'about',
+  'available',
+  'fees',
+  'address',
+] as const;
+
+/** Whitelist pura: copia solo las claves pedidas. No recursiva. */
+export function pickSnapshot(
+  raw: Record<string, any> | undefined,
+  keys: readonly string[],
+): Record<string, any> {
+  if (!raw || typeof raw !== 'object') return {};
+  return keys.reduce<Record<string, any>>((snapshot, key) => {
+    if (key in raw) snapshot[key] = raw[key];
+    return snapshot;
+  }, {});
 }
 
 @Schema({ minimize: false })
@@ -79,8 +119,12 @@ export class Appointment {
 export const AppointmentSchema = SchemaFactory.createForClass(Appointment);
 
 AppointmentSchema.pre('validate', function (this: AppointmentDocument) {
-  this.userData = stripClinicalFields(this.userData);
-  this.docData = stripClinicalFields(this.docData);
+  if (this.userData) {
+    this.userData = pickSnapshot(this.userData, USER_SNAPSHOT_KEYS);
+  }
+  if (this.docData) {
+    this.docData = pickSnapshot(this.docData, DOC_SNAPSHOT_KEYS);
+  }
 });
 
 AppointmentSchema.index({ userId: 1, date: -1 });

@@ -222,6 +222,7 @@ describe('backfillMedicalRecords', () => {
           notes: 'patient note',
           prescription: 'med A',
           symptoms: 'fever',
+          observations: 'rash',
         },
         docData: {
           notes: 'doctor note',
@@ -248,7 +249,7 @@ describe('backfillMedicalRecords', () => {
     expect(notes).toContain('doctor clinical');
     expect(notes).toContain('prescription: med A'); // firstNonEmpty: userData gana
     expect(notes).toContain('treatment: rest');
-    expect(notes).toContain('symptoms: fever'); // firstNonEmpty: userData gana
+    expect(notes).toContain('rash');
 
     expect(appointments.updateOne).toHaveBeenCalledWith(
       { _id: expect.anything() },

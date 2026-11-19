@@ -147,7 +147,8 @@
         "edit": "Editar",
         "male": "Masculino",
         "female": "Femenino",
-        "other": "Otro"
+        "other": "Otro",
+        "unspecified": "No especificado"
     },
     "login": {
         "login": "Iniciar sesión",

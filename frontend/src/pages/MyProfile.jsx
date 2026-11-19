@@ -20,7 +20,7 @@ const MyProfile = () => {
             formData.append('phone', userData.phone)
             formData.append('address', JSON.stringify(userData.address))
             formData.append('gender', userData.gender)
-            formData.append('dob', userData.dob)
+            formData.append('dob', userData.dob ?? '')
             image && formData.append('image', image)
 
             const { data } = await axios.put(backendUrl + '/api/users/update-profile', formData, { headers: { token } })
@@ -131,7 +131,7 @@ const MyProfile = () => {
                         >
                             <option value="Male">{t('myProfile.male')}</option>
                             <option value="Female">{t('myProfile.female')}</option>
-                            <option value="Other">{t('myProfile.other')}</option>
+                            <option value="Unspecified">{t('myProfile.unspecified')}</option>
                         </select>
                     ) : (
                         <p className="text-slate-400">{userData.gender}</p>
@@ -143,7 +143,7 @@ const MyProfile = () => {
                             className="max-w-28 bg-slate-200 border border-slate-300"
                             type="date"
                             onChange={(e) => setUserData(prev => ({ ...prev, dob: e.target.value }))}
-                            value={userData.dob}
+                            value={userData.dob ?? ''}
                         />
                     ) : (
                         <p className="text-slate-400">{userData.dob}</p>

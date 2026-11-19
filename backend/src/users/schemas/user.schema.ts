@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { GENDER_VALUES } from 'src/shared/utils/validators';
+import type { Gender } from 'src/shared/utils/validators';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -26,13 +28,13 @@ export class User {
     line2: string;
   };
 
-  @Prop({ default: 'Not Selected' })
-  gender: string;
+  @Prop({ type: String, default: 'Unspecified', enum: [...GENDER_VALUES] })
+  gender: Gender;
 
-  @Prop({ default: 'Not Selected' })
-  dob: string;
+  @Prop({ type: String, default: null })
+  dob: string | null;
 
-  @Prop({ default: '0000000000' })
+  @Prop({ default: '' })
   phone: string;
 }
 

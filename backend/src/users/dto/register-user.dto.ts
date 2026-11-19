@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsNotEmpty,
@@ -7,7 +8,10 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
-import { PHONE_E164_PATTERN } from 'src/shared/utils/validators';
+import {
+  PHONE_E164_PATTERN,
+  normalizePhone,
+} from 'src/shared/utils/validators';
 
 export class RegisterUserDto {
   @ApiProperty({ example: 'John Doe' })
@@ -26,6 +30,9 @@ export class RegisterUserDto {
 
   @ApiProperty({ example: '+573001234567', required: false })
   @IsOptional()
+  @Transform(({ value }) =>
+    value === undefined ? undefined : normalizePhone(value),
+  )
   @IsString()
   @Matches(PHONE_E164_PATTERN, { message: 'phone must be E.164' })
   phone?: string;
