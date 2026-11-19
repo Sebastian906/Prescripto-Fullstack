@@ -257,13 +257,14 @@ onMounted(() => {
                         class="h-32 flex items-center justify-center text-xs text-slate-400">
                         {{ t('adminReports.chartEmpty') }}
                     </div>
-                    <div v-else class="flex items-end gap-1 h-32">
-                        <div v-for="point in monthlyTrend" :key="point.label"
-                            class="flex-1 flex flex-col items-center gap-1">
+                    <div v-else class="flex items-end h-32" :class="trendMonths > 12 ? 'gap-px' : 'gap-1'">
+                        <div v-for="(point, i) in monthlyTrend" :key="point.label"
+                            class="flex-1 min-w-0 flex flex-col items-center gap-1">
                             <div class="w-full rounded-t-sm transition-all duration-500" :class="series.bar"
                                 :style="{ height: barHeight(series.max, series.value(point)) }"
                                 :title="`${point.label}: ${series.display(series.value(point))}`" />
-                            <p class="text-[9px] text-slate-400 rotate-45 origin-left whitespace-nowrap">
+                            <p class="text-[9px] text-slate-400 rotate-45 origin-left whitespace-nowrap"
+                                :class="{ invisible: trendMonths > 12 && i % 3 }">
                                 {{ point.label.slice(0, 3) }}
                             </p>
                         </div>
