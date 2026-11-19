@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { BookAppointmentDto } from '../appointments/dto/book-appointment.dto';
+import { UpdateProfileUserDto } from '../users/dto/update-profile.dto';
 import { RegisterUserDto } from '../users/dto/register-user.dto';
 import { SuggestSlotDto } from '../scheduling/dto/suggest-slot.dto';
 
@@ -145,4 +146,59 @@ it('book: payload válido → sin errores', async () => {
       }),
     ),
   ).toHaveLength(0);
+});
+
+it('book: userData con clave clínica → 400', async () => {
+  await expect(
+    pipe.transform(
+      {
+        docId: '64f1a2b3c4d5e6f7a8b9c0d1',
+        slotDate: '20_7_2025',
+        slotTime: '10:00 AM',
+        userData: { diagnosis: 'flu' },
+      },
+      { type: 'body', metatype: BookAppointmentDto },
+    ),
+  ).rejects.toThrow();
+});
+
+it('book: diagnosis en la raíz → 400', async () => {
+  await expect(
+    pipe.transform(
+      {
+        docId: '64f1a2b3c4d5e6f7a8b9c0d1',
+        slotDate: '20_7_2025',
+        slotTime: '10:00 AM',
+        diagnosis: 'flu',
+      },
+      { type: 'body', metatype: BookAppointmentDto },
+    ),
+  ).rejects.toThrow();
+});
+
+it('profile: normaliza phone/gender/dob antes de validar', async () => {
+  const dto = plainToInstance(UpdateProfileUserDto, {
+    name: 'Test',
+    phone: '3001234567',
+    address: '{"line1":"a","line2":""}',
+    dob: '01/01/1990',
+    gender: 'Not Selected',
+  });
+
+  expect(await validate(dto)).toHaveLength(0);
+  expect(dto.phone).toBe('+573001234567');
+  expect(dto.dob).toBe('1990-01-01');
+  expect(dto.gender).toBe('Unspecified');
+});
+
+it('profile: teléfono no normalizable → errores', async () => {
+  const dto = plainToInstance(UpdateProfileUserDto, {
+    name: 'Test',
+    phone: '0000000000',
+    address: '{"line1":"a","line2":""}',
+    dob: '1990-01-01',
+    gender: 'Male',
+  });
+
+  expect(await validate(dto)).not.toHaveLength(0);
 });

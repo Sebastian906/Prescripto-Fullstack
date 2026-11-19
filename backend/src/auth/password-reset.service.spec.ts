@@ -7,7 +7,9 @@ describe('PasswordResetService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [PasswordResetService],
-    }).compile();
+    })
+      .useMocker(() => ({}))
+      .compile();
 
     service = module.get<PasswordResetService>(PasswordResetService);
   });

@@ -1,6 +1,34 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
-import { PHONE_E164_PATTERN } from 'src/shared/utils/validators';
+import { Transform } from 'class-transformer';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsString,
+  Matches,
+  IsOptional,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+} from 'class-validator';
+import {
+  GENDER_VALUES,
+  PHONE_E164_PATTERN,
+  isIsoDate,
+  normalizeDob,
+  normalizeGender,
+  normalizePhone,
+} from 'src/shared/utils/validators';
+
+@ValidatorConstraint({ name: 'isIsoDate', async: false })
+class IsIsoDateConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return typeof value === 'string' && isIsoDate(value);
+  }
+
+  defaultMessage(): string {
+    return 'dob must be a valid ISO date (YYYY-MM-DD)';
+  }
+}
 
 export class UpdateProfileUserDto {
   @ApiProperty({ example: 'John Doe' })
@@ -12,6 +40,9 @@ export class UpdateProfileUserDto {
   @IsString()
   @IsNotEmpty()
   @Matches(PHONE_E164_PATTERN, { message: 'phone must be E.164' })
+  @Transform(({ value }) =>
+    value === undefined ? undefined : normalizePhone(value),
+  )
   phone!: string;
 
   @ApiProperty({
@@ -24,11 +55,20 @@ export class UpdateProfileUserDto {
   @ApiProperty({ example: '1990-01-01' })
   @IsString()
   @IsNotEmpty()
+  @Transform(({ value }) =>
+    value === undefined ? undefined : normalizeDob(value),
+  )
+  @IsNotEmpty()
+  @Validate(IsIsoDateConstraint)
   dob!: string;
 
   @ApiProperty({ example: 'Male' })
   @IsString()
   @IsNotEmpty()
+  @Transform(({ value }) =>
+    value === undefined ? undefined : normalizeGender(value),
+  )
+  @IsIn([...GENDER_VALUES])
   gender!: string;
 
   @ApiProperty({ type: 'string', format: 'binary', required: false })

@@ -151,6 +151,8 @@ export async function backfillMedicalRecords(
         asClinicalText(userData.clinicalNotes),
         asClinicalText(docData.notes),
         asClinicalText(docData.clinicalNotes),
+        asClinicalText(userData.observations),
+        asClinicalText(docData.observations),
       ].filter((v) => v.length > 0);
 
       const structured = (
@@ -229,7 +231,10 @@ export async function backfillMedicalRecords(
           );
           continue;
         }
+        // Existing legacy record: do not unset the appointment. The record may
+        // not contain newer observations, so preserve the legacy fields.
         result.skipped++;
+        continue;
       }
 
       await appointmentModel

@@ -1,7 +1,7 @@
 import { isEmail as isEmailFormat } from 'class-validator';
 
 /**
- * Helpers de validación compartidos — fuente única de reglas de entrada.
+ * Helpers de validación compartidos - fuente única de reglas de entrada.
 
  * Contrato de uso:
  * - Los DTOs consumen los `*_PATTERN` con `@Matches(...)` (class-validator no
@@ -64,6 +64,21 @@ export const SLOT_TIME_PATTERN = /^([1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/;
 // E.164: '+' y 2..15 dígitos sin espacios ni guiones (p. ej. +573001234567).
 export const PHONE_E164_PATTERN = /^\+[1-9]\d{1,14}$/;
 
+/** Fecha ISO estricta, sin hora. */
+export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Enum cerrado de género. `Unspecified` reemplaza al default `Not Selected`. */
+export const GENDER_VALUES = [
+  'Male',
+  'Female',
+  'Other',
+  'Unspecified',
+] as const;
+export type Gender = (typeof GENDER_VALUES)[number];
+
+/** Región por defecto para locales de 10 dígitos (evidencia: +57 en el repo). */
+export const DEFAULT_PHONE_REGION = '+57';
+
 // ObjectId de MongoDB: 24 dígitos hexadecimales.
 export const OBJECT_ID_PATTERN = /^[0-9a-fA-F]{24}$/;
 
@@ -75,6 +90,60 @@ export function isEmail(value: unknown): value is string {
 // Teléfono en formato E.164 (p. ej. +573001234567).
 export function isPhoneE164(value: unknown): value is string {
   return typeof value === 'string' && PHONE_E164_PATTERN.test(value);
+}
+
+export function isIsoDate(value: string): boolean {
+  if (!ISO_DATE_PATTERN.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.toISOString().slice(0, 10) === value;
+}
+
+export function normalizeGender(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  const aliases: Record<string, Gender> = {
+    male: 'Male',
+    female: 'Female',
+    other: 'Other',
+    unspecified: 'Unspecified',
+    'not selected': 'Unspecified',
+  };
+  return aliases[raw.toLowerCase()] ?? raw;
+}
+
+export function normalizeDob(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') return '';
+  const raw = value.trim();
+  if (raw.toLowerCase() === 'not selected') return '';
+  if (isIsoDate(raw)) return raw;
+  if (isSlotDate(raw)) {
+    const [day, month, year] = raw.split('/');
+    return `${year}-${month}-${day}`;
+  }
+  return raw;
+}
+
+export function normalizePhone(
+  value: unknown,
+  defaultRegion = DEFAULT_PHONE_REGION,
+): string {
+  if (typeof value !== 'string') return '';
+  const raw = value.trim();
+  if (
+    raw === '' ||
+    raw === '0000000000' ||
+    raw.toLowerCase() === 'not selected'
+  ) {
+    return '';
+  }
+  let digits = raw.replace(/[\s().-]/g, '');
+  if (digits.startsWith('00')) digits = `+${digits.slice(2)}`;
+  if (digits.startsWith('+')) {
+    return isPhoneE164(digits) ? digits : raw;
+  }
+  if (!/^\d{10}$/.test(digits)) return raw;
+  if (!/^\+[1-9]\d{0,2}$/.test(defaultRegion)) return raw;
+  return `${defaultRegion}${digits}`;
 }
 
 /**

@@ -3,6 +3,12 @@ import {
   isObjectId,
   isPhoneE164,
   isSlotDate,
+  DEFAULT_PHONE_REGION,
+  GENDER_VALUES,
+  isIsoDate,
+  normalizeDob,
+  normalizeGender,
+  normalizePhone,
 } from 'src/shared/utils/validators';
 
 const p2 = (n: number): string => String(n).padStart(2, '0');
@@ -211,5 +217,84 @@ describe('isObjectId', () => {
   it('rechaza no-strings', () => {
     expect(isObjectId(null)).toBe(false);
     expect(isObjectId(123)).toBe(false);
+  });
+});
+
+describe('normalizePhone', () => {
+  it('deja intacto un E.164 válido', () => {
+    expect(normalizePhone('+573001234567')).toBe('+573001234567');
+  });
+
+  it('normaliza local de 10 dígitos con la región por defecto', () => {
+    expect(normalizePhone('3001234567')).toBe(
+      `${DEFAULT_PHONE_REGION}3001234567`,
+    );
+  });
+
+  it('quita separadores y prefijo 00', () => {
+    expect(normalizePhone('+57 300-123.4567')).toBe('+573001234567');
+    expect(normalizePhone('00573001234567')).toBe('+573001234567');
+  });
+
+  it('convierte el default sucio en vacío', () => {
+    expect(normalizePhone('0000000000')).toBe('');
+  });
+
+  it('devuelve el original si no puede normalizar', () => {
+    expect(normalizePhone('abc')).toBe('abc');
+  });
+});
+
+describe('normalizeGender', () => {
+  it.each(['Male', 'male', 'MALE'])('normaliza %s a Male', (value) => {
+    expect(normalizeGender(value)).toBe('Male');
+  });
+
+  it('mapea Not Selected a Unspecified', () => {
+    expect(normalizeGender('Not Selected')).toBe('Unspecified');
+  });
+
+  it('deja pasar valores desconocidos para que el DTO los rechace', () => {
+    expect(normalizeGender('X')).toBe('X');
+  });
+
+  it('la lista de género es cerrada', () => {
+    expect(GENDER_VALUES).toEqual(['Male', 'Female', 'Other', 'Unspecified']);
+  });
+});
+
+describe('normalizeDob', () => {
+  it('deja intacto un ISO válido', () => {
+    expect(normalizeDob('1990-01-01')).toBe('1990-01-01');
+  });
+
+  it('convierte DD/MM/YYYY a ISO', () => {
+    expect(normalizeDob('01/01/1990')).toBe('1990-01-01');
+  });
+
+  it('mapea Not Selected a vacío', () => {
+    expect(normalizeDob('Not Selected')).toBe('');
+  });
+
+  it('rechaza fechas imposibles', () => {
+    expect(normalizeDob('31/02/1990')).toBe('31/02/1990');
+    expect(isIsoDate(normalizeDob('31/02/1990'))).toBe(false);
+  });
+});
+
+describe('isIsoDate', () => {
+  it.each(['1990-01-01', '2024-02-29', '2000-02-29'])('acepta %s', (value) => {
+    expect(isIsoDate(value)).toBe(true);
+  });
+
+  it.each([
+    '1990-1-1',
+    '2025-02-29',
+    '1990-13-01',
+    '1990-01-32',
+    '01/01/1990',
+    '',
+  ])('rechaza %s', (value) => {
+    expect(isIsoDate(value)).toBe(false);
   });
 });
