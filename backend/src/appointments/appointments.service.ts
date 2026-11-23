@@ -307,9 +307,10 @@ export class AppointmentsService {
           throw new BadRequestException('Already cancelled');
         }
 
+        const cancelledAt = Date.now();
         await this.appointmentModel.findByIdAndUpdate(
           appointmentId,
-          { cancelled: true },
+          { cancelled: true, cancelledAt },
           { session },
         );
         await this.availabilityService.releaseSlot(
@@ -324,7 +325,7 @@ export class AppointmentsService {
           appointmentId: String(appointment._id),
           patientId: appointment.userId,
           doctorId: appointment.docId,
-          cancelledAt: new Date(),
+          cancelledAt: new Date(cancelledAt),
         };
         await this.outbox?.append('cancelled', cancelledPayload, session);
         cancelledNotification = {

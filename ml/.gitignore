@@ -5,3 +5,6 @@ models/
 .ipynb_checkpoints/
 __pycache__/
 .venv/
+# datasets derivados de Mongo: regenerables y con datos de pacientes (pseudonimizados)
+registry/*.jsonl
+registry/dataset_manifest.json

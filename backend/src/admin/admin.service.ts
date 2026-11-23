@@ -200,8 +200,10 @@ export class AdminService {
       throw new BadRequestException('Appointment is already cancelled');
     }
 
+    const cancelledAt = Date.now();
     await this.appointmentModel.findByIdAndUpdate(appointmentId, {
       cancelled: true,
+      cancelledAt,
     });
 
     // Productor del outbox: sin transaccion → best-effort (session undefined).
@@ -209,7 +211,7 @@ export class AdminService {
       appointmentId: String(appointment._id),
       patientId: appointment.userId,
       doctorId: appointment.docId,
-      cancelledAt: new Date(),
+      cancelledAt: new Date(cancelledAt),
     };
     try {
       await this.outbox?.append('cancelled', cancelledPayload, undefined);

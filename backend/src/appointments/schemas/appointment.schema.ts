@@ -114,6 +114,15 @@ export class Appointment {
 
   @Prop({ default: false })
   isCompleted!: boolean;
+
+  // Epoch ms del cancel. Null en docs legacy: el label `cancelled < 24h` no es
+  // derivable sin él (ver src/ml-serving/features/feature-engineering.ts).
+  @Prop({ type: Number, default: null })
+  cancelledAt!: number | null;
+
+  // Marca filas de scripts/seed-appointments.ts; el dataset las excluye por defecto.
+  @Prop({ default: false })
+  isSynthetic!: boolean;
 }
 
 export const AppointmentSchema = SchemaFactory.createForClass(Appointment);
