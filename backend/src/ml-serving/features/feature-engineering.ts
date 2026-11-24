@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto';
 import type { TimeBand } from '../types';
 
 export const DAY_MS = 86_400_000;
-const HOUR_MS = 3_600_000;
+export const HOUR_MS = 3_600_000;
+
+// Antelación máxima con la que se predice (--horizon-hours de predict.ts).
+export const DEFAULT_HORIZON_HOURS = 48;
+export const PREDICTION_LEAD_MS = DEFAULT_HORIZON_HOURS * HOUR_MS;
 
 export function timeBand(date: Date): TimeBand {
   const hour = date.getHours();
@@ -79,10 +83,50 @@ export function deriveLabel(input: LabelInput, nowMs: number): 0 | 1 | null {
     if (input.cancelledAt == null) return null;
     const hoursBefore =
       (input.scheduledAt.getTime() - input.cancelledAt) / HOUR_MS;
-    return hoursBefore <= 24 ? 1 : 0;
+    return hoursBefore < 24 ? 1 : 0;
   }
   if (input.isCompleted) return 0;
   return input.scheduledAt.getTime() < nowMs ? 1 : null;
+}
+
+export interface ResolvedOutcome {
+  label: 0 | 1;
+  cancelled: boolean;
+  noShow: boolean;
+}
+
+/**
+ * Desenlace ya observable de una cita. null = no decidible (futura o cancelada
+ * sin timestamp), exactamente el mismo criterio que `deriveLabel`. Lo usan
+ * entrenamiento y serving para no divergir.
+ */
+export function outcomeOf(
+  input: LabelInput,
+  nowMs: number,
+): ResolvedOutcome | null {
+  const label = deriveLabel(input, nowMs);
+  if (label === null) return null;
+  return {
+    label,
+    cancelled: input.cancelled,
+    noShow: label === 1 && !input.cancelled,
+  };
+}
+
+/**
+ * Cuándo se conoce el desenlace: la cancelación por su timestamp, el resto al
+ * pasar el slot. El slot solo ordena; no prueba que el desenlace ya se supiera.
+ */
+export function resolvedAtMs(input: LabelInput): number {
+  if (input.cancelled && typeof input.cancelledAt === 'number') {
+    return input.cancelledAt;
+  }
+  return input.scheduledAt.getTime();
+}
+
+/** Corte de predicción de una cita: no se conocen desenlaces posteriores. */
+export function predictionCutoff(scheduledAt: Date): number {
+  return scheduledAt.getTime() - PREDICTION_LEAD_MS;
 }
 
 const ALLOWED_KEYS = new Set<string>([

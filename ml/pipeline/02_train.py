@@ -40,6 +40,9 @@ FEATURE_ORDER = (
     + NUMERIC
 )
 MIN_ROWS = 200
+MIN_PATIENTS = 10
+# Alineado con MIN_CONSENT_COVERAGE de backend/src/ml-serving/dataset/build-dataset.ts
+MIN_CONSENT_COVERAGE = 0.95
 NEURAL_ESCALATION_BELOW = 0.68
 
 
@@ -61,6 +64,8 @@ def design_matrix(frame: pd.DataFrame) -> np.ndarray:
 def group_masks(frame: pd.DataFrame, seed: int) -> dict[str, pd.Series]:
     """Split por paciente: el mismo patientKey nunca cae en dos lados."""
     patients = frame["patientKey"].drop_duplicates().to_numpy()
+    if len(patients) < MIN_PATIENTS:
+        raise ValueError(f"pacientes insuficientes: {len(patients)} < {MIN_PATIENTS}")
     shuffled = np.random.default_rng(seed).permutation(patients)
     train_end = int(len(shuffled) * 0.7)
     validation_end = int(len(shuffled) * 0.85)
@@ -146,10 +151,18 @@ def main() -> int:
     args = parser.parse_args()
 
     dataset = Path(args.dataset).resolve()
-    manifest = json.loads(dataset.with_name("dataset_manifest.json").read_text())
+    manifest_path = dataset.with_name(f"{dataset.stem}.manifest.json")
+    if not manifest_path.exists():
+        print(f"falta el manifest: {manifest_path}", file=sys.stderr)
+        return 2
+    manifest = json.loads(manifest_path.read_text())
+    expected = manifest.get("sha256")
+    if not expected:
+        print(f"manifest sin sha256: {manifest_path}", file=sys.stderr)
+        return 2
     digest = hashlib.sha256(dataset.read_bytes()).hexdigest()
-    if manifest.get("sha256") and digest != manifest["sha256"]:
-        print(f"sha256 no coincide: {digest} != {manifest['sha256']}", file=sys.stderr)
+    if digest != expected:
+        print(f"sha256 no coincide: {digest} != {expected}", file=sys.stderr)
         return 2
 
     frame = pd.read_json(dataset, lines=True)
@@ -162,7 +175,27 @@ def main() -> int:
     labels = frame["label"].astype(int).to_numpy()
     groups = frame["patientKey"].to_numpy()
     matrix = design_matrix(frame)
-    masks = group_masks(frame, args.seed)
+    try:
+        masks = group_masks(frame, args.seed)
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    # Un split sin las dos clases rompe roc_auc_score/youden: se corta antes.
+    split_problems = []
+    for split, mask in masks.items():
+        split_labels = labels[mask.to_numpy()]
+        if int(mask.sum()) == 0:
+            split_problems.append(f"{split} vacío")
+        elif len(np.unique(split_labels)) < 2:
+            split_problems.append(f"{split} con una sola clase")
+    if split_problems:
+        patients = frame["patientKey"].nunique()
+        print(
+            f"splits insuficientes ({', '.join(split_problems)}), pacientes={patients}",
+            file=sys.stderr,
+        )
+        return 2
 
     fit_mask = masks["train"] | masks["validation"]
     matrix_fit, labels_fit, groups_fit = matrix[fit_mask.to_numpy()], labels[fit_mask.to_numpy()], groups[fit_mask.to_numpy()]
@@ -205,8 +238,23 @@ def main() -> int:
     }
     holdout["logistic"]["roc"] = roc_points(labels_hold, models["logistic"].predict_proba(matrix_hold)[:, 1])
 
-    best_auc = max(holdout["logistic"]["auc"], holdout["forest"]["auc"])
-    deployable = best_auc >= args.min_auc and manifest.get("source") == "mongo"
+    logistic_auc = float(holdout["logistic"]["auc"])
+    consent_coverage = manifest.get("consentCoverage")
+    consent_ok = (
+        isinstance(consent_coverage, (int, float))
+        and consent_coverage >= MIN_CONSENT_COVERAGE
+    )
+    if not consent_ok:
+        print(
+            f"consent coverage={consent_coverage} < {MIN_CONSENT_COVERAGE} -> deployable=false",
+            file=sys.stderr,
+        )
+    # 03_export.py exporta SIEMPRE la logística: el gate mira su AUC, no el máximo.
+    deployable = (
+        logistic_auc >= args.min_auc
+        and manifest.get("source") == "mongo"
+        and consent_ok
+    )
     cv_logistic_mean = float(np.mean(cv_report["logistic"]))
 
     report = {
@@ -238,9 +286,11 @@ def main() -> int:
         "cost": cost_estimate(),
         "deployable": bool(deployable),
         "decisionReason": (
-            f"hold-out AUC {best_auc:.4f} >= {args.min_auc} sobre dataset 'mongo'"
+            f"logistic hold-out AUC {logistic_auc:.4f} >= {args.min_auc}, "
+            f"source=mongo y consent >= {MIN_CONSENT_COVERAGE}"
             if deployable
-            else f"hold-out AUC {best_auc:.4f} < {args.min_auc} o source != mongo"
+            else f"logistic hold-out AUC {logistic_auc:.4f}, "
+            f"source={manifest.get('source')}, consent={consent_coverage}"
         ),
         "neuralNetEscalationAllowed": cv_logistic_mean < NEURAL_ESCALATION_BELOW,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -260,13 +310,17 @@ def main() -> int:
         json.dumps(golden, indent=2, default=lambda value: value.item()) + "\n"
     )
 
-    call_export(models["logistic"], {
-        "modelVersion": f"model-{args.version}",
-        "trainedAt": report["generatedAt"],
-        "datasetSha256": digest,
-        "holdoutAuc": holdout["logistic"]["auc"],
-        "threshold": round(threshold, 4),
-    })
+    # Solo un run desplegable deja artefacto: nada de modelos "aparentables".
+    if deployable:
+        call_export(models["logistic"], {
+            "modelVersion": f"model-{args.version}",
+            "trainedAt": report["generatedAt"],
+            "datasetSha256": digest,
+            "holdoutAuc": holdout["logistic"]["auc"],
+            "threshold": round(threshold, 4),
+        })
+    else:
+        print("artefacto no exportado: deployable=false", file=sys.stderr)
 
     print(json.dumps({key: report[key] for key in ("crossValidation", "holdout", "cost", "deployable", "decisionReason")}, indent=2))
     if not deployable:

@@ -15,6 +15,8 @@ interface Gate {
   criterion: string;
   status: 'PASA' | 'NO PASA' | 'DESCONOCIDO';
   evidence: string;
+  /** false = informativo: se muestra pero no bloquea el veredicto. */
+  required?: boolean;
 }
 
 async function main(): Promise<void> {
@@ -24,16 +26,37 @@ async function main(): Promise<void> {
   const appointments = db.collection('appointments');
 
   const total = await appointments.countDocuments();
-  const real = await appointments.countDocuments({
-    isSynthetic: { $ne: true },
-  });
-  const userIds = (await appointments.distinct('userId')) as string[];
+  // La readiness se mide SOLO sobre citas reales: el fixture sintético nunca
+  // debe contribuir a G2/G3.
+  const realFilter = { isSynthetic: { $ne: true } };
+  const real = await appointments.countDocuments(realFilter);
+  const synthetic = total - real;
+
+  const userIds = (await appointments.distinct(
+    'userId',
+    realFilter,
+  )) as string[];
   const granted = await loadGrantedMlConsentUserIds(db);
   const consented = userIds.filter((id) => granted.has(id)).length;
   const coverage = userIds.length === 0 ? 0 : consented / userIds.length;
 
-  const cancelled = await appointments.countDocuments({ cancelled: true });
+  const syntheticUserIds = (await appointments.distinct('userId', {
+    isSynthetic: true,
+  })) as string[];
+  const syntheticConsented = syntheticUserIds.filter((id) =>
+    granted.has(id),
+  ).length;
+  const syntheticCoverage =
+    syntheticUserIds.length === 0
+      ? 0
+      : syntheticConsented / syntheticUserIds.length;
+
+  const cancelled = await appointments.countDocuments({
+    ...realFilter,
+    cancelled: true,
+  });
   const cancelledWithTimestamp = await appointments.countDocuments({
+    ...realFilter,
     cancelled: true,
     cancelledAt: { $type: 'number' },
   });
@@ -43,7 +66,7 @@ async function main(): Promise<void> {
   const now = Date.now();
   let positives = 0;
   let decidable = 0;
-  for (const doc of await appointments.find({}).limit(5000).toArray()) {
+  for (const doc of await appointments.find(realFilter).limit(5000).toArray()) {
     const label = deriveLabel(
       {
         cancelled: Boolean(doc.cancelled),
@@ -63,17 +86,24 @@ async function main(): Promise<void> {
       id: 'G1',
       criterion: `appointments reales >= ${MIN_VOLUME}`,
       status: real >= MIN_VOLUME ? 'PASA' : 'NO PASA',
-      evidence: `reales=${real} sinteticos=${total - real} total=${total}`,
+      evidence: `reales=${real} sinteticos=${synthetic} total=${total}`,
     },
     {
       id: 'G2',
-      criterion: `consent ml_training >= ${MIN_CONSENT * 100}% de pacientes`,
+      criterion: `consent ml_training >= ${MIN_CONSENT * 100}% de pacientes reales`,
       status: coverage >= MIN_CONSENT ? 'PASA' : 'NO PASA',
       evidence: `pacientes=${userIds.length} con_consent=${consented} cobertura=${(coverage * 100).toFixed(2)}%`,
     },
     {
+      id: 'G2s',
+      criterion: 'consent ml_training en pacientes sinteticos (informativo)',
+      status: 'PASA',
+      required: false,
+      evidence: `pacientes_sinteticos=${syntheticUserIds.length} con_consent=${syntheticConsented} cobertura=${(syntheticCoverage * 100).toFixed(2)}%`,
+    },
+    {
       id: 'G3',
-      criterion: `cancelledAt en >= ${MIN_LABEL_COVERAGE * 100}% de canceladas`,
+      criterion: `cancelledAt en >= ${MIN_LABEL_COVERAGE * 100}% de canceladas reales`,
       status: labelCoverage >= MIN_LABEL_COVERAGE ? 'PASA' : 'NO PASA',
       evidence: `canceladas=${cancelled} con_timestamp=${cancelledWithTimestamp}`,
     },
@@ -81,6 +111,7 @@ async function main(): Promise<void> {
       id: 'G3b',
       criterion: 'label_rate en muestra decidible (informativo)',
       status: 'PASA',
+      required: false,
       evidence: `decidibles=${decidable} positivas=${positives} rate=${decidable === 0 ? 'n/a' : (positives / decidable).toFixed(4)}`,
     },
     {
@@ -98,7 +129,10 @@ async function main(): Promise<void> {
     },
   ];
 
-  const blocked = gates.some((gate) => gate.status === 'NO PASA');
+  // Solo bloquean los gates requeridos: un gate DESCONOCIDO no es un pase.
+  const blocked = gates.some(
+    (gate) => gate.required !== false && gate.status !== 'PASA',
+  );
 
   if (args.has('--json')) {
     console.log(JSON.stringify({ blocked, gates }, null, 2));

@@ -81,13 +81,15 @@ async function main(): Promise<void> {
     return docs.map((doc) => String(doc._id));
   };
 
-  const userIds = await sampleIds('users', patients);
+  // Pacientes sintéticos propios: nunca se escribe un consent ml_training para
+  // un usuario real (ni para los que lo tuvieran revocado).
+  const userIds = Array.from({ length: patients }, () =>
+    String(new mongoose.Types.ObjectId()),
+  );
   const docIds = await sampleIds(
     'doctors',
     Math.max(1, Math.round(patients / 10)),
   );
-  while (userIds.length < patients)
-    userIds.push(String(new mongoose.Types.ObjectId()));
   if (docIds.length === 0) docIds.push(String(new mongoose.Types.ObjectId()));
 
   if (withConsent) {
@@ -159,7 +161,10 @@ async function main(): Promise<void> {
     `Seed: ${docs.length} appointments isSynthetic=true en ${db.databaseName}` +
       (withConsent ? ', con consent ml_training/seed.' : ' sin consents.'),
   );
-  console.log('Rollback: pnpm ml:seed -- --purge');
+  // el rollback debe apuntar a la MISMA base, incluida la de por defecto
+  console.log(
+    `Rollback: pnpm ml:seed -- --purge --db ${JSON.stringify(db.databaseName)}`,
+  );
   await mongoose.disconnect();
 }
 

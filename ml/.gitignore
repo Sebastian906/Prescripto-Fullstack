@@ -8,3 +8,4 @@ __pycache__/
 # datasets derivados de Mongo: regenerables y con datos de pacientes (pseudonimizados)
 registry/*.jsonl
 registry/dataset_manifest.json
+registry/*.manifest.json

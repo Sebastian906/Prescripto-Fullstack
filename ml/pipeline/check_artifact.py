@@ -1,19 +1,31 @@
 """assert-based: el artefacto reproduce la probabilidad de sklearn para la misma fila."""
-import json, sys, numpy as np
+import json, math, sys
 from pathlib import Path
-from scipy.special import expit  # o math.exp
+
+
+def expit(z: float) -> float:
+    """sigmoid con la stdlib; estable para |z| grande, donde math.exp desborda."""
+    if z >= 0:
+        return 1.0 / (1.0 + math.exp(-z))
+    positive = math.exp(z)
+    return positive / (1.0 + positive)
+
 
 def predict(artifact, row: dict) -> float:
-    vec = []
-    for name in artifact["featureOrder"]:
+    z = float(artifact["intercept"])
+    for index, name in enumerate(artifact["featureOrder"]):
         if name.startswith("timeBand="):
-            vec.append(1.0 if name == f"timeBand={row['timeBand']}" else 0.0)
+            raw = 1.0 if name == f"timeBand={row['timeBand']}" else 0.0
         elif name.startswith("weekday="):
-            vec.append(1.0 if name == f"weekday={row['weekday']}" else 0.0)
+            raw = 1.0 if name == f"weekday={row['weekday']}" else 0.0
         else:
-            vec.append(float(row[name]))
-    x = (np.array(vec) - np.array(artifact["scaler"]["mean"])) / np.array(artifact["scaler"]["scale"])
-    return float(expit(x @ np.array(artifact["coef"]) + artifact["intercept"]))
+            raw = float(row[name])
+        normalized = (
+            raw - artifact["scaler"]["mean"][index]
+        ) / artifact["scaler"]["scale"][index]
+        z += artifact["coef"][index] * normalized
+    return expit(z)
+
 
 if __name__ == "__main__":
     art = json.loads(Path(sys.argv[1]).read_text())

@@ -83,10 +83,9 @@ async function main(): Promise<void> {
       'features: IDs pseudonimizados + bandas; cero PHI',
     ],
   };
-  writeFileSync(
-    `${dirname(out)}/dataset_manifest.json`,
-    `${JSON.stringify(manifest, null, 2)}\n`,
-  );
+  // Manifest por dataset: dos builds con --out distintos no se pisan.
+  const manifestPath = `${out.replace(/\.jsonl?$/i, '')}.manifest.json`;
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
   console.log(
     `${version}: ${rows.length} filas (${dropped} descartadas), ` +

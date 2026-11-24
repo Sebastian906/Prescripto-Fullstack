@@ -106,6 +106,21 @@ describe('deriveLabel', () => {
     ).toBe(0);
   });
 
+  it('frontera: 24h exactas negativa, 23h positiva', () => {
+    const at = (hoursBefore: number): 0 | 1 | null =>
+      deriveLabel(
+        {
+          cancelled: true,
+          cancelledAt: scheduled.getTime() - hoursBefore * 3_600_000,
+          isCompleted: false,
+          scheduledAt: scheduled,
+        },
+        now,
+      );
+    expect(at(24)).toBe(0);
+    expect(at(23)).toBe(1);
+  });
+
   it('cancelada sin timestamp -> no decidible', () => {
     expect(
       deriveLabel(
