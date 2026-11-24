@@ -194,9 +194,11 @@ export class DoctorsService {
       throw new BadRequestException('Appointment is already cancelled');
     }
 
+    const cancelledAt = Date.now();
     await this.appointmentModel.findByIdAndUpdate(appointmentId, {
       cancelled: true,
       cancellationReason: reason ?? '',
+      cancelledAt,
     });
 
     // slots_booked is read-only: release only via Availability ($pull atómico).
@@ -218,7 +220,7 @@ export class DoctorsService {
       appointmentId: String(appointment._id),
       patientId: appointment.userId,
       doctorId: appointment.docId,
-      cancelledAt: new Date(),
+      cancelledAt: new Date(cancelledAt),
     };
     try {
       await this.outbox?.append('cancelled', cancelledPayload, undefined);

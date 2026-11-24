@@ -1,0 +1,42 @@
+name: ml
+
+on:
+  push:
+    branches: [main]
+    paths: ['ml/**', '.github/workflows/ml.yml']
+  pull_request:
+    paths: ['ml/**', '.github/workflows/ml.yml']
+
+concurrency:
+  group: ml-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ml:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ml
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: ml/requirements.txt
+
+      - name: Instalar dependencias de runtime
+        run: pip install -r requirements.txt
+
+      # El límite arquitectónico del piloto: ml/ es Python y nada más.
+      - name: Frontera ml/ (solo Python)
+        run: |
+          if git ls-files -- '*.ts' '*.tsx' 'package.json' | grep -q .; then
+            echo "ml/ debe contener solo Python; el serving vive en backend/src/ml-serving"
+            exit 1
+          fi
+
+      - name: Smoke del pipeline (fixture sintético)
+        run: python -m unittest discover -s tests -v
