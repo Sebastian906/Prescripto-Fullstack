@@ -410,6 +410,21 @@ Contrato de API:
 └── GET /api/admin/specialities
 ```
 
+### Almacén de características (Feature Store) (en espera, no implementado)
+
+Estado: solo diseño. Sin código, sin recopilación, sin programador de tareas (scheduler).
+
+Activador (cualquiera de los dos, antes de iniciar cualquier trabajo):
+- estricto: archivo `ml/registry/metrics.json` firmado con `holdout.logistic.auc >= 0.70`
+- flexible: número real de `appointments` (citas) > 100 mil, o una ejecución nocturna de `pnpm ml:predict` con una duración > 10 minutos
+
+Estructura (en caso de activarse): `$match`/`$project` de MongoDB + `$group` por paciente →
+un documento de características por cita, cada noche → puntuación por lotes (batch scoring) mediante el artefacto `score.ts` existente. El pipeline alimenta al generador de características en TypeScript; no reimplementa `deriveLabel` (`ml-serving/features/feature-engineering.ts`).
+
+Descartado: Spark/MapReduce. El pipeline de agregación proporciona el paralelismo necesario para este volumen; utilizar un clúster para una tarea que tarda unos pocos segundos supone una sobrecarga innecesaria. No se reconsiderará a menos que surjan pruebas que lo justifiquen (más de 10 millones de filas o la necesidad de realizar uniones/joins verdaderamente distribuidos).
+
+Recordatorio: los conjuntos de datos externos en `ml/data/` no se tienen en cuenta para el activador.
+
 #### 8. **Servicio de Reportes**
 **Responsabilidad**: Generación de reportes y exportación de datos
 
