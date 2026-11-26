@@ -416,9 +416,11 @@ Lista canónica y siempre actualizada: [`backend/.env.example`](./backend/.env.e
 
     cp backend/.env.example backend/.env   # luego completa los valores localmente; nunca los subas al repositorio
 
-Los procesos de ML fuera de línea (`pnpm ml:gates` / `ml:dataset` / `ml:predict` / `ml:seed`) leen
-`MONGODB_DB`, `ML_SEED_ALLOW`, `ML_REMINDER_DRIVER` y `ML_FEATURE_STORE_ENABLED`
-desde este mismo archivo. Consulta `ml/README-ES.md`.
+Los procesos de ML fuera de línea (`pnpm ml:gates` / `ml:dataset` / `ml:predict` / `ml:seed`) también
+leen `MONGODB_DB` y `ML_FEATURE_STORE_ENABLED` desde este mismo archivo. Los guardas de seed y de
+recordatorios (`ML_SEED_ALLOW`, `ML_REMINDER_DRIVER`) se leen del entorno y por defecto toman la ruta
+segura: el seed se rechaza y la predicción termina hasta que el driver se defina explícitamente.
+Consulta `ml/README-ES.md`.
 
 ### Frontend / Admin / Chat
 Consulta `frontend/.env.example`, `admin/.env.example` y `chat/.env.example`.

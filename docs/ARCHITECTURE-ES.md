@@ -414,9 +414,12 @@ Contrato de API:
 
 Estado: solo diseño. Sin código, sin recopilación, sin programador de tareas (scheduler).
 
-Activador (cualquiera de los dos, antes de iniciar cualquier trabajo):
-- estricto: archivo `ml/registry/metrics.json` firmado con `holdout.logistic.auc >= 0.70`
-- flexible: número real de `appointments` (citas) > 100 mil, o una ejecución nocturna de `pnpm ml:predict` con una duración > 10 minutos
+Activador (se exigen todas las condiciones, antes de iniciar cualquier trabajo):
+- archivo `ml/registry/metrics.json` firmado con `holdout.logistic.auc >= 0.70`
+- número real de `appointments` (citas) > 100 mil (`isSynthetic: { $ne: true }`)
+
+Se exigen ambas; ninguna sustituye a la otra. La duración de la ejecución nocturna
+de `pnpm ml:predict` se registra como observación, no como activador.
 
 Estructura (en caso de activarse): `$match`/`$project` de MongoDB + `$group` por paciente →
 un documento de características por cita, cada noche → puntuación por lotes (batch scoring) mediante el artefacto `score.ts` existente. El pipeline alimenta al generador de características en TypeScript; no reimplementa `deriveLabel` (`ml-serving/features/feature-engineering.ts`).

@@ -413,9 +413,12 @@ API Contract:
 
 Status: design only. No code, no collection, no scheduler.
 
-Trigger (both, before any work):
-- hard: signed `ml/registry/metrics.json` with `holdout.logistic.auc >= 0.70`
-- soft: real `appointments` > 100k, or a nightly `pnpm ml:predict` run > 10 min
+Trigger (all of the following, before any work):
+- signed `ml/registry/metrics.json` with `holdout.logistic.auc >= 0.70`
+- real `appointments` > 100k (`isSynthetic: { $ne: true }`)
+
+Both are required; neither substitutes for the other. Nightly `pnpm ml:predict`
+runtime is recorded as an observation, not as a trigger.
 
 Shape if it ever fires: Mongo `$match`/`$project` + per-patient `$group` →
 one feature doc per appointment per night → batch scoring with the existing

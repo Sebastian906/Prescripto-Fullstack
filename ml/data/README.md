@@ -16,12 +16,19 @@ Spanish version: [`README-ES.md`](./README-ES.md).
 
 Mapping to the pilot features:
   PatientId      → patientKey = sha256(PatientId)[0:12]
-  ScheduledDay   → date (booking creation) → leadTimeDays
-  AppointmentDay → scheduledDay
+  ScheduledDay   → booking timestamp → leadTimeDays only
+  AppointmentDay → scheduledDay (slot date)
+  AppointmentDay → weekday (slot weekday)
   No-show        → label 1 (Yes). Note: inverted relative to `isCompleted`.
-  ScheduledDay   → timeBand, weekday
   priorCount / priorCancelRate / priorNoShowRate → derived per PatientId in
   chronological order.
+
+`timeBand` is NOT mappable. The pilot derives it from the slot hour via
+`slotDateTime(slotDate, slotTime)` (`ml-serving/dataset/rows.ts:112`,
+`ml-serving/predict.ts:109`). This dataset stores only a date (`AppointmentDay`,
+no time), so a band built from `ScheduledDay` would be the booking hour, not the
+slot hour. Train external experiments without `timeBand`; do not substitute one
+band for the other.
 
 Forbidden as features: `Gender`, `Neighbourhood`, `Age` (see `ml/README-ES.md`).
 This dataset ships them; drop them explicitly.

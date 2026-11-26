@@ -416,9 +416,11 @@ Canonical, always-current list: [`backend/.env.example`](./backend/.env.example)
 
     cp backend/.env.example backend/.env   # then fill locally, never commit
 
-Offline ML jobs (`pnpm ml:gates` / `ml:dataset` / `ml:predict` / `ml:seed`) read
-`MONGODB_DB`, `ML_SEED_ALLOW`, `ML_REMINDER_DRIVER`, `ML_FEATURE_STORE_ENABLED`
-from the same file. See `ml/README-ES.md`.
+Offline ML jobs (`pnpm ml:gates` / `ml:dataset` / `ml:predict` / `ml:seed`) also
+read `MONGODB_DB` and `ML_FEATURE_STORE_ENABLED` from the same file. The seed and
+reminder guards (`ML_SEED_ALLOW`, `ML_REMINDER_DRIVER`) are read from the
+environment and default to the safe path: seeding is refused and prediction exits
+until the driver is set explicitly. See `ml/README-ES.md`.
 
 ### Frontend / Admin / Chat
 See `frontend/.env.example`, `admin/.env.example`, `chat/.env.example`.

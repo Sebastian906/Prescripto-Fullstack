@@ -14,12 +14,19 @@ externos de otro país y otro sistema.
 
 Mapeo a las features del piloto:
   PatientId     → patientKey = sha256(PatientId)[0:12]
-  ScheduledDay  → date (creación de la reserva) → leadTimeDays
-  AppointmentDay→ scheduledDay
+  ScheduledDay  → marca de tiempo de la reserva → solo leadTimeDays
+  AppointmentDay→ scheduledDay (fecha del turno)
+  AppointmentDay→ weekday (día de la semana del turno)
   No-show       → label 1 (Yes). Ojo: invertido respecto a `isCompleted`.
-  ScheduledDay  → timeBand, weekday
   priorCount / priorCancelRate / priorNoShowRate → derivadas por PatientId en
   orden cronológico.
+
+`timeBand` NO es mapeable. El piloto la deriva de la hora del turno mediante
+`slotDateTime(slotDate, slotTime)` (`ml-serving/dataset/rows.ts:112`,
+`ml-serving/predict.ts:109`). Este dataset solo guarda una fecha
+(`AppointmentDay`, sin hora), así que una banda construida desde `ScheduledDay`
+sería la hora de la reserva, no la del turno. Entrena experimentos externos sin
+`timeBand`; no sustituyas una banda por la otra.
 
 Prohibido como feature: `Gender`, `Neighbourhood`, `Age` (ver ml/README-ES.md).
 Este dataset los trae; hay que descartarlos explícitamente.
