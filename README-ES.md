@@ -411,68 +411,19 @@ El microservicio en Go proporciona:
 
 ### Backend (.env)
 
-```
-# Aplicación
-PORT=3000
-NODE_ENV=development
+Lista canónica y siempre actualizada: [`backend/.env.example`](./backend/.env.example)
+(solo contiene marcadores de posición; nunca incluyas secretos reales).
 
-# Base de Datos
-MONGODB_URI=mongodb://localhost:27017/prescripto
-POSTGRES_URL=postgresql://user:password@localhost:5432/prescripto
+    cp backend/.env.example backend/.env   # luego completa los valores localmente; nunca los subas al repositorio
 
-# Autenticación
-JWT_SECRET=tu_clave_secreta_jwt
-JWT_EXPIRY=7d
+Los procesos de ML fuera de línea (`pnpm ml:gates` / `ml:dataset` / `ml:predict` / `ml:seed`) también
+leen `MONGODB_DB` y `ML_FEATURE_STORE_ENABLED` desde este mismo archivo. Los guardas de seed y de
+recordatorios (`ML_SEED_ALLOW`, `ML_REMINDER_DRIVER`) se leen del entorno y por defecto toman la ruta
+segura: el seed se rechaza y la predicción termina hasta que el driver se defina explícitamente.
+Consulta `ml/README-ES.md`.
 
-# Credenciales OAuth
-GOOGLE_CLIENT_ID=tu_google_client_id
-GOOGLE_CLIENT_SECRET=tu_google_client_secret
-FACEBOOK_APP_ID=tu_facebook_app_id
-FACEBOOK_APP_SECRET=tu_facebook_app_secret
-
-# Servicio de Correo
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USER=tu_email@gmail.com
-MAIL_PASS=tu_contraseña_app
-
-# Almacenamiento en la Nube
-CLOUDINARY_NAME=tu_cloudinary_name
-CLOUDINARY_API_KEY=tu_api_key
-CLOUDINARY_API_SECRET=tu_api_secret
-
-# Procesamiento de Pagos
-STRIPE_PUBLIC_KEY=tu_stripe_public_key
-STRIPE_SECRET_KEY=tu_stripe_secret_key
-
-# URLs del Frontend
-FRONTEND_URL=http://localhost:5173
-ADMIN_URL=http://localhost:5174
-```
-
-### Frontend (.env)
-
-```
-VITE_BACKEND_URL=http://localhost:3000
-VITE_CHAT_SERVICE_URL=ws://localhost:4000
-VITE_STRIPE_PUBLIC_KEY=tu_stripe_public_key
-```
-
-### Panel de Administración (.env)
-
-```
-VITE_BACKEND_URL=http://localhost:3000
-VITE_CHAT_SERVICE_URL=ws://localhost:4000
-```
-
-### Microservicio de Chat (.env)
-
-```
-CHAT_PORT=4000
-MONGODB_URI=mongodb://localhost:27017/prescripto-chat
-JWT_SECRET=tu_clave_secreta_jwt
-NODE_ENV=development
-```
+### Frontend / Admin / Chat
+Consulta `frontend/.env.example`, `admin/.env.example` y `chat/.env.example`.
 
 ## Documentación de API
 

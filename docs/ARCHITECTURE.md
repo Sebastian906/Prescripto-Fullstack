@@ -409,6 +409,28 @@ API Contract:
 └── GET /api/admin/specialities
 ```
 
+### Feature Store (icebox, not built)
+
+Status: design only. No code, no collection, no scheduler.
+
+Trigger (all of the following, before any work):
+- signed `ml/registry/metrics.json` with `holdout.logistic.auc >= 0.70`
+- real `appointments` > 100k (`isSynthetic: { $ne: true }`)
+
+Both are required; neither substitutes for the other. Nightly `pnpm ml:predict`
+runtime is recorded as an observation, not as a trigger.
+
+Shape if it ever fires: Mongo `$match`/`$project` + per-patient `$group` →
+one feature doc per appointment per night → batch scoring with the existing
+`score.ts` artifact. The pipeline feeds the TS feature builder; it does not
+reimplement `deriveLabel` (`ml-serving/features/feature-engineering.ts`).
+
+Rejected: Spark/MapReduce. The aggregation pipeline is the parallelism at this
+volume; a cluster for a single-digit-second job is pure overhead. No revisit
+without evidence (>10M rows or genuinely distributed joins).
+
+Reminder: external datasets in `ml/data/` never count toward the trigger.
+
 #### 8. **Reports Service**
 **Responsibility**: Report generation and data export
 

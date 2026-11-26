@@ -61,3 +61,4 @@ python pipeline/check_artifact.py registry/model-v0.1.0.json registry/golden.jso
 - La firma humana va en `metrics.json > signOff`; sin ella el backend no puntúa.
 - Prohibido usar Gender, Neighbourhood, Age ni cualquier texto libre como feature (el notebook antiguo los usaba: corregido en `02_train.py`).
 - Redes neuronales solo si `neuralNetEscalationAllowed: true` (LR CV AUC < 0.68).
+- F-04 (feature store) se queda en espera: revisar `docs/ARCHITECTURE-ES.md`.

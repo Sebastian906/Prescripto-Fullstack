@@ -144,6 +144,24 @@ jobs:
       # este scope sigue verde y el e2e queda fuera de CI (<8min).
       - run: go test ./internal/bot/... ./internal/auth/... ./internal/config/... ./internal/socket/... -count=1
 
+  ml:
+    name: ml / unittest
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: guard-pnpm
+    defaults:
+      run:
+        working-directory: ml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ml/requirements.lock.txt
+      - run: pip install -r requirements.lock.txt
+      - run: python -m unittest discover -s tests -v
+
   botcheck:
     name: botcheck / golden-intent A-03
     runs-on: ubuntu-latest

@@ -1,4 +1,6 @@
-data/
+data/*
+!data/README.md
+!data/README-ES.md
 *.zip
 *.parquet
 models/

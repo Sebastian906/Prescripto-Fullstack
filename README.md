@@ -411,68 +411,19 @@ The Go microservice provides:
 
 ### Backend (.env)
 
-```
-# Application
-PORT=3000
-NODE_ENV=development
+Canonical, always-current list: [`backend/.env.example`](./backend/.env.example)
+(placeholders only — never put real secrets there).
 
-# Database
-MONGODB_URI=mongodb://localhost:27017/prescripto
-POSTGRES_URL=postgresql://user:password@localhost:5432/prescripto
+    cp backend/.env.example backend/.env   # then fill locally, never commit
 
-# Authentication
-JWT_SECRET=your_jwt_secret_key
-JWT_EXPIRY=7d
+Offline ML jobs (`pnpm ml:gates` / `ml:dataset` / `ml:predict` / `ml:seed`) also
+read `MONGODB_DB` and `ML_FEATURE_STORE_ENABLED` from the same file. The seed and
+reminder guards (`ML_SEED_ALLOW`, `ML_REMINDER_DRIVER`) are read from the
+environment and default to the safe path: seeding is refused and prediction exits
+until the driver is set explicitly. See `ml/README-ES.md`.
 
-# OAuth Credentials
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-FACEBOOK_APP_ID=your_facebook_app_id
-FACEBOOK_APP_SECRET=your_facebook_app_secret
-
-# Email Service
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USER=your_email@gmail.com
-MAIL_PASS=your_app_password
-
-# Cloud Storage
-CLOUDINARY_NAME=your_cloudinary_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-
-# Payment Processing
-STRIPE_PUBLIC_KEY=your_stripe_public_key
-STRIPE_SECRET_KEY=your_stripe_secret_key
-
-# Frontend URLs
-FRONTEND_URL=http://localhost:5173
-ADMIN_URL=http://localhost:5174
-```
-
-### Frontend (.env)
-
-```
-VITE_BACKEND_URL=http://localhost:3000
-VITE_CHAT_SERVICE_URL=ws://localhost:4000
-VITE_STRIPE_PUBLIC_KEY=your_stripe_public_key
-```
-
-### Admin Panel (.env)
-
-```
-VITE_BACKEND_URL=http://localhost:3000
-VITE_CHAT_SERVICE_URL=ws://localhost:4000
-```
-
-### Chat Microservice (.env)
-
-```
-CHAT_PORT=4000
-MONGODB_URI=mongodb://localhost:27017/prescripto-chat
-JWT_SECRET=your_jwt_secret_key
-NODE_ENV=development
-```
+### Frontend / Admin / Chat
+See `frontend/.env.example`, `admin/.env.example`, `chat/.env.example`.
 
 ## API Documentation
 
